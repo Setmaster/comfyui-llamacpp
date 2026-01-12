@@ -616,9 +616,18 @@ class LlamaCppServerManager:
                     except Exception:
                         output = ""
 
-                    error = f"Router crashed during startup (exit code: {self._process.returncode})"
-                    if output:
-                        error += f"\n\nServer output:\n{output[:2000]}"
+                    # Check for unsupported router mode
+                    if "invalid argument: --models-dir" in output:
+                        error = (
+                            "Router mode not supported by your llama-server version.\n\n"
+                            "Router mode requires llama.cpp build b7389 or later (December 2025+).\n"
+                            "Please update llama.cpp: https://github.com/ggml-org/llama.cpp/releases\n\n"
+                            "For now, use 'Start llama.cpp Server' (single-model mode) instead."
+                        )
+                    else:
+                        error = f"Router crashed during startup (exit code: {self._process.returncode})"
+                        if output:
+                            error += f"\n\nServer output:\n{output[:2000]}"
 
                     self._status = ServerStatus.ERROR
                     self._last_error = error

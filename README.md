@@ -256,7 +256,7 @@ Ensure llama.cpp is installed and `llama-server` is in your system PATH.
 The `thinking` output only contains content for models that support reasoning mode (like Qwen3-Thinking, DeepSeek-R1). Standard instruct models won't produce thinking output.
 
 ### Router mode not working
-Router mode requires a recent version of llama.cpp with router support. Update to the latest version if you encounter issues.
+Router mode requires **llama.cpp build b7389 or later** (December 2025+). If you see "invalid argument: --models-dir", your llama-server version is too old. Update from the [releases page](https://github.com/ggml-org/llama.cpp/releases). Until then, use single-model mode.
 
 ## License
 
