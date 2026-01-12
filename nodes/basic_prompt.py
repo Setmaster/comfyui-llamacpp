@@ -141,9 +141,11 @@ class LlamaCppBasicPrompt:
         if not prompt.strip():
             return ("", "")
 
+        # Get server manager
+        manager = get_server_manager()
+
         # Determine server URL
         if not server_url.strip():
-            manager = get_server_manager()
             if not manager.is_running:
                 error_msg = "Error: No server running. Use 'Start llama.cpp Server' or 'Start llama.cpp Router' first."
                 print(f"[llama.cpp] {error_msg}")
