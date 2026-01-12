@@ -141,11 +141,9 @@ class LlamaCppAdvPrompt:
             }
         }
 
-        # Add dynamic image inputs
-        for i in range(1, cls.MAX_IMAGES + 1):
-            inputs["optional"][f"image_{i}"] = ("IMAGE", {
-                "tooltip": f"Optional image {i} for vision models"
-            })
+        # Note: Image inputs (image_1, image_2, etc.) are created dynamically
+        # by the JavaScript extension based on the image_amount widget.
+        # They are captured via **kwargs in the generate() method.
 
         return inputs
 
