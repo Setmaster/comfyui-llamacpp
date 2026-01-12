@@ -171,7 +171,28 @@ class LlamaCppBasicPrompt:
         # Add model if specified (for router mode)
         # Skip if it's the placeholder value or empty
         if model and model.strip() and model != "(use running model)":
-            payload["model"] = model.strip()
+            model_name = model.strip()
+
+            # In router mode, try to find matching model from server's discovered models
+            if manager.is_router_mode:
+                success, models, _ = manager.list_models()
+                if success and models:
+                    # Try to find a matching model by filename
+                    matched_id = None
+                    for m in models:
+                        if isinstance(m, dict):
+                            model_id = m.get("id") or m.get("model") or ""
+                            model_path = m.get("path", "")
+                            # Match by exact id, or by filename in path
+                            if model_id == model_name or model_path.endswith(model_name) or model_name in model_id:
+                                matched_id = model_id
+                                break
+
+                    if matched_id and matched_id != model_name:
+                        print(f"[llama.cpp] Mapped model '{model_name}' -> '{matched_id}'")
+                        model_name = matched_id
+
+            payload["model"] = model_name
 
         # Add seed
         payload["seed"] = seed
@@ -184,8 +205,8 @@ class LlamaCppBasicPrompt:
         endpoint = f"{server_url}/v1/chat/completions"
 
         print(f"[llama.cpp] Generating response...")
-        if model and model.strip() and model != "(use running model)":
-            print(f"[llama.cpp] Model: {model.strip()}")
+        if "model" in payload:
+            print(f"[llama.cpp] Model: {payload['model']}")
         print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
         
         try:

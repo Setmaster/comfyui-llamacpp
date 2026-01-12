@@ -669,17 +669,39 @@ class LlamaCppServerManager:
         if not self.is_running:
             return (False, None, "Server not running")
 
+        import requests
+
+        # Try /models first (router mode native endpoint)
         try:
-            import requests
             response = requests.get(f"{self.server_url}/models", timeout=10)
             response.raise_for_status()
             data = response.json()
 
-            # Handle both /models and /v1/models response formats
+            # Handle response format
             if "data" in data:
                 models = data["data"]
+            elif isinstance(data, list):
+                models = data
             else:
-                models = data if isinstance(data, list) else []
+                models = []
+
+            return (True, models, None)
+
+        except requests.exceptions.RequestException:
+            pass  # Try fallback
+
+        # Fallback to /v1/models (OpenAI-compatible endpoint)
+        try:
+            response = requests.get(f"{self.server_url}/v1/models", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if "data" in data:
+                models = data["data"]
+            elif isinstance(data, list):
+                models = data
+            else:
+                models = []
 
             return (True, models, None)
 
@@ -704,22 +726,57 @@ class LlamaCppServerManager:
         if not self.is_router_mode:
             return (False, "Server not in router mode")
 
-        try:
-            import requests
-            response = requests.post(
-                f"{self.server_url}/models/load",
-                json={"model": model_name},
-                timeout=300  # Loading can take a while
-            )
-            response.raise_for_status()
-            print(f"[llama.cpp] Model loaded: {model_name}")
-            return (True, None)
+        import requests
 
-        except requests.exceptions.RequestException as e:
-            error = f"Failed to load model: {e}"
-            return (False, error)
+        # Try POST /models with model in body (some versions)
+        endpoints_to_try = [
+            (f"{self.server_url}/models", {"model": model_name}),
+            (f"{self.server_url}/models/load", {"model": model_name}),
+        ]
+
+        last_error = None
+        for endpoint, payload in endpoints_to_try:
+            try:
+                print(f"[llama.cpp] Trying to load model via: POST {endpoint}")
+                response = requests.post(
+                    endpoint,
+                    json=payload,
+                    timeout=300  # Loading can take a while
+                )
+                response.raise_for_status()
+                print(f"[llama.cpp] Model loaded: {model_name}")
+                return (True, None)
+
+            except requests.exceptions.HTTPError as e:
+                last_error = f"HTTP {e.response.status_code}: {e.response.text[:200] if e.response.text else str(e)}"
+                if e.response.status_code == 404:
+                    continue  # Try next endpoint
+                return (False, last_error)
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                continue
+
+        # If autoload is enabled, we can just make a request to trigger loading
+        # Try making a simple completion request to trigger autoload
+        print(f"[llama.cpp] Load endpoints not available, trying to trigger autoload...")
+        try:
+            response = requests.post(
+                f"{self.server_url}/v1/chat/completions",
+                json={
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": "test"}],
+                    "max_tokens": 1
+                },
+                timeout=300
+            )
+            if response.status_code == 200:
+                print(f"[llama.cpp] Model auto-loaded via request: {model_name}")
+                return (True, None)
+            else:
+                error = f"Autoload failed: HTTP {response.status_code}"
+                return (False, error)
         except Exception as e:
-            return (False, f"Error: {e}")
+            return (False, f"Load failed (no load endpoint, autoload failed): {last_error or str(e)}")
 
     def unload_model(self, model_name: str) -> Tuple[bool, Optional[str]]:
         """
@@ -737,22 +794,42 @@ class LlamaCppServerManager:
         if not self.is_router_mode:
             return (False, "Server not in router mode")
 
-        try:
-            import requests
-            response = requests.post(
-                f"{self.server_url}/models/unload",
-                json={"model": model_name},
-                timeout=30
-            )
-            response.raise_for_status()
-            print(f"[llama.cpp] Model unloaded: {model_name}")
-            return (True, None)
+        import requests
 
-        except requests.exceptions.RequestException as e:
-            error = f"Failed to unload model: {e}"
-            return (False, error)
-        except Exception as e:
-            return (False, f"Error: {e}")
+        # Try different endpoint variations
+        endpoints_to_try = [
+            f"{self.server_url}/models/unload",
+            f"{self.server_url}/models",  # DELETE method
+        ]
+
+        for endpoint in endpoints_to_try:
+            try:
+                if endpoint.endswith("/models"):
+                    # Try DELETE method
+                    response = requests.delete(
+                        endpoint,
+                        json={"model": model_name},
+                        timeout=30
+                    )
+                else:
+                    response = requests.post(
+                        endpoint,
+                        json={"model": model_name},
+                        timeout=30
+                    )
+                response.raise_for_status()
+                print(f"[llama.cpp] Model unloaded: {model_name}")
+                return (True, None)
+
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    continue  # Try next endpoint
+                error = f"HTTP {e.response.status_code}: {e.response.text[:200] if e.response.text else str(e)}"
+                return (False, error)
+            except requests.exceptions.RequestException:
+                continue
+
+        return (False, "Unload endpoint not available in this llama-server version")
 
     def get_status_info(self) -> Dict[str, Any]:
         """Get detailed status information"""

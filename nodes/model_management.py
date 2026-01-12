@@ -58,9 +58,13 @@ class LlamaCppListModels:
         model_names = []
         for m in models:
             if isinstance(m, dict):
-                name = m.get("id") or m.get("name") or m.get("model") or str(m)
-                status = m.get("state", "unknown")
-                model_names.append(f"{name} ({status})")
+                model_id = m.get("id") or m.get("name") or m.get("model") or str(m)
+                status = m.get("state") or m.get("status") or "unknown"
+                path = m.get("path", "")
+                model_names.append(f"{model_id} ({status})")
+                # Debug: show path mapping
+                if path:
+                    print(f"[llama.cpp] Model: id='{model_id}' path='{path}' status={status}")
             else:
                 model_names.append(str(m))
 
