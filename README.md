@@ -7,6 +7,7 @@ A modular llama.cpp integration for ComfyUI, providing clean and extensible node
 - **Single Model Mode** - Launch llama-server with a specific model
 - **Router Mode** - Multi-model support with dynamic loading/unloading (LRU eviction)
 - **Basic Prompt** - Send prompts with full sampling control and thinking mode support
+- **Prompt Output** - Display and preview LLM responses with optional plaintext conversion
 - **Model Management** - List, load, and unload models in router mode
 
 ### Key Design Principles
@@ -162,6 +163,21 @@ Sends a prompt to the llama-server and returns the response. Supports thinking/r
 | response | STRING | The generated response text |
 | thinking | STRING | Reasoning/thinking content (for supported models) |
 | success | BOOLEAN | True if generation completed successfully (for chaining) |
+
+### llama.cpp Prompt Output
+
+Displays text in the ComfyUI interface with optional plaintext conversion. Similar to Preview as Text but optimized for LLM output.
+
+**Inputs:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| text | string | - | Text to display (force input) |
+| convert_to_plaintext | bool | false | Convert markdown/HTML to plaintext |
+
+**Outputs:**
+| Name | Type | Description |
+|------|------|-------------|
+| text | STRING | The text (converted or original) for chaining |
 
 ### llama.cpp List Models
 
