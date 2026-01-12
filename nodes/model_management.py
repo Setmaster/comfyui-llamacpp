@@ -5,6 +5,7 @@ Nodes for listing, loading, and unloading models in router mode.
 
 import json
 from ..server_manager import get_server_manager
+from ..model_manager import get_local_models
 
 
 class LlamaCppListModels:
@@ -82,11 +83,19 @@ class LlamaCppLoadModel:
 
     @classmethod
     def INPUT_TYPES(cls):
+        # Get available models for dropdown
+        local_models = get_local_models()
+
+        # Filter out mmproj files (vision model projectors)
+        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
+
+        if not local_models:
+            local_models = ["No models found - add .gguf files to models/LLM/gguf/"]
+
         return {
             "required": {
-                "model_name": ("STRING", {
-                    "default": "",
-                    "placeholder": "model.gguf",
+                "model_name": (local_models, {
+                    "default": local_models[0] if local_models else "",
                     "tooltip": "Name of the model to load"
                 }),
             },
@@ -141,11 +150,19 @@ class LlamaCppUnloadModel:
 
     @classmethod
     def INPUT_TYPES(cls):
+        # Get available models for dropdown
+        local_models = get_local_models()
+
+        # Filter out mmproj files (vision model projectors)
+        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
+
+        if not local_models:
+            local_models = ["No models found - add .gguf files to models/LLM/gguf/"]
+
         return {
             "required": {
-                "model_name": ("STRING", {
-                    "default": "",
-                    "placeholder": "model.gguf",
+                "model_name": (local_models, {
+                    "default": local_models[0] if local_models else "",
                     "tooltip": "Name of the model to unload"
                 }),
             },

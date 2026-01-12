@@ -8,6 +8,7 @@ import requests
 from typing import Optional
 
 from ..server_manager import get_server_manager
+from ..model_manager import get_local_models
 
 # Try to import ComfyUI's interrupt handling
 try:
@@ -22,14 +23,23 @@ class LlamaCppBasicPrompt:
     ComfyUI node that sends a prompt to the llama-server and returns the response.
     Supports thinking/reasoning models and various sampling parameters.
     """
-    
+
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("response", "thinking")
     FUNCTION = "generate"
-    
+
     @classmethod
     def INPUT_TYPES(cls):
+        # Get available models for dropdown
+        local_models = get_local_models()
+
+        # Filter out mmproj files (vision model projectors)
+        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
+
+        # Add empty option at the start for single-model mode
+        model_choices = ["(use running model)"] + local_models
+
         return {
             "required": {
                 "prompt": ("STRING", {
@@ -40,10 +50,9 @@ class LlamaCppBasicPrompt:
                 }),
             },
             "optional": {
-                "model": ("STRING", {
-                    "default": "",
-                    "placeholder": "model.gguf (router mode only)",
-                    "tooltip": "Model to use in router mode. Leave empty for single-model mode."
+                "model": (model_choices, {
+                    "default": "(use running model)",
+                    "tooltip": "Model to use. Select a model for router mode, or '(use running model)' for single-model mode."
                 }),
                 "server_url": ("STRING", {
                     "default": "",
@@ -160,7 +169,8 @@ class LlamaCppBasicPrompt:
         }
 
         # Add model if specified (for router mode)
-        if model.strip():
+        # Skip if it's the placeholder value or empty
+        if model and model.strip() and model != "(use running model)":
             payload["model"] = model.strip()
 
         # Add seed
@@ -174,7 +184,7 @@ class LlamaCppBasicPrompt:
         endpoint = f"{server_url}/v1/chat/completions"
 
         print(f"[llama.cpp] Generating response...")
-        if model.strip():
+        if model and model.strip() and model != "(use running model)":
             print(f"[llama.cpp] Model: {model.strip()}")
         print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
         
