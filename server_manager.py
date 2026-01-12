@@ -289,14 +289,14 @@ class LlamaCppServerManager:
         except Exception:
             return False
     
-    def start(self, config: ServerConfig, timeout: int = 60) -> Tuple[bool, Optional[str]]:
+    def start(self, config: ServerConfig, timeout: Optional[int] = 60) -> Tuple[bool, Optional[str]]:
         """
         Start the llama-server with the given configuration.
-        
+
         Args:
             config: Server configuration
-            timeout: Maximum seconds to wait for server startup
-            
+            timeout: Maximum seconds to wait for server startup (None = no timeout)
+
         Returns:
             Tuple of (success, error_message)
         """
@@ -356,41 +356,47 @@ class LlamaCppServerManager:
             self._config = config
             
             # Wait for server to be ready
-            print(f"[LlamaCpp] Waiting for server to be ready (timeout: {timeout}s)...")
-            
-            for i in range(timeout):
+            if timeout is None:
+                print(f"[LlamaCpp] Waiting for server to be ready (no timeout)...")
+            else:
+                print(f"[LlamaCpp] Waiting for server to be ready (timeout: {timeout}s)...")
+
+            elapsed = 0
+            while True:
                 time.sleep(1)
-                
+                elapsed += 1
+
                 if self.health_check():
                     self._status = ServerStatus.RUNNING
-                    print(f"[LlamaCpp] Server ready! (took {i+1}s)")
+                    print(f"[LlamaCpp] Server ready! (took {elapsed}s)")
                     return (True, None)
-                
+
                 # Check if process crashed
                 if self._process.poll() is not None:
                     try:
                         output = self._process.stdout.read().decode('utf-8', errors='ignore')
                     except Exception:
                         output = ""
-                    
+
                     error = f"Server crashed during startup (exit code: {self._process.returncode})"
                     if output:
                         error += f"\n\nServer output:\n{output[:2000]}"
-                    
+
                     self._status = ServerStatus.ERROR
                     self._last_error = error
                     self._process = None
                     self._config = None
                     return (False, error)
-                
-                if (i + 1) % 10 == 0:
-                    print(f"[LlamaCpp] Still waiting... ({i + 1}s)")
-            
-            # Timeout
-            error = f"Server did not start within {timeout} seconds"
-            self._last_error = error
-            self.stop()
-            return (False, error)
+
+                if elapsed % 10 == 0:
+                    print(f"[LlamaCpp] Still waiting... ({elapsed}s)")
+
+                # Check timeout (if set)
+                if timeout is not None and elapsed >= timeout:
+                    error = f"Server did not start within {timeout} seconds"
+                    self._last_error = error
+                    self.stop()
+                    return (False, error)
             
         except FileNotFoundError:
             error = "llama-server not found. Please install llama.cpp and add to PATH.\n" \
