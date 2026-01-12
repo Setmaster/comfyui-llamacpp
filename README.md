@@ -7,6 +7,7 @@ A modular llama.cpp integration for ComfyUI, providing clean and extensible node
 - **Single Model Mode** - Launch llama-server with a specific model
 - **Router Mode** - Multi-model support with dynamic loading/unloading (LRU eviction)
 - **Basic Prompt** - Send prompts with full sampling control and thinking mode support
+- **ADV Prompt** - Advanced prompt with vision/image support for VLM models
 - **Prompt Output** - Display and preview LLM responses with optional plaintext conversion
 - **Model Management** - List, load, and unload models in router mode
 
@@ -164,6 +165,39 @@ Sends a prompt to the llama-server and returns the response. Supports thinking/r
 | thinking | STRING | Reasoning/thinking content (for supported models) |
 | success | BOOLEAN | True if generation completed successfully (for chaining) |
 
+### llama.cpp ADV Prompt
+
+Advanced prompt node with vision/image support. Use with VLM (Vision Language Models) like LLaVA, Qwen-VL, etc.
+
+**Inputs:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| prompt | string | - | The user prompt to send to the LLM |
+| image_amount | int | 2 | Number of image input slots (0-10) |
+| image_1...image_N | IMAGE | - | Optional image inputs for vision models |
+| model | string | empty | Model to use (router mode only) |
+| server_url | string | empty | Server URL. Empty = use running server |
+| system_prompt | string | empty | Optional system prompt |
+| enable_thinking | bool | true | Enable thinking mode for supported models |
+| max_tokens | int | 2048 | Maximum tokens to generate |
+| temperature | float | 0.7 | Sampling temperature (0.0-2.0) |
+| top_p | float | 0.9 | Top-p nucleus sampling (0.0-1.0) |
+| top_k | int | 40 | Top-k sampling (0 = disabled) |
+| min_p | float | 0.05 | Min-p sampling threshold |
+| repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
+| seed | int | 0 | Random seed for generation |
+| enable_chaining | bool | false | Enable chaining mode |
+| trigger | * | - | Optional trigger input for chaining |
+
+**Outputs:**
+| Name | Type | Description |
+|------|------|-------------|
+| response | STRING | The generated response text |
+| thinking | STRING | Reasoning/thinking content (for supported models) |
+| success | BOOLEAN | True if generation completed successfully |
+
+**Note:** For vision support, you need a VLM model and its corresponding mmproj (multimodal projector) file. Start the server with the `--mmproj` flag pointing to the mmproj file.
+
 ### llama.cpp Prompt Output
 
 Displays text in the ComfyUI interface with optional plaintext conversion. Similar to Preview as Text but optimized for LLM output.
@@ -262,8 +296,8 @@ Use the `success` output and `trigger` input to sequence multiple prompts:
 
 - [x] Basic Prompt - Send prompts to the server
 - [x] Router Mode - Multi-model support with dynamic loading
+- [x] VLM Support - Vision-language model integration (ADV Prompt)
 - [ ] Text Embedding - Generate embeddings for text
-- [ ] VLM Support - Vision-language model integration
 - [ ] Model Info - Display model metadata
 
 ## Troubleshooting
