@@ -128,6 +128,10 @@ class LlamaCppAdvPrompt:
                     "max": 0x7FFFFFFF,
                     "tooltip": "Random seed for generation"
                 }),
+                "keep_context": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Keep conversation context between requests. When OFF, each request starts fresh."
+                }),
                 "enable_chaining": ("BOOLEAN", {
                     "default": False,
                     "tooltip": "Enable chaining mode. When enabled, waits for trigger input before executing."
@@ -180,6 +184,7 @@ class LlamaCppAdvPrompt:
         min_p: float = 0.05,
         repeat_penalty: float = 1.1,
         seed: int = 0,
+        keep_context: bool = False,
         enable_chaining: bool = False,
         trigger=None,
         **kwargs,  # Capture dynamic image inputs
@@ -245,6 +250,7 @@ class LlamaCppAdvPrompt:
             "top_k": top_k,
             "min_p": min_p,
             "repeat_penalty": repeat_penalty,
+            "cache_prompt": keep_context,  # When False, starts fresh without prior context
         }
 
         # Add model if specified (for router mode)
