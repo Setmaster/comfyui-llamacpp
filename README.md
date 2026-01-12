@@ -172,7 +172,7 @@ Displays text in the ComfyUI interface with optional plaintext conversion. Simil
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | text | string | - | Text to display (force input) |
-| convert_to_plaintext | bool | false | Convert markdown/HTML to plaintext |
+| plaintext | bool | false | Convert markdown/HTML to plaintext |
 
 **Outputs:**
 | Name | Type | Description |

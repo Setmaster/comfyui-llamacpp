@@ -30,26 +30,26 @@ class LlamaCppPromptOutput:
                 }),
             },
             "optional": {
-                "convert_to_plaintext": ("BOOLEAN", {
+                "plaintext": ("BOOLEAN", {
                     "default": False,
                     "tooltip": "Convert markdown/HTML to plaintext before displaying"
                 }),
             }
         }
 
-    def preview_text(self, text: str, convert_to_plaintext: bool = False):
+    def preview_text(self, text: str, plaintext: bool = False):
         """Display text in the UI and pass through"""
 
         if not text:
-            return {"ui": {"text": [""]}, "result": ("",)}
+            return {"ui": {"text": ("",)}, "result": ("",)}
 
         output_text = text
 
-        if convert_to_plaintext:
+        if plaintext:
             output_text = self._convert_to_plaintext(text)
 
         # Return both UI display and output value
-        return {"ui": {"text": [output_text]}, "result": (output_text,)}
+        return {"ui": {"text": (output_text,)}, "result": (output_text,)}
 
     def _convert_to_plaintext(self, text: str) -> str:
         """Convert markdown/HTML to plaintext"""
