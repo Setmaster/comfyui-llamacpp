@@ -1,4 +1,4 @@
-# ComfyUI LlamaCpp Suite
+# ComfyUI llama.cpp Suite
 
 A modular llama.cpp integration for ComfyUI, providing clean and extensible nodes for local LLM inference.
 
@@ -61,7 +61,7 @@ The directory will be created automatically on first run if it doesn't exist.
 
 ## Nodes
 
-### Start LlamaCpp Server (Single Model)
+### Start llama.cpp Server (Single Model)
 
 Starts the llama-server with a specific model. Best for workflows that use one model.
 
@@ -84,7 +84,7 @@ Starts the llama-server with a specific model. Best for workflows that use one m
 | server_url | STRING | Server URL (e.g., "http://127.0.0.1:8080") |
 | success | BOOLEAN | True if server started successfully |
 
-### Start LlamaCpp Router (Multi-Model)
+### Start llama.cpp Router (Multi-Model)
 
 Starts the llama-server in router mode for dynamic multi-model support. Models are loaded on-demand and managed with LRU eviction.
 
@@ -108,7 +108,7 @@ Starts the llama-server in router mode for dynamic multi-model support. Models a
 | server_url | STRING | Server URL |
 | success | BOOLEAN | True if router started successfully |
 
-### Stop LlamaCpp Server
+### Stop llama.cpp Server
 
 Stops the running server (works for both single model and router mode).
 
@@ -123,7 +123,7 @@ Stops the running server (works for both single model and router mode).
 | success | BOOLEAN | True if stopped (or wasn't running) |
 | message | STRING | Status message |
 
-### LlamaCpp Server Status
+### llama.cpp Server Status
 
 Returns current server status information.
 
@@ -134,7 +134,7 @@ Returns current server status information.
 | status | STRING | Status state (stopped/starting/running/error) |
 | info | STRING | Detailed status information (includes mode) |
 
-### LlamaCpp Basic Prompt
+### llama.cpp Basic Prompt
 
 Sends a prompt to the llama-server and returns the response. Supports thinking/reasoning models.
 
@@ -160,7 +160,7 @@ Sends a prompt to the llama-server and returns the response. Supports thinking/r
 | response | STRING | The generated response text |
 | thinking | STRING | Reasoning/thinking content (for supported models) |
 
-### LlamaCpp List Models
+### llama.cpp List Models
 
 Lists available models from the server. In router mode, shows load status.
 
@@ -170,7 +170,7 @@ Lists available models from the server. In router mode, shows load status.
 | models_json | STRING | Full model info as JSON |
 | models_list | STRING | Simple list of model names with status |
 
-### LlamaCpp Load Model (Router Mode)
+### llama.cpp Load Model (Router Mode)
 
 Explicitly loads a model into memory.
 
@@ -185,7 +185,7 @@ Explicitly loads a model into memory.
 | success | BOOLEAN | True if loaded successfully |
 | message | STRING | Status message |
 
-### LlamaCpp Unload Model (Router Mode)
+### llama.cpp Unload Model (Router Mode)
 
 Unloads a model to free VRAM.
 
@@ -204,20 +204,20 @@ Unloads a model to free VRAM.
 
 ### Single Model Workflow
 ```
-[Start LlamaCpp Server] → [Basic Prompt] → [Output]
+[Start llama.cpp Server] → [Basic Prompt] → [Output]
          ↓
     (model.gguf)
 ```
 
 ### Multi-Model Workflow (Router Mode)
 ```
-[Start LlamaCpp Router] → [Basic Prompt (model=small.gguf)] → [Classifier Output]
-                        → [Basic Prompt (model=large.gguf)] → [Generation Output]
+[Start llama.cpp Router] → [Basic Prompt (model=small.gguf)] → [Classifier Output]
+                         → [Basic Prompt (model=large.gguf)] → [Generation Output]
 ```
 
 ### Explicit Model Control
 ```
-[Start LlamaCpp Router] → [Load Model] → [Basic Prompt] → [Unload Model]
+[Start llama.cpp Router] → [Load Model] → [Basic Prompt] → [Unload Model]
 ```
 
 ## Recommended Models

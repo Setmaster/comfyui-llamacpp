@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-llamacpp"
 description = "A modular llama.cpp integration for ComfyUI - local LLM inference nodes"
-version = "0.1.0"
+version = "0.2.0"
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,11 +11,11 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/YOUR_USERNAME/comfyui-llamacpp"
-Documentation = "https://github.com/YOUR_USERNAME/comfyui-llamacpp#readme"
-"Bug Tracker" = "https://github.com/YOUR_USERNAME/comfyui-llamacpp/issues"
+Repository = "https://github.com/Setmaster/comfyui-llamacpp"
+Documentation = "https://github.com/Setmaster/comfyui-llamacpp#readme"
+"Bug Tracker" = "https://github.com/Setmaster/comfyui-llamacpp/issues"
 
 [tool.comfy]
-PublisherId = "your-publisher-id"
-DisplayName = "ComfyUI LlamaCpp Suite"
+PublisherId = "setmaster"
+DisplayName = "ComfyUI llama.cpp Suite"
 Icon = ""

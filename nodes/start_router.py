@@ -116,7 +116,7 @@ class StartLlamaCppRouter:
             try:
                 n_gpu_layers = int(gpu_layers_str)
             except ValueError:
-                print(f"[LlamaCpp] Invalid gpu_layers value '{gpu_layers}', using all layers")
+                print(f"[llama.cpp] Invalid gpu_layers value '{gpu_layers}', using all layers")
                 n_gpu_layers = 999
 
         # Parse threads: empty string means auto (None)
@@ -129,7 +129,7 @@ class StartLlamaCppRouter:
                 if n_threads <= 0:
                     n_threads = None
             except ValueError:
-                print(f"[LlamaCpp] Invalid threads value '{threads}', using auto")
+                print(f"[llama.cpp] Invalid threads value '{threads}', using auto")
                 n_threads = None
 
         # Parse timeout: empty string means no timeout (None)
@@ -142,7 +142,7 @@ class StartLlamaCppRouter:
                 if timeout_seconds <= 0:
                     timeout_seconds = None
             except ValueError:
-                print(f"[LlamaCpp] Invalid timeout value '{timeout}', using 60 seconds")
+                print(f"[llama.cpp] Invalid timeout value '{timeout}', using 60 seconds")
                 timeout_seconds = 60
 
         # Create router config
@@ -165,12 +165,12 @@ class StartLlamaCppRouter:
 
         if success:
             server_url = manager.server_url
-            print(f"[LlamaCpp] Router running at: {server_url}")
-            print(f"[LlamaCpp] Models directory: {models_dir}")
-            print(f"[LlamaCpp] Max loaded models: {models_max}")
+            print(f"[llama.cpp] Router running at: {server_url}")
+            print(f"[llama.cpp] Models directory: {models_dir}")
+            print(f"[llama.cpp] Max loaded models: {models_max}")
             return (server_url, True)
         else:
-            print(f"[LlamaCpp] Failed to start router: {error}")
+            print(f"[llama.cpp] Failed to start router: {error}")
             return (error or "Unknown error", False)
 
 
@@ -179,5 +179,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "StartLlamaCppRouter": "Start LlamaCpp Router"
+    "StartLlamaCppRouter": "Start llama.cpp Router"
 }

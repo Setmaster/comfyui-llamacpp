@@ -1,19 +1,20 @@
 """
-ComfyUI LlamaCpp Suite
+ComfyUI llama.cpp Suite
 A modular llama.cpp integration for ComfyUI.
 
 Provides nodes for:
-- Starting/stopping the llama-server
+- Starting/stopping the llama-server (single model and router mode)
 - Server status monitoring
-- (Future: Chat completion, embeddings, etc.)
+- Basic prompt with thinking mode support
+- Model management (list, load, unload)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
 
 # Print initialization message
-print(f"[LlamaCpp] ComfyUI LlamaCpp Suite v{__version__} loaded")
-print(f"[LlamaCpp] Registered {len(NODE_CLASS_MAPPINGS)} nodes: {', '.join(NODE_CLASS_MAPPINGS.keys())}")
+print(f"[llama.cpp] ComfyUI llama.cpp Suite v{__version__} loaded")
+print(f"[llama.cpp] Registered {len(NODE_CLASS_MAPPINGS)} nodes: {', '.join(NODE_CLASS_MAPPINGS.keys())}")

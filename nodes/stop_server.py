@@ -42,7 +42,7 @@ class StopLlamaCppServer:
         # Check if server is running
         if not manager.is_running:
             message = "No server running"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (True, message)
         
         # Stop the server
@@ -50,11 +50,11 @@ class StopLlamaCppServer:
         
         if success:
             message = "Server stopped successfully"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (True, message)
         else:
             message = f"Error stopping server: {error}"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
 
@@ -121,6 +121,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "StopLlamaCppServer": "Stop LlamaCpp Server",
-    "LlamaCppServerStatus": "LlamaCpp Server Status",
+    "StopLlamaCppServer": "Stop llama.cpp Server",
+    "LlamaCppServerStatus": "llama.cpp Server Status",
 }

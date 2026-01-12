@@ -136,8 +136,8 @@ class LlamaCppBasicPrompt:
         if not server_url.strip():
             manager = get_server_manager()
             if not manager.is_running:
-                error_msg = "Error: No server running. Use 'Start LlamaCpp Server' or 'Start LlamaCpp Router' first."
-                print(f"[LlamaCpp] {error_msg}")
+                error_msg = "Error: No server running. Use 'Start llama.cpp Server' or 'Start llama.cpp Router' first."
+                print(f"[llama.cpp] {error_msg}")
                 return (error_msg, "")
             server_url = manager.server_url
 
@@ -173,10 +173,10 @@ class LlamaCppBasicPrompt:
 
         endpoint = f"{server_url}/v1/chat/completions"
 
-        print(f"[LlamaCpp] Generating response...")
+        print(f"[llama.cpp] Generating response...")
         if model.strip():
-            print(f"[LlamaCpp] Model: {model.strip()}")
-        print(f"[LlamaCpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
+            print(f"[llama.cpp] Model: {model.strip()}")
+        print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
         
         try:
             response = requests.post(
@@ -196,7 +196,7 @@ class LlamaCppBasicPrompt:
                     try:
                         comfy.model_management.throw_exception_if_processing_interrupted()
                     except comfy.model_management.InterruptProcessingException:
-                        print("[LlamaCpp] Generation interrupted by user")
+                        print("[llama.cpp] Generation interrupted by user")
                         response.close()
                         raise
                 
@@ -231,21 +231,21 @@ class LlamaCppBasicPrompt:
             full_response = full_response.strip()
             thinking_content = thinking_content.strip()
             
-            print(f"[LlamaCpp] Generation complete")
+            print(f"[llama.cpp] Generation complete")
             if thinking_content:
-                print(f"[LlamaCpp] Thinking: {len(thinking_content)} chars")
-            print(f"[LlamaCpp] Response: {len(full_response)} chars")
+                print(f"[llama.cpp] Thinking: {len(thinking_content)} chars")
+            print(f"[llama.cpp] Response: {len(full_response)} chars")
             
             return (full_response, thinking_content)
             
         except requests.exceptions.ConnectionError:
             error_msg = f"Error: Could not connect to server at {server_url}"
-            print(f"[LlamaCpp] {error_msg}")
+            print(f"[llama.cpp] {error_msg}")
             return (error_msg, "")
         
         except requests.exceptions.Timeout:
             error_msg = "Error: Request timed out (300s)"
-            print(f"[LlamaCpp] {error_msg}")
+            print(f"[llama.cpp] {error_msg}")
             return (error_msg, "")
         
         except requests.exceptions.HTTPError as e:
@@ -257,14 +257,14 @@ class LlamaCppBasicPrompt:
             error_msg = f"Error: HTTP {e.response.status_code}"
             if error_body:
                 error_msg += f" - {error_body}"
-            print(f"[LlamaCpp] {error_msg}")
+            print(f"[llama.cpp] {error_msg}")
             return (error_msg, "")
         
         except Exception as e:
             if HAS_COMFY_INTERRUPT and "InterruptProcessingException" in str(type(e)):
                 raise
             error_msg = f"Error: {e}"
-            print(f"[LlamaCpp] {error_msg}")
+            print(f"[llama.cpp] {error_msg}")
             return (error_msg, "")
 
 
@@ -273,5 +273,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LlamaCppBasicPrompt": "LlamaCpp Basic Prompt"
+    "LlamaCppBasicPrompt": "llama.cpp Basic Prompt"
 }

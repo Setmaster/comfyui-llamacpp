@@ -108,7 +108,7 @@ class StartLlamaCppServer:
         # Validate model
         is_valid, error = validate_model(model)
         if not is_valid:
-            print(f"[LlamaCpp] {error}")
+            print(f"[llama.cpp] {error}")
             return ("", False)
         
         # Get model path
@@ -122,7 +122,7 @@ class StartLlamaCppServer:
             try:
                 n_gpu_layers = int(gpu_layers_str)
             except ValueError:
-                print(f"[LlamaCpp] Invalid gpu_layers value '{gpu_layers}', using all layers")
+                print(f"[llama.cpp] Invalid gpu_layers value '{gpu_layers}', using all layers")
                 n_gpu_layers = 999
         
         # Parse threads: empty string means auto (None)
@@ -135,7 +135,7 @@ class StartLlamaCppServer:
                 if n_threads <= 0:
                     n_threads = None
             except ValueError:
-                print(f"[LlamaCpp] Invalid threads value '{threads}', using auto")
+                print(f"[llama.cpp] Invalid threads value '{threads}', using auto")
                 n_threads = None
         
         # Parse timeout: empty string means no timeout (None)
@@ -148,7 +148,7 @@ class StartLlamaCppServer:
                 if timeout_seconds <= 0:
                     timeout_seconds = None
             except ValueError:
-                print(f"[LlamaCpp] Invalid timeout value '{timeout}', using 60 seconds")
+                print(f"[llama.cpp] Invalid timeout value '{timeout}', using 60 seconds")
                 timeout_seconds = 60
 
         # Create server config
@@ -169,10 +169,10 @@ class StartLlamaCppServer:
         
         if success:
             server_url = manager.server_url
-            print(f"[LlamaCpp] Server running at: {server_url}")
+            print(f"[llama.cpp] Server running at: {server_url}")
             return (server_url, True)
         else:
-            print(f"[LlamaCpp] Failed to start server: {error}")
+            print(f"[llama.cpp] Failed to start server: {error}")
             return (error or "Unknown error", False)
 
 
@@ -181,5 +181,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "StartLlamaCppServer": "Start LlamaCpp Server"
+    "StartLlamaCppServer": "Start llama.cpp Server"
 }

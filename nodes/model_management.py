@@ -41,13 +41,13 @@ class LlamaCppListModels:
 
         if not manager.is_running:
             error_msg = "Error: No server running"
-            print(f"[LlamaCpp] {error_msg}")
+            print(f"[llama.cpp] {error_msg}")
             return (error_msg, error_msg)
 
         success, models, error = manager.list_models()
 
         if not success:
-            print(f"[LlamaCpp] {error}")
+            print(f"[llama.cpp] {error}")
             return (error, error)
 
         # Format output
@@ -65,7 +65,7 @@ class LlamaCppListModels:
 
         models_list = "\n".join(model_names) if model_names else "No models found"
 
-        print(f"[LlamaCpp] Found {len(models)} models")
+        print(f"[llama.cpp] Found {len(models)} models")
         return (models_json, models_list)
 
 
@@ -102,29 +102,29 @@ class LlamaCppLoadModel:
 
         if not model_name.strip():
             message = "Error: No model name specified"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         manager = get_server_manager()
 
         if not manager.is_running:
             message = "Error: No server running"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         if not manager.is_router_mode:
-            message = "Error: Server not in router mode. Use 'Start LlamaCpp Router' first."
-            print(f"[LlamaCpp] {message}")
+            message = "Error: Server not in router mode. Use 'Start llama.cpp Router' first."
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         success, error = manager.load_model(model_name.strip())
 
         if success:
             message = f"Model loaded: {model_name}"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (True, message)
         else:
-            print(f"[LlamaCpp] {error}")
+            print(f"[llama.cpp] {error}")
             return (False, error)
 
 
@@ -161,29 +161,29 @@ class LlamaCppUnloadModel:
 
         if not model_name.strip():
             message = "Error: No model name specified"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         manager = get_server_manager()
 
         if not manager.is_running:
             message = "Error: No server running"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         if not manager.is_router_mode:
             message = "Error: Server not in router mode"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (False, message)
 
         success, error = manager.unload_model(model_name.strip())
 
         if success:
             message = f"Model unloaded: {model_name}"
-            print(f"[LlamaCpp] {message}")
+            print(f"[llama.cpp] {message}")
             return (True, message)
         else:
-            print(f"[LlamaCpp] {error}")
+            print(f"[llama.cpp] {error}")
             return (False, error)
 
 
@@ -194,7 +194,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LlamaCppListModels": "LlamaCpp List Models",
-    "LlamaCppLoadModel": "LlamaCpp Load Model",
-    "LlamaCppUnloadModel": "LlamaCpp Unload Model",
+    "LlamaCppListModels": "llama.cpp List Models",
+    "LlamaCppLoadModel": "llama.cpp Load Model",
+    "LlamaCppUnloadModel": "llama.cpp Unload Model",
 }

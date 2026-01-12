@@ -152,7 +152,7 @@ class LlamaCppServerManager:
         # Setup cleanup handlers
         self._setup_cleanup_handlers()
 
-        print("[LlamaCpp] Server manager initialized")
+        print("[llama.cpp] Server manager initialized")
     
     def _setup_cleanup_handlers(self):
         """Setup handlers for clean shutdown"""
@@ -227,10 +227,10 @@ class LlamaCppServerManager:
                 ctypes.byref(info),
                 ctypes.sizeof(info)
             )
-            print("[LlamaCpp] Windows Job Object created")
+            print("[llama.cpp] Windows Job Object created")
             
         except Exception as e:
-            print(f"[LlamaCpp] Warning: Job object setup failed: {e}")
+            print(f"[llama.cpp] Warning: Job object setup failed: {e}")
     
     def _setup_windows_console_handler(self):
         """Setup Windows console close handler"""
@@ -244,7 +244,7 @@ class LlamaCppServerManager:
             @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
             def console_handler(event):
                 if event in (CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT):
-                    print(f"\n[LlamaCpp] Console closing, cleaning up...")
+                    print(f"\n[llama.cpp] Console closing, cleaning up...")
                     self._cleanup()
                     return False
                 return False
@@ -254,10 +254,10 @@ class LlamaCppServerManager:
             
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCtrlHandler(console_handler, True)
-            print("[LlamaCpp] Console close handler registered")
+            print("[llama.cpp] Console close handler registered")
             
         except Exception as e:
-            print(f"[LlamaCpp] Warning: Console handler setup failed: {e}")
+            print(f"[llama.cpp] Warning: Console handler setup failed: {e}")
     
     def _assign_to_job(self, process: subprocess.Popen):
         """Assign process to Windows job object"""
@@ -274,7 +274,7 @@ class LlamaCppServerManager:
     
     def _signal_handler(self, signum, frame):
         """Handle termination signals"""
-        print(f"\n[LlamaCpp] Signal {signum} received, cleaning up...")
+        print(f"\n[llama.cpp] Signal {signum} received, cleaning up...")
         self._cleanup()
         sys.exit(0)
     
@@ -289,12 +289,12 @@ class LlamaCppServerManager:
             for proc in psutil.process_iter(['pid', 'name']):
                 try:
                     if proc.info['name'] and 'llama-server' in proc.info['name'].lower():
-                        print(f"[LlamaCpp] Killing orphaned llama-server (PID: {proc.info['pid']})")
+                        print(f"[llama.cpp] Killing orphaned llama-server (PID: {proc.info['pid']})")
                         proc.kill()
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception as e:
-            print(f"[LlamaCpp] Error cleaning up orphaned processes: {e}")
+            print(f"[llama.cpp] Error cleaning up orphaned processes: {e}")
     
     @property
     def status(self) -> ServerStatus:
@@ -368,12 +368,12 @@ class LlamaCppServerManager:
         # Check if already running with same config
         if self.is_running and self._config and self._config.config_hash() == config.config_hash():
             if self.health_check():
-                print(f"[LlamaCpp] Server already running with same configuration")
+                print(f"[llama.cpp] Server already running with same configuration")
                 return (True, None)
         
         # Stop existing server if running
         if self._process is not None:
-            print("[LlamaCpp] Stopping existing server for reconfiguration...")
+            print("[llama.cpp] Stopping existing server for reconfiguration...")
             self.stop()
         
         # Kill any orphaned servers
@@ -391,10 +391,10 @@ class LlamaCppServerManager:
         # Build command
         cmd = [server_cmd] + config.to_command_args()
         
-        print(f"[LlamaCpp] Starting server...")
-        print(f"[LlamaCpp] Model: {os.path.basename(config.model_path)}")
-        print(f"[LlamaCpp] Context size: {config.context_size}")
-        print(f"[LlamaCpp] Command: {' '.join(cmd)}")
+        print(f"[llama.cpp] Starting server...")
+        print(f"[llama.cpp] Model: {os.path.basename(config.model_path)}")
+        print(f"[llama.cpp] Context size: {config.context_size}")
+        print(f"[llama.cpp] Command: {' '.join(cmd)}")
         
         try:
             self._status = ServerStatus.STARTING
@@ -421,9 +421,9 @@ class LlamaCppServerManager:
 
             # Wait for server to be ready
             if timeout is None:
-                print(f"[LlamaCpp] Waiting for server to be ready (no timeout)...")
+                print(f"[llama.cpp] Waiting for server to be ready (no timeout)...")
             else:
-                print(f"[LlamaCpp] Waiting for server to be ready (timeout: {timeout}s)...")
+                print(f"[llama.cpp] Waiting for server to be ready (timeout: {timeout}s)...")
 
             elapsed = 0
             while True:
@@ -432,7 +432,7 @@ class LlamaCppServerManager:
 
                 if self.health_check():
                     self._status = ServerStatus.RUNNING
-                    print(f"[LlamaCpp] Server ready! (took {elapsed}s)")
+                    print(f"[llama.cpp] Server ready! (took {elapsed}s)")
                     return (True, None)
 
                 # Check if process crashed
@@ -453,7 +453,7 @@ class LlamaCppServerManager:
                     return (False, error)
 
                 if elapsed % 10 == 0:
-                    print(f"[LlamaCpp] Still waiting... ({elapsed}s)")
+                    print(f"[llama.cpp] Still waiting... ({elapsed}s)")
 
                 # Check timeout (if set)
                 if timeout is not None and elapsed >= timeout:
@@ -483,24 +483,24 @@ class LlamaCppServerManager:
             Tuple of (success, error_message)
         """
         if self._process is None:
-            print("[LlamaCpp] No server running")
+            print("[llama.cpp] No server running")
             return (True, None)
         
         try:
-            print("[LlamaCpp] Stopping server...")
+            print("[llama.cpp] Stopping server...")
             
             # Try graceful termination first
             self._process.terminate()
             
             try:
                 self._process.wait(timeout=5)
-                print("[LlamaCpp] Server stopped gracefully")
+                print("[llama.cpp] Server stopped gracefully")
             except subprocess.TimeoutExpired:
                 # Force kill if still running
-                print("[LlamaCpp] Force killing server...")
+                print("[llama.cpp] Force killing server...")
                 self._process.kill()
                 self._process.wait(timeout=3)
-                print("[LlamaCpp] Server killed")
+                print("[llama.cpp] Server killed")
             
             self._process = None
             self._config = None
@@ -541,12 +541,12 @@ class LlamaCppServerManager:
         # Check if already running with same config
         if self.is_running and self._config and self._config.config_hash() == config.config_hash():
             if self.health_check():
-                print(f"[LlamaCpp] Router already running with same configuration")
+                print(f"[llama.cpp] Router already running with same configuration")
                 return (True, None)
 
         # Stop existing server if running
         if self._process is not None:
-            print("[LlamaCpp] Stopping existing server for router mode...")
+            print("[llama.cpp] Stopping existing server for router mode...")
             self.stop()
 
         # Kill any orphaned servers
@@ -564,11 +564,11 @@ class LlamaCppServerManager:
         # Build command
         cmd = [server_cmd] + config.to_command_args()
 
-        print(f"[LlamaCpp] Starting router...")
-        print(f"[LlamaCpp] Models directory: {config.models_dir}")
-        print(f"[LlamaCpp] Max models: {config.models_max}")
-        print(f"[LlamaCpp] Context size: {config.context_size}")
-        print(f"[LlamaCpp] Command: {' '.join(cmd)}")
+        print(f"[llama.cpp] Starting router...")
+        print(f"[llama.cpp] Models directory: {config.models_dir}")
+        print(f"[llama.cpp] Max models: {config.models_max}")
+        print(f"[llama.cpp] Context size: {config.context_size}")
+        print(f"[llama.cpp] Command: {' '.join(cmd)}")
 
         try:
             self._status = ServerStatus.STARTING
@@ -595,9 +595,9 @@ class LlamaCppServerManager:
 
             # Wait for server to be ready
             if timeout is None:
-                print(f"[LlamaCpp] Waiting for router to be ready (no timeout)...")
+                print(f"[llama.cpp] Waiting for router to be ready (no timeout)...")
             else:
-                print(f"[LlamaCpp] Waiting for router to be ready (timeout: {timeout}s)...")
+                print(f"[llama.cpp] Waiting for router to be ready (timeout: {timeout}s)...")
 
             elapsed = 0
             while True:
@@ -606,7 +606,7 @@ class LlamaCppServerManager:
 
                 if self.health_check():
                     self._status = ServerStatus.RUNNING
-                    print(f"[LlamaCpp] Router ready! (took {elapsed}s)")
+                    print(f"[llama.cpp] Router ready! (took {elapsed}s)")
                     return (True, None)
 
                 # Check if process crashed
@@ -628,7 +628,7 @@ class LlamaCppServerManager:
                     return (False, error)
 
                 if elapsed % 10 == 0:
-                    print(f"[LlamaCpp] Still waiting... ({elapsed}s)")
+                    print(f"[llama.cpp] Still waiting... ({elapsed}s)")
 
                 # Check timeout (if set)
                 if timeout is not None and elapsed >= timeout:
@@ -703,7 +703,7 @@ class LlamaCppServerManager:
                 timeout=300  # Loading can take a while
             )
             response.raise_for_status()
-            print(f"[LlamaCpp] Model loaded: {model_name}")
+            print(f"[llama.cpp] Model loaded: {model_name}")
             return (True, None)
 
         except requests.exceptions.RequestException as e:
@@ -736,7 +736,7 @@ class LlamaCppServerManager:
                 timeout=30
             )
             response.raise_for_status()
-            print(f"[LlamaCpp] Model unloaded: {model_name}")
+            print(f"[llama.cpp] Model unloaded: {model_name}")
             return (True, None)
 
         except requests.exceptions.RequestException as e:
