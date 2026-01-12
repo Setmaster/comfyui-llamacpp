@@ -196,7 +196,7 @@ Advanced prompt node with vision/image support. Use with VLM (Vision Language Mo
 | thinking | STRING | Reasoning/thinking content (for supported models) |
 | success | BOOLEAN | True if generation completed successfully |
 
-**Note:** For vision support, you need a VLM model and its corresponding mmproj (multimodal projector) file. Start the server with the `--mmproj` flag pointing to the mmproj file.
+**Note:** For vision support, you need a VLM model and its corresponding mmproj (multimodal projector) file. In single-model mode, start the server with `--mmproj`. In router mode, place the mmproj file in the models directory with matching name (e.g., `model-mmproj-f16.gguf` for `model.gguf`).
 
 ### llama.cpp Prompt Output
 
