@@ -59,12 +59,14 @@ class LlamaCppListModels:
         for m in models:
             if isinstance(m, dict):
                 model_id = m.get("id") or m.get("name") or m.get("model") or str(m)
-                status = m.get("state") or m.get("status") or "unknown"
-                path = m.get("path", "")
+                # Status can be a string or a nested object with "value" key
+                status_raw = m.get("state") or m.get("status") or "unknown"
+                if isinstance(status_raw, dict):
+                    status = status_raw.get("value", "unknown")
+                else:
+                    status = status_raw
                 model_names.append(f"{model_id} ({status})")
-                # Debug: show path mapping
-                if path:
-                    print(f"[llama.cpp] Model: id='{model_id}' path='{path}' status={status}")
+                print(f"[llama.cpp] Model: id='{model_id}' status={status}")
             else:
                 model_names.append(str(m))
 
@@ -130,7 +132,12 @@ class LlamaCppLoadModel:
             print(f"[llama.cpp] {message}")
             return (False, message)
 
-        success, error = manager.load_model(model_name.strip())
+        # Router uses model IDs without .gguf extension
+        clean_name = model_name.strip()
+        if clean_name.lower().endswith('.gguf'):
+            clean_name = clean_name[:-5]
+
+        success, error = manager.load_model(clean_name)
 
         if success:
             message = f"Model loaded: {model_name}"
@@ -197,7 +204,12 @@ class LlamaCppUnloadModel:
             print(f"[llama.cpp] {message}")
             return (False, message)
 
-        success, error = manager.unload_model(model_name.strip())
+        # Router uses model IDs without .gguf extension
+        clean_name = model_name.strip()
+        if clean_name.lower().endswith('.gguf'):
+            clean_name = clean_name[:-5]
+
+        success, error = manager.unload_model(clean_name)
 
         if success:
             message = f"Model unloaded: {model_name}"

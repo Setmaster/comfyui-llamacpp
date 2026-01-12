@@ -179,20 +179,30 @@ class LlamaCppBasicPrompt:
             if manager.is_router_mode:
                 success, models, _ = manager.list_models()
                 if success and models:
-                    # Try to find a matching model by filename
+                    # Router uses IDs without .gguf extension
+                    # e.g., "model-name" instead of "model-name.gguf"
+                    model_name_no_ext = model_name
+                    if model_name_no_ext.lower().endswith('.gguf'):
+                        model_name_no_ext = model_name_no_ext[:-5]
+
+                    # Try to find a matching model by ID
                     matched_id = None
                     for m in models:
                         if isinstance(m, dict):
                             model_id = m.get("id") or m.get("model") or ""
-                            model_path = m.get("path", "")
-                            # Match by exact id, or by filename in path
-                            if model_id == model_name or model_path.endswith(model_name) or model_name in model_id:
+                            # Match by exact id (without extension)
+                            if model_id == model_name_no_ext:
                                 matched_id = model_id
                                 break
 
-                    if matched_id and matched_id != model_name:
-                        print(f"[llama.cpp] Mapped model '{model_name}' -> '{matched_id}'")
+                    if matched_id:
+                        if matched_id != model_name:
+                            print(f"[llama.cpp] Mapped model '{model_name}' -> '{matched_id}'")
                         model_name = matched_id
+                    else:
+                        # If no match found, still try without extension
+                        print(f"[llama.cpp] No exact match found, using '{model_name_no_ext}'")
+                        model_name = model_name_no_ext
 
             payload["model"] = model_name
 
