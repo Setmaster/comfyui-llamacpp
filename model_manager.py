@@ -33,14 +33,24 @@ def get_models_directory() -> str:
 def get_local_models() -> List[str]:
     """
     Get list of local .gguf model files (excluding mmproj files).
-    Returns filenames only, not full paths.
+    Searches both root directory and subdirectories.
+    Returns relative paths from models_dir (e.g., "model.gguf" or "subdir/model.gguf").
     """
     models_dir = get_models_directory()
-    gguf_files = glob.glob(os.path.join(models_dir, "*.gguf"))
+    models = []
 
-    # Return just filenames, sorted (excluding mmproj files)
-    return sorted([os.path.basename(f) for f in gguf_files
-                   if 'mmproj' not in os.path.basename(f).lower()])
+    # Find all .gguf files recursively
+    for root, dirs, files in os.walk(models_dir):
+        for file in files:
+            if file.lower().endswith('.gguf') and 'mmproj' not in file.lower():
+                # Get relative path from models_dir
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, models_dir)
+                # Normalize path separators for cross-platform consistency
+                rel_path = rel_path.replace(os.sep, '/')
+                models.append(rel_path)
+
+    return sorted(models)
 
 
 def get_local_mmproj() -> List[str]:
@@ -57,7 +67,9 @@ def get_local_mmproj() -> List[str]:
 
 
 def get_model_path(model_name: str) -> str:
-    """Get the full path to a model file"""
+    """Get the full path to a model file (handles subdirectory paths like 'subdir/model.gguf')"""
+    # Normalize forward slashes to OS-specific separator
+    model_name = model_name.replace('/', os.sep)
     return os.path.join(get_models_directory(), model_name)
 
 

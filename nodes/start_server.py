@@ -20,11 +20,9 @@ class StartLlamaCppServer:
     
     @classmethod
     def INPUT_TYPES(cls):
+        # get_local_models() already excludes mmproj files
         local_models = get_local_models()
-        
-        # Filter out mmproj files (vision model projectors)
-        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
-        
+
         if not local_models:
             local_models = ["No models found - add .gguf files to models/LLM/gguf/"]
         

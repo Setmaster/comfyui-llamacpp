@@ -31,11 +31,8 @@ class LlamaCppBasicPrompt:
 
     @classmethod
     def INPUT_TYPES(cls):
-        # Get available models for dropdown
+        # Get available models for dropdown (already excludes mmproj files)
         local_models = get_local_models()
-
-        # Filter out mmproj files (vision model projectors)
-        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
 
         # Add empty option at the start for single-model mode
         model_choices = ["(use running model)"] + local_models
