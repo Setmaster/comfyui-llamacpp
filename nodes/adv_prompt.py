@@ -255,25 +255,51 @@ class LlamaCppAdvPrompt:
             if manager.is_router_mode:
                 success, models, _ = manager.list_models()
                 if success and models:
-                    model_name_no_ext = model_name
-                    if model_name_no_ext.lower().endswith('.gguf'):
-                        model_name_no_ext = model_name_no_ext[:-5]
+                    # Build candidate names to try matching
+                    # Input might be: "qwen-vl/model-name.gguf" or "model-name.gguf"
+                    candidates = []
 
-                    matched_id = None
+                    # 1. Without .gguf extension
+                    name_no_ext = model_name
+                    if name_no_ext.lower().endswith('.gguf'):
+                        name_no_ext = name_no_ext[:-5]
+                    candidates.append(name_no_ext)
+
+                    # 2. Just the filename (without directory and extension)
+                    if '/' in name_no_ext:
+                        filename_only = name_no_ext.split('/')[-1]
+                        candidates.append(filename_only)
+                        # 3. Just the directory name (for subdirectory models)
+                        dir_name = name_no_ext.split('/')[0]
+                        candidates.append(dir_name)
+
+                    # Get all model IDs from server
+                    server_model_ids = []
                     for m in models:
                         if isinstance(m, dict):
                             model_id = m.get("id") or m.get("model") or ""
-                            if model_id == model_name_no_ext:
-                                matched_id = model_id
-                                break
+                            if model_id:
+                                server_model_ids.append(model_id)
+
+                    # Try to find a match
+                    matched_id = None
+                    for candidate in candidates:
+                        if candidate in server_model_ids:
+                            matched_id = candidate
+                            break
 
                     if matched_id:
                         if matched_id != model_name:
                             print(f"[llama.cpp] Mapped model '{model_name}' -> '{matched_id}'")
                         model_name = matched_id
                     else:
-                        print(f"[llama.cpp] No exact match found, using '{model_name_no_ext}'")
-                        model_name = model_name_no_ext
+                        # No match found - use filename without extension as best guess
+                        if '/' in name_no_ext:
+                            model_name = name_no_ext.split('/')[-1]
+                        else:
+                            model_name = name_no_ext
+                        print(f"[llama.cpp] No exact match found, using '{model_name}'")
+                        print(f"[llama.cpp] Available models: {server_model_ids}")
 
             payload["model"] = model_name
 
