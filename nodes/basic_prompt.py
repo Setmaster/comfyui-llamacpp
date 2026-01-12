@@ -25,8 +25,8 @@ class LlamaCppBasicPrompt:
     """
 
     CATEGORY = "LlamaCpp"
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("response", "thinking")
+    RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
+    RETURN_NAMES = ("response", "thinking", "success")
     FUNCTION = "generate"
 
     @classmethod
@@ -117,6 +117,13 @@ class LlamaCppBasicPrompt:
                     "max": 0x7FFFFFFF,
                     "tooltip": "Random seed for generation"
                 }),
+                "enable_chaining": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Enable chaining mode. When enabled, waits for trigger input before executing."
+                }),
+                "trigger": ("*", {
+                    "tooltip": "Optional trigger input for chaining. Connect to another node's output to sequence execution."
+                }),
             }
         }
     
@@ -134,12 +141,14 @@ class LlamaCppBasicPrompt:
         min_p: float = 0.05,
         repeat_penalty: float = 1.1,
         seed: int = 0,
+        enable_chaining: bool = False,
+        trigger=None,
     ):
         """Generate a response from the LLM"""
 
         # Validate prompt
         if not prompt.strip():
-            return ("", "")
+            return ("", "", False)
 
         # Get server manager
         manager = get_server_manager()
@@ -149,7 +158,7 @@ class LlamaCppBasicPrompt:
             if not manager.is_running:
                 error_msg = "Error: No server running. Use 'Start llama.cpp Server' or 'Start llama.cpp Router' first."
                 print(f"[llama.cpp] {error_msg}")
-                return (error_msg, "")
+                return (error_msg, "", False)
             server_url = manager.server_url
 
         # Build messages
@@ -278,18 +287,18 @@ class LlamaCppBasicPrompt:
             if thinking_content:
                 print(f"[llama.cpp] Thinking: {len(thinking_content)} chars")
             print(f"[llama.cpp] Response: {len(full_response)} chars")
-            
-            return (full_response, thinking_content)
+
+            return (full_response, thinking_content, True)
             
         except requests.exceptions.ConnectionError:
             error_msg = f"Error: Could not connect to server at {server_url}"
             print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "")
+            return (error_msg, "", False)
         
         except requests.exceptions.Timeout:
             error_msg = "Error: Request timed out (300s)"
             print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "")
+            return (error_msg, "", False)
         
         except requests.exceptions.HTTPError as e:
             error_body = ""
@@ -301,14 +310,14 @@ class LlamaCppBasicPrompt:
             if error_body:
                 error_msg += f" - {error_body}"
             print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "")
+            return (error_msg, "", False)
         
         except Exception as e:
             if HAS_COMFY_INTERRUPT and "InterruptProcessingException" in str(type(e)):
                 raise
             error_msg = f"Error: {e}"
             print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "")
+            return (error_msg, "", False)
 
 
 NODE_CLASS_MAPPINGS = {

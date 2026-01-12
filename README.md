@@ -136,7 +136,7 @@ Returns current server status information.
 
 ### llama.cpp Basic Prompt
 
-Sends a prompt to the llama-server and returns the response. Supports thinking/reasoning models.
+Sends a prompt to the llama-server and returns the response. Supports thinking/reasoning models and workflow chaining.
 
 **Inputs:**
 | Parameter | Type | Default | Description |
@@ -153,12 +153,15 @@ Sends a prompt to the llama-server and returns the response. Supports thinking/r
 | min_p | float | 0.05 | Min-p sampling threshold |
 | repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
 | seed | int | 0 | Random seed for generation |
+| enable_chaining | bool | false | Enable chaining mode for sequential workflows |
+| trigger | * | - | Optional trigger input for chaining |
 
 **Outputs:**
 | Name | Type | Description |
 |------|------|-------------|
 | response | STRING | The generated response text |
 | thinking | STRING | Reasoning/thinking content (for supported models) |
+| success | BOOLEAN | True if generation completed successfully (for chaining) |
 
 ### llama.cpp List Models
 
@@ -218,6 +221,16 @@ Unloads a model to free VRAM.
 ### Explicit Model Control
 ```
 [Start llama.cpp Router] → [Load Model] → [Basic Prompt] → [Unload Model]
+```
+
+### Chained Prompt Workflow
+Use the `success` output and `trigger` input to sequence multiple prompts:
+```
+[Start llama.cpp Router] → [Basic Prompt 1 (model=classifier.gguf)]
+                                    ↓ success
+                           [Basic Prompt 2 (model=generator.gguf, trigger=success)]
+                                    ↓ success
+                           [Basic Prompt 3 (model=editor.gguf, trigger=success)]
 ```
 
 ## Recommended Models
