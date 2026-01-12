@@ -40,6 +40,11 @@ class LlamaCppBasicPrompt:
                 }),
             },
             "optional": {
+                "model": ("STRING", {
+                    "default": "",
+                    "placeholder": "model.gguf (router mode only)",
+                    "tooltip": "Model to use in router mode. Leave empty for single-model mode."
+                }),
                 "server_url": ("STRING", {
                     "default": "",
                     "placeholder": "http://127.0.0.1:8080",
@@ -109,6 +114,7 @@ class LlamaCppBasicPrompt:
     def generate(
         self,
         prompt: str,
+        model: str = "",
         server_url: str = "",
         system_prompt: str = "",
         enable_thinking: bool = True,
@@ -121,26 +127,26 @@ class LlamaCppBasicPrompt:
         seed: int = 0,
     ):
         """Generate a response from the LLM"""
-        
+
         # Validate prompt
         if not prompt.strip():
             return ("", "")
-        
+
         # Determine server URL
         if not server_url.strip():
             manager = get_server_manager()
             if not manager.is_running:
-                error_msg = "Error: No server running. Use 'Start LlamaCpp Server' node first."
+                error_msg = "Error: No server running. Use 'Start LlamaCpp Server' or 'Start LlamaCpp Router' first."
                 print(f"[LlamaCpp] {error_msg}")
                 return (error_msg, "")
             server_url = manager.server_url
-        
+
         # Build messages
         messages = []
         if system_prompt.strip():
             messages.append({"role": "system", "content": system_prompt.strip()})
         messages.append({"role": "user", "content": prompt})
-        
+
         # Build payload
         payload = {
             "messages": messages,
@@ -152,18 +158,24 @@ class LlamaCppBasicPrompt:
             "min_p": min_p,
             "repeat_penalty": repeat_penalty,
         }
-        
+
+        # Add model if specified (for router mode)
+        if model.strip():
+            payload["model"] = model.strip()
+
         # Add seed
         payload["seed"] = seed
-        
+
         # Add thinking mode
         payload["chat_template_kwargs"] = {
             "enable_thinking": enable_thinking
         }
-        
+
         endpoint = f"{server_url}/v1/chat/completions"
-        
+
         print(f"[LlamaCpp] Generating response...")
+        if model.strip():
+            print(f"[LlamaCpp] Model: {model.strip()}")
         print(f"[LlamaCpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
         
         try:

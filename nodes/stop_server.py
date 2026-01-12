@@ -82,30 +82,36 @@ class LlamaCppServerStatus:
     
     def get_status(self):
         """Get the current server status"""
-        
+
         manager = get_server_manager()
         status_info = manager.get_status_info()
-        
+
         is_running = status_info["is_running"]
         status = status_info["status"]
-        
+        mode = status_info.get("mode", "single_model")
+
         # Build info string
         info_parts = [f"Status: {status}"]
-        
+        info_parts.append(f"Mode: {mode}")
+
         if is_running:
             info_parts.append(f"URL: {status_info['server_url']}")
             if "config" in status_info:
                 config = status_info["config"]
-                info_parts.append(f"Model: {config['model']}")
-                info_parts.append(f"Context: {config['context_size']}")
+                if mode == "router":
+                    info_parts.append(f"Models dir: {config.get('models_dir', 'N/A')}")
+                    info_parts.append(f"Max models: {config.get('models_max', 'N/A')}")
+                else:
+                    info_parts.append(f"Model: {config.get('model', 'N/A')}")
+                info_parts.append(f"Context: {config.get('context_size', 'N/A')}")
             if "pid" in status_info:
                 info_parts.append(f"PID: {status_info['pid']}")
-        
+
         if status_info.get("last_error"):
             info_parts.append(f"Last error: {status_info['last_error'][:100]}")
-        
+
         info = "\n".join(info_parts)
-        
+
         return (is_running, status, info)
 
 
