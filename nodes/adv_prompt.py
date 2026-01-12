@@ -12,7 +12,7 @@ from PIL import Image
 from typing import Optional, List, Any
 
 from ..server_manager import get_server_manager
-from ..model_manager import get_local_models
+from ..model_manager import get_local_models, get_local_mmproj
 
 # Try to import ComfyUI's interrupt handling
 try:
@@ -38,14 +38,15 @@ class LlamaCppAdvPrompt:
 
     @classmethod
     def INPUT_TYPES(cls):
-        # Get available models for dropdown
+        # Get available models for dropdown (already excludes mmproj)
         local_models = get_local_models()
-
-        # Filter out mmproj files (vision model projectors)
-        local_models = [m for m in local_models if 'mmproj' not in m.lower()]
 
         # Add empty option at the start for single-model mode
         model_choices = ["(use running model)"] + local_models
+
+        # Get available mmproj files for dropdown
+        local_mmproj = get_local_mmproj()
+        mmproj_choices = ["(auto)"] + local_mmproj
 
         inputs = {
             "required": {
@@ -67,6 +68,10 @@ class LlamaCppAdvPrompt:
                 "model": (model_choices, {
                     "default": "(use running model)",
                     "tooltip": "Model to use. Select a model for router mode, or '(use running model)' for single-model mode."
+                }),
+                "mmproj": (mmproj_choices, {
+                    "default": "(auto)",
+                    "tooltip": "Multimodal projector file for vision models. '(auto)' uses server's default or auto-detects based on model name."
                 }),
                 "server_url": ("STRING", {
                     "default": "",
@@ -173,6 +178,7 @@ class LlamaCppAdvPrompt:
         prompt: str,
         image_amount: int = 2,
         model: str = "",
+        mmproj: str = "(auto)",
         server_url: str = "",
         system_prompt: str = "",
         enable_thinking: bool = True,
@@ -290,9 +296,16 @@ class LlamaCppAdvPrompt:
 
         endpoint = f"{server_url}/v1/chat/completions"
 
+        # Add mmproj if specified (for vision models in router mode)
+        if mmproj and mmproj.strip() and mmproj != "(auto)" and images:
+            # Include mmproj in payload for servers that support it
+            payload["mmproj"] = mmproj.strip()
+
         print(f"[llama.cpp] Generating response...")
         if "model" in payload:
             print(f"[llama.cpp] Model: {payload['model']}")
+        if "mmproj" in payload:
+            print(f"[llama.cpp] mmproj: {payload['mmproj']}")
         print(f"[llama.cpp] Images: {len(images)}")
         print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
 

@@ -174,8 +174,9 @@ Advanced prompt node with vision/image support. Use with VLM (Vision Language Mo
 |-----------|------|---------|-------------|
 | prompt | string | - | The user prompt to send to the LLM |
 | image_amount | int | 2 | Number of image input slots (0-10) |
-| image_1...image_N | IMAGE | - | Optional image inputs for vision models |
+| image_1...image_N | IMAGE | - | Dynamic image inputs for vision models |
 | model | string | empty | Model to use (router mode only) |
+| mmproj | dropdown | (auto) | Multimodal projector file. (auto) = server default |
 | server_url | string | empty | Server URL. Empty = use running server |
 | system_prompt | string | empty | Optional system prompt |
 | enable_thinking | bool | true | Enable thinking mode for supported models |

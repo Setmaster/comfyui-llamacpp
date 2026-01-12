@@ -32,14 +32,28 @@ def get_models_directory() -> str:
 
 def get_local_models() -> List[str]:
     """
-    Get list of local .gguf model files.
+    Get list of local .gguf model files (excluding mmproj files).
     Returns filenames only, not full paths.
     """
     models_dir = get_models_directory()
     gguf_files = glob.glob(os.path.join(models_dir, "*.gguf"))
-    
-    # Return just filenames, sorted
-    return sorted([os.path.basename(f) for f in gguf_files])
+
+    # Return just filenames, sorted (excluding mmproj files)
+    return sorted([os.path.basename(f) for f in gguf_files
+                   if 'mmproj' not in os.path.basename(f).lower()])
+
+
+def get_local_mmproj() -> List[str]:
+    """
+    Get list of local mmproj .gguf files (multimodal projectors for VLM).
+    Returns filenames only, not full paths.
+    """
+    models_dir = get_models_directory()
+    gguf_files = glob.glob(os.path.join(models_dir, "*.gguf"))
+
+    # Return only mmproj files, sorted
+    return sorted([os.path.basename(f) for f in gguf_files
+                   if 'mmproj' in os.path.basename(f).lower()])
 
 
 def get_model_path(model_name: str) -> str:
