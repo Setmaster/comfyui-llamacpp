@@ -1,0 +1,21 @@
+"""
+LlamaCpp Nodes Package
+"""
+
+from .start_server import NODE_CLASS_MAPPINGS as START_MAPPINGS
+from .start_server import NODE_DISPLAY_NAME_MAPPINGS as START_DISPLAY_MAPPINGS
+from .stop_server import NODE_CLASS_MAPPINGS as STOP_MAPPINGS
+from .stop_server import NODE_DISPLAY_NAME_MAPPINGS as STOP_DISPLAY_MAPPINGS
+
+# Combine all node mappings
+NODE_CLASS_MAPPINGS = {
+    **START_MAPPINGS,
+    **STOP_MAPPINGS,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    **START_DISPLAY_MAPPINGS,
+    **STOP_DISPLAY_MAPPINGS,
+}
+
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
