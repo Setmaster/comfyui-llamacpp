@@ -198,14 +198,16 @@ Advanced prompt node with vision/image support. Use with VLM (Vision Language Mo
 
 **VLM Setup:** Vision models require proper organization for llama-server to auto-detect the mmproj file:
 
-- **Router mode:** Create a subdirectory in `ComfyUI/models/LLM/gguf/` containing both the model and mmproj file:
+- **Router mode:** Create a subdirectory in `ComfyUI/models/LLM/gguf/` containing both the model and mmproj file. The **directory name** becomes the model ID:
   ```
   ComfyUI/models/LLM/gguf/
-  └── qwen-vl/                          # Subdirectory for VLM
+  └── qwen-vl/                          # Subdirectory name = model ID
       ├── qwen-vl-4b-Q8_0.gguf          # Main model
-      └── mmproj-qwen-vl-f16.gguf       # Multimodal projector (must contain "mmproj")
+      └── mmproj-qwen-vl-f16.gguf       # Multimodal projector (filename must contain "mmproj")
   ```
 - **Single-model mode:** Use `Start llama.cpp Server` - llama-server will auto-detect mmproj files with `--mmproj-auto` (enabled by default)
+
+**Note:** Keep mmproj files in subdirectories with their models. Loose mmproj files in the root directory will appear in the server's model list but won't work correctly.
 
 ### llama.cpp Prompt Output
 
