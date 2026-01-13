@@ -155,6 +155,7 @@ Sends a prompt to the llama-server and returns the response. Supports thinking/r
 | min_p | float | 0.05 | Min-p sampling threshold |
 | repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
 | seed | int | 0 | Random seed for generation |
+| keep_context | bool | false | Keep conversation context between requests |
 | enable_chaining | bool | false | Enable chaining mode for sequential workflows |
 | trigger | * | - | Optional trigger input for chaining |
 
@@ -186,6 +187,7 @@ Advanced prompt node with vision/image support. Use with VLM (Vision Language Mo
 | min_p | float | 0.05 | Min-p sampling threshold |
 | repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
 | seed | int | 0 | Random seed for generation |
+| keep_context | bool | false | Keep conversation context between requests |
 | enable_chaining | bool | false | Enable chaining mode |
 | trigger | * | - | Optional trigger input for chaining |
 
