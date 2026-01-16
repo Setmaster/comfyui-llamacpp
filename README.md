@@ -256,6 +256,17 @@ Full-featured prompt node with all ADV Prompt capabilities plus template presets
 - **Image2Prompt**: Connect an image, select the template, and run - generates a detailed prompt describing the image
 - **Prompt Enhancer**: Select the template, type a rough prompt like "cat on roof", and get a polished image generation prompt
 
+**Custom Templates:** Templates are stored in `web/templates.json`. Add your own by editing this file:
+```json
+{
+  "My Template": {
+    "system_prompt": "Your system prompt here...",
+    "prompt": "Optional default user prompt"
+  }
+}
+```
+Restart ComfyUI after editing to load new templates.
+
 ### llama.cpp Prompt Output
 
 Displays text in the ComfyUI interface with optional plaintext conversion. Similar to Preview as Text but optimized for LLM output.

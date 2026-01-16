@@ -1,54 +1,32 @@
 import { app } from "../../scripts/app.js";
 
-// Template definitions - must match Python TEMPLATES
-const TEMPLATES = {
-    "Empty": {
-        "system_prompt": "",
-        "prompt": ""
-    },
-    "Image2Prompt": {
-        "system_prompt": `Write a single, final image-generation prompt for an image.
-In a single concise paragraph describe:
+// Templates loaded from JSON file
+let TEMPLATES = null;
 
-1) The main subject: age, ethnicity, body type and proportions
-2) Clothing and accessories, fashion styles
-3) Body posture, pose, and  position in frame
-4) Physical attributes for each character such as skin color, hair color, eye color and ethnicity
-4) Environment, time of day, and background
-5) focal length, lighting, angle, focus, exposure, framing
-
-Rules:
-1. Focus on recreating the original composition, capturing the details that make this image unique and interesting. prioritize capturing any compositional details or anomalies.
-2. Never use words like: appears, seems, looks like, likely, possibly.
-3. Do not omit nudity or anatomy where it is visible.
-4. Do not include watermarks, urls or signatures.
-5. Output only the photographic prompt. End after the last sentence.
-6. Use clear, direct, factual sentences.
-8. Do not omit text unless fit conflicts with rule 4.
-9. If the image is not photorealistic then make sure to mold the prompt according to its artstyle`,
-        "prompt": "output:"
-    },
-    "Prompt Enhancer": {
-        "system_prompt": `You are an expert prompt engineer for image generation models. Your task is to transform rough, unpolished prompts into detailed, high-quality image generation prompts.
-
-When given a basic prompt, enhance it by:
-1) Adding specific visual details: colors, textures, materials, lighting conditions
-2) Specifying composition: framing, perspective, focal point, depth of field
-3) Including style descriptors: artistic style, mood, atmosphere, quality tags
-4) Adding technical photography terms when appropriate: lens type, aperture, exposure
-5) Maintaining the original intent while elevating the descriptive quality
-
-Rules:
-1. Output ONLY the enhanced prompt, nothing else
-2. Keep the enhanced prompt as a single flowing paragraph
-3. Do not add explanations or commentary
-4. Do not use markdown formatting
-5. Preserve the core subject and intent of the original prompt
-6. Be specific and vivid, avoid vague or generic terms
-7. Do not exceed 200 words unless necessary for complex scenes`,
-        "prompt": ""
+// Load templates from JSON file
+async function loadTemplates() {
+    if (TEMPLATES !== null) {
+        return TEMPLATES;
     }
-};
+
+    try {
+        const response = await fetch("/extensions/comfyui-llamacpp/templates.json");
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        TEMPLATES = await response.json();
+        console.log("[llama.cpp] Loaded templates:", Object.keys(TEMPLATES));
+        return TEMPLATES;
+    } catch (error) {
+        console.warn("[llama.cpp] Could not load templates.json:", error);
+        // Fallback to empty template
+        TEMPLATES = { "Empty": { "system_prompt": "", "prompt": "" } };
+        return TEMPLATES;
+    }
+}
+
+// Pre-load templates
+loadTemplates();
 
 app.registerExtension({
     name: "llamacpp.AdvPPPrompt",
@@ -72,15 +50,18 @@ app.registerExtension({
                     // Flag to track if this is user-initiated change
                     this._isUserTemplateChange = true;
 
-                    templateWidget.callback = (value, ...args) => {
+                    templateWidget.callback = async (value, ...args) => {
                         // Only auto-fill if this is a user-initiated change
-                        if (this._isUserTemplateChange && TEMPLATES[value]) {
-                            const template = TEMPLATES[value];
-                            systemPromptWidget.value = template.system_prompt;
-                            promptWidget.value = template.prompt;
+                        if (this._isUserTemplateChange) {
+                            const templates = await loadTemplates();
+                            if (templates[value]) {
+                                const template = templates[value];
+                                systemPromptWidget.value = template.system_prompt;
+                                promptWidget.value = template.prompt;
 
-                            // Trigger redraw
-                            app.graph.setDirtyCanvas(true, true);
+                                // Trigger redraw
+                                app.graph.setDirtyCanvas(true, true);
+                            }
                         }
 
                         if (originalTemplateCallback) {

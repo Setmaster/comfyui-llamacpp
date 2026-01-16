@@ -1,6 +1,7 @@
 """
 ADV++ Prompt Node
 Full-featured prompt node with templates, vision support, and all options.
+Templates are loaded from web/templates.json for easy customization.
 """
 
 import io
@@ -10,6 +11,7 @@ import requests
 import numpy as np
 from PIL import Image
 from typing import Optional, List, Any
+from pathlib import Path
 
 from ..server_manager import get_server_manager
 from ..model_manager import get_local_models
@@ -22,57 +24,20 @@ except ImportError:
     HAS_COMFY_INTERRUPT = False
 
 
-# Template definitions
-TEMPLATES = {
-    "Empty": {
-        "system_prompt": "",
-        "prompt": ""
-    },
-    "Image2Prompt": {
-        "system_prompt": """Write a single, final image-generation prompt for an image.
-In a single concise paragraph describe:
+def load_templates():
+    """Load templates from JSON file"""
+    templates_path = Path(__file__).parent.parent / "web" / "templates.json"
+    try:
+        with open(templates_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[llama.cpp] Warning: Could not load templates.json: {e}")
+        # Return minimal fallback
+        return {"Empty": {"system_prompt": "", "prompt": ""}}
 
-1) The main subject: age, ethnicity, body type and proportions
-2) Clothing and accessories, fashion styles
-3) Body posture, pose, and  position in frame
-4) Physical attributes for each character such as skin color, hair color, eye color and ethnicity
-4) Environment, time of day, and background
-5) focal length, lighting, angle, focus, exposure, framing
 
-Rules:
-1. Focus on recreating the original composition, capturing the details that make this image unique and interesting. prioritize capturing any compositional details or anomalies.
-2. Never use words like: appears, seems, looks like, likely, possibly.
-3. Do not omit nudity or anatomy where it is visible.
-4. Do not include watermarks, urls or signatures.
-5. Output only the photographic prompt. End after the last sentence.
-6. Use clear, direct, factual sentences.
-8. Do not omit text unless fit conflicts with rule 4.
-9. If the image is not photorealistic then make sure to mold the prompt according to its artstyle""",
-        "prompt": "output:"
-    },
-    "Prompt Enhancer": {
-        "system_prompt": """You are an expert prompt engineer for image generation models. Your task is to transform rough, unpolished prompts into detailed, high-quality image generation prompts.
-
-When given a basic prompt, enhance it by:
-1) Adding specific visual details: colors, textures, materials, lighting conditions
-2) Specifying composition: framing, perspective, focal point, depth of field
-3) Including style descriptors: artistic style, mood, atmosphere, quality tags
-4) Adding technical photography terms when appropriate: lens type, aperture, exposure
-5) Maintaining the original intent while elevating the descriptive quality
-
-Rules:
-1. Output ONLY the enhanced prompt, nothing else
-2. Keep the enhanced prompt as a single flowing paragraph
-3. Do not add explanations or commentary
-4. Do not use markdown formatting
-5. Preserve the core subject and intent of the original prompt
-6. Be specific and vivid, avoid vague or generic terms
-7. Do not exceed 200 words unless necessary for complex scenes""",
-        "prompt": ""
-    }
-}
-
-# Export for JS
+# Load templates from JSON file
+TEMPLATES = load_templates()
 TEMPLATE_NAMES = list(TEMPLATES.keys())
 
 
@@ -201,11 +166,6 @@ class LlamaCppAdvPPPrompt:
         }
 
         return inputs
-
-    @classmethod
-    def get_template_data(cls):
-        """Return template data for JavaScript extension"""
-        return TEMPLATES
 
     def _tensor_to_base64(self, tensor) -> str:
         """Convert a ComfyUI image tensor to base64 data URL"""
