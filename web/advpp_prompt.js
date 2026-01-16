@@ -98,8 +98,13 @@ app.registerExtension({
 
                     this._imageInputCount = newCount;
 
-                    // Trigger node resize
-                    this.setSize(this.computeSize());
+                    // Adjust size: keep width, only grow height if needed
+                    const currentSize = this.size;
+                    const minSize = this.computeSize();
+                    this.setSize([
+                        Math.max(currentSize[0], minSize[0]),
+                        Math.max(currentSize[1], minSize[1])
+                    ]);
                     app.graph.setDirtyCanvas(true, true);
                 };
 
