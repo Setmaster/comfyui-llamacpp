@@ -8,6 +8,7 @@ A modular llama.cpp integration for ComfyUI, providing clean and extensible node
 - **Router Mode** - Multi-model support with dynamic loading/unloading (LRU eviction)
 - **Basic Prompt** - Send prompts with full sampling control and thinking mode support
 - **ADV Prompt** - Advanced prompt with vision/image support for VLM models
+- **ADV++ Prompt** - Full-featured prompt with templates for common tasks (Image2Prompt, Prompt Enhancer)
 - **Prompt Output** - Display and preview LLM responses with optional plaintext conversion
 - **Model Management** - List, load, and unload models in router mode
 
@@ -211,6 +212,50 @@ Advanced prompt node with vision/image support. Use with VLM (Vision Language Mo
 
 **Note:** Keep mmproj files in subdirectories with their models. Loose mmproj files in the root directory will appear in the server's model list but won't work correctly.
 
+### llama.cpp ADV++ Prompt
+
+Full-featured prompt node with all ADV Prompt capabilities plus template presets for common tasks. Templates auto-fill the system prompt and prompt fields when selected.
+
+**Templates:**
+| Template | Description |
+|----------|-------------|
+| Empty | Default - both fields blank for custom use |
+| Image2Prompt | Generates detailed image prompts from input images (for VLM) |
+| Prompt Enhancer | Transforms rough prompts into detailed image generation prompts |
+
+**Inputs:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| template | dropdown | Empty | Select a template to auto-fill prompts |
+| prompt | string | - | The user prompt (auto-filled by template) |
+| image_amount | int | 2 | Number of image input slots (0-10) |
+| image_1...image_N | IMAGE | - | Dynamic image inputs for vision models |
+| model | string | empty | Model to use (router mode only) |
+| server_url | string | empty | Server URL. Empty = use running server |
+| system_prompt | string | empty | System prompt (auto-filled by template) |
+| enable_thinking | bool | true | Enable thinking mode for supported models |
+| max_tokens | int | 2048 | Maximum tokens to generate |
+| temperature | float | 0.7 | Sampling temperature (0.0-2.0) |
+| top_p | float | 0.9 | Top-p nucleus sampling (0.0-1.0) |
+| top_k | int | 40 | Top-k sampling (0 = disabled) |
+| min_p | float | 0.05 | Min-p sampling threshold |
+| repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
+| seed | int | 0 | Random seed for generation |
+| keep_context | bool | false | Keep conversation context between requests |
+| enable_chaining | bool | false | Enable chaining mode |
+| trigger | * | - | Optional trigger input for chaining |
+
+**Outputs:**
+| Name | Type | Description |
+|------|------|-------------|
+| response | STRING | The generated response text |
+| thinking | STRING | Reasoning/thinking content (for supported models) |
+| success | BOOLEAN | True if generation completed successfully |
+
+**Usage:**
+- **Image2Prompt**: Connect an image, select the template, and run - generates a detailed prompt describing the image
+- **Prompt Enhancer**: Select the template, type a rough prompt like "cat on roof", and get a polished image generation prompt
+
 ### llama.cpp Prompt Output
 
 Displays text in the ComfyUI interface with optional plaintext conversion. Similar to Preview as Text but optimized for LLM output.
@@ -310,6 +355,7 @@ Use the `success` output and `trigger` input to sequence multiple prompts:
 - [x] Basic Prompt - Send prompts to the server
 - [x] Router Mode - Multi-model support with dynamic loading
 - [x] VLM Support - Vision-language model integration (ADV Prompt)
+- [x] ADV++ Prompt - Template-based prompts (Image2Prompt, Prompt Enhancer)
 - [ ] Text Embedding - Generate embeddings for text
 - [ ] Model Info - Display model metadata
 

@@ -1,0 +1,484 @@
+"""
+ADV++ Prompt Node
+Full-featured prompt node with templates, vision support, and all options.
+"""
+
+import io
+import json
+import base64
+import requests
+import numpy as np
+from PIL import Image
+from typing import Optional, List, Any
+
+from ..server_manager import get_server_manager
+from ..model_manager import get_local_models
+
+# Try to import ComfyUI's interrupt handling
+try:
+    import comfy.model_management
+    HAS_COMFY_INTERRUPT = True
+except ImportError:
+    HAS_COMFY_INTERRUPT = False
+
+
+# Template definitions
+TEMPLATES = {
+    "Empty": {
+        "system_prompt": "",
+        "prompt": ""
+    },
+    "Image2Prompt": {
+        "system_prompt": """Write a single, final image-generation prompt for an image.
+In a single concise paragraph describe:
+
+1) The main subject: age, ethnicity, body type and proportions
+2) Clothing and accessories, fashion styles
+3) Body posture, pose, and  position in frame
+4) Physical attributes for each character such as skin color, hair color, eye color and ethnicity
+4) Environment, time of day, and background
+5) focal length, lighting, angle, focus, exposure, framing
+
+Rules:
+1. Focus on recreating the original composition, capturing the details that make this image unique and interesting. prioritize capturing any compositional details or anomalies.
+2. Never use words like: appears, seems, looks like, likely, possibly.
+3. Do not omit nudity or anatomy where it is visible.
+4. Do not include watermarks, urls or signatures.
+5. Output only the photographic prompt. End after the last sentence.
+6. Use clear, direct, factual sentences.
+8. Do not omit text unless fit conflicts with rule 4.
+9. If the image is not photorealistic then make sure to mold the prompt according to its artstyle""",
+        "prompt": "output:"
+    },
+    "Prompt Enhancer": {
+        "system_prompt": """You are an expert prompt engineer for image generation models. Your task is to transform rough, unpolished prompts into detailed, high-quality image generation prompts.
+
+When given a basic prompt, enhance it by:
+1) Adding specific visual details: colors, textures, materials, lighting conditions
+2) Specifying composition: framing, perspective, focal point, depth of field
+3) Including style descriptors: artistic style, mood, atmosphere, quality tags
+4) Adding technical photography terms when appropriate: lens type, aperture, exposure
+5) Maintaining the original intent while elevating the descriptive quality
+
+Rules:
+1. Output ONLY the enhanced prompt, nothing else
+2. Keep the enhanced prompt as a single flowing paragraph
+3. Do not add explanations or commentary
+4. Do not use markdown formatting
+5. Preserve the core subject and intent of the original prompt
+6. Be specific and vivid, avoid vague or generic terms
+7. Do not exceed 200 words unless necessary for complex scenes""",
+        "prompt": ""
+    }
+}
+
+# Export for JS
+TEMPLATE_NAMES = list(TEMPLATES.keys())
+
+
+class LlamaCppAdvPPPrompt:
+    """
+    ComfyUI node that sends a prompt with images to the llama-server.
+    Full-featured version with templates and all options.
+    """
+
+    CATEGORY = "LlamaCpp"
+    RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
+    RETURN_NAMES = ("response", "thinking", "success")
+    FUNCTION = "generate"
+
+    # Maximum number of images supported
+    MAX_IMAGES = 10
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        # Get available models for dropdown (already excludes mmproj)
+        local_models = get_local_models()
+
+        # Add empty option at the start for single-model mode
+        model_choices = ["(use running model)"] + local_models
+
+        inputs = {
+            "required": {
+                "template": (TEMPLATE_NAMES, {
+                    "default": "Empty",
+                    "tooltip": "Select a template to auto-fill system prompt and prompt fields"
+                }),
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Enter your prompt here...",
+                    "tooltip": "The user prompt to send to the LLM"
+                }),
+                "image_amount": ("INT", {
+                    "default": 2,
+                    "min": 0,
+                    "max": cls.MAX_IMAGES,
+                    "step": 1,
+                    "tooltip": "Number of image input slots to show"
+                }),
+            },
+            "optional": {
+                "model": (model_choices, {
+                    "default": "(use running model)",
+                    "tooltip": "Model to use. Select a model for router mode, or '(use running model)' for single-model mode."
+                }),
+                "server_url": ("STRING", {
+                    "default": "",
+                    "placeholder": "http://127.0.0.1:8080",
+                    "tooltip": "Server URL. Leave empty to use running server."
+                }),
+                "system_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Optional system prompt...",
+                    "tooltip": "System prompt to set the AI's behavior"
+                }),
+                "enable_thinking": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Enable thinking/reasoning mode (for supported models)"
+                }),
+                "max_tokens": ("INT", {
+                    "default": 2048,
+                    "min": 1,
+                    "max": 32768,
+                    "step": 64,
+                    "tooltip": "Maximum tokens to generate"
+                }),
+                "temperature": ("FLOAT", {
+                    "default": 0.7,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "tooltip": "Sampling temperature. Higher = more creative, lower = more focused."
+                }),
+                "top_p": ("FLOAT", {
+                    "default": 0.9,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.05,
+                    "tooltip": "Top-p (nucleus) sampling threshold"
+                }),
+                "top_k": ("INT", {
+                    "default": 40,
+                    "min": 0,
+                    "max": 200,
+                    "step": 1,
+                    "tooltip": "Top-k sampling. 0 = disabled."
+                }),
+                "min_p": ("FLOAT", {
+                    "default": 0.05,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "tooltip": "Min-p sampling threshold"
+                }),
+                "repeat_penalty": ("FLOAT", {
+                    "default": 1.1,
+                    "min": 1.0,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "tooltip": "Repetition penalty. 1.0 = no penalty."
+                }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0x7FFFFFFF,
+                    "tooltip": "Random seed for generation"
+                }),
+                "keep_context": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Keep conversation context between requests. When OFF, each request starts fresh."
+                }),
+                "enable_chaining": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Enable chaining mode. When enabled, waits for trigger input before executing."
+                }),
+                "trigger": ("*", {
+                    "tooltip": "Optional trigger input for chaining. Connect to another node's output to sequence execution."
+                }),
+            }
+        }
+
+        return inputs
+
+    @classmethod
+    def get_template_data(cls):
+        """Return template data for JavaScript extension"""
+        return TEMPLATES
+
+    def _tensor_to_base64(self, tensor) -> str:
+        """Convert a ComfyUI image tensor to base64 data URL"""
+        # ComfyUI tensors are [B, H, W, C] in range [0, 1]
+        # Take first image if batched
+        if len(tensor.shape) == 4:
+            tensor = tensor[0]
+
+        # Convert to numpy and scale to 0-255
+        img_np = (tensor.cpu().numpy() * 255).astype(np.uint8)
+
+        # Create PIL Image
+        pil_img = Image.fromarray(img_np)
+
+        # Convert to base64
+        buffer = io.BytesIO()
+        pil_img.save(buffer, format="PNG")
+        buffer.seek(0)
+        base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+        return f"data:image/png;base64,{base64_str}"
+
+    def generate(
+        self,
+        template: str,
+        prompt: str,
+        image_amount: int = 2,
+        model: str = "",
+        server_url: str = "",
+        system_prompt: str = "",
+        enable_thinking: bool = True,
+        max_tokens: int = 2048,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        top_k: int = 40,
+        min_p: float = 0.05,
+        repeat_penalty: float = 1.1,
+        seed: int = 0,
+        keep_context: bool = False,
+        enable_chaining: bool = False,
+        trigger=None,
+        **kwargs,  # Capture dynamic image inputs
+    ):
+        """Generate a response from the LLM with optional images"""
+
+        # Validate prompt
+        if not prompt.strip():
+            return ("", "", False)
+
+        # Get server manager
+        manager = get_server_manager()
+
+        # Determine server URL
+        if not server_url.strip():
+            if not manager.is_running:
+                error_msg = "Error: No server running. Use 'Start llama.cpp Server' or 'Start llama.cpp Router' first."
+                print(f"[llama.cpp] {error_msg}")
+                return (error_msg, "", False)
+            server_url = manager.server_url
+
+        # Collect images from kwargs
+        images: List[str] = []
+        for i in range(1, self.MAX_IMAGES + 1):
+            img_key = f"image_{i}"
+            if img_key in kwargs and kwargs[img_key] is not None:
+                try:
+                    base64_url = self._tensor_to_base64(kwargs[img_key])
+                    images.append(base64_url)
+                    print(f"[llama.cpp] Added image_{i}")
+                except Exception as e:
+                    print(f"[llama.cpp] Warning: Failed to process {img_key}: {e}")
+
+        # Build user content (text + images for VLM)
+        if images:
+            # OpenAI-compatible vision format
+            user_content = []
+            for img_url in images:
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": img_url}
+                })
+            user_content.append({
+                "type": "text",
+                "text": prompt
+            })
+        else:
+            user_content = prompt
+
+        # Build messages
+        messages = []
+        if system_prompt.strip():
+            messages.append({"role": "system", "content": system_prompt.strip()})
+        messages.append({"role": "user", "content": user_content})
+
+        # Build payload
+        payload = {
+            "messages": messages,
+            "stream": True,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "min_p": min_p,
+            "repeat_penalty": repeat_penalty,
+            "cache_prompt": keep_context,  # When False, starts fresh without prior context
+        }
+
+        # Add model if specified (for router mode)
+        if model and model.strip() and model != "(use running model)":
+            model_name = model.strip()
+
+            # In router mode, try to find matching model from server's discovered models
+            if manager.is_router_mode:
+                success, models, _ = manager.list_models()
+                if success and models:
+                    # Build candidate names to try matching
+                    # Input might be: "qwen-vl/model-name.gguf" or "model-name.gguf"
+                    candidates = []
+
+                    # 1. Without .gguf extension
+                    name_no_ext = model_name
+                    if name_no_ext.lower().endswith('.gguf'):
+                        name_no_ext = name_no_ext[:-5]
+                    candidates.append(name_no_ext)
+
+                    # 2. Just the filename (without directory and extension)
+                    if '/' in name_no_ext:
+                        filename_only = name_no_ext.split('/')[-1]
+                        candidates.append(filename_only)
+                        # 3. Just the directory name (for subdirectory models)
+                        dir_name = name_no_ext.split('/')[0]
+                        candidates.append(dir_name)
+
+                    # Get all model IDs from server
+                    server_model_ids = []
+                    for m in models:
+                        if isinstance(m, dict):
+                            model_id = m.get("id") or m.get("model") or ""
+                            if model_id:
+                                server_model_ids.append(model_id)
+
+                    # Try to find a match
+                    matched_id = None
+                    for candidate in candidates:
+                        if candidate in server_model_ids:
+                            matched_id = candidate
+                            break
+
+                    if matched_id:
+                        if matched_id != model_name:
+                            print(f"[llama.cpp] Mapped model '{model_name}' -> '{matched_id}'")
+                        model_name = matched_id
+                    else:
+                        # No match found - use filename without extension as best guess
+                        if '/' in name_no_ext:
+                            model_name = name_no_ext.split('/')[-1]
+                        else:
+                            model_name = name_no_ext
+                        print(f"[llama.cpp] No exact match found, using '{model_name}'")
+                        print(f"[llama.cpp] Available models: {server_model_ids}")
+
+            payload["model"] = model_name
+
+        # Add seed
+        payload["seed"] = seed
+
+        # Add thinking mode
+        payload["chat_template_kwargs"] = {
+            "enable_thinking": enable_thinking
+        }
+
+        endpoint = f"{server_url}/v1/chat/completions"
+
+        print(f"[llama.cpp] Generating response...")
+        if "model" in payload:
+            print(f"[llama.cpp] Model: {payload['model']}")
+        print(f"[llama.cpp] Images: {len(images)}")
+        print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
+
+        try:
+            response = requests.post(
+                endpoint,
+                json=payload,
+                stream=True,
+                timeout=300
+            )
+            response.raise_for_status()
+
+            full_response = ""
+            thinking_content = ""
+
+            for line in response.iter_lines():
+                # Check for interrupt
+                if HAS_COMFY_INTERRUPT:
+                    try:
+                        comfy.model_management.throw_exception_if_processing_interrupted()
+                    except comfy.model_management.InterruptProcessingException:
+                        print("[llama.cpp] Generation interrupted by user")
+                        response.close()
+                        raise
+
+                if line:
+                    decoded = line.decode('utf-8')
+                    if decoded.startswith('data: '):
+                        json_str = decoded[6:]
+
+                        if json_str.strip() == '[DONE]':
+                            break
+
+                        try:
+                            chunk = json.loads(json_str)
+
+                            if 'choices' in chunk and len(chunk['choices']) > 0:
+                                delta = chunk['choices'][0].get('delta', {})
+
+                                # Handle thinking/reasoning content
+                                reasoning = delta.get('reasoning_content', '')
+                                if reasoning:
+                                    thinking_content += reasoning
+
+                                # Handle regular content
+                                content = delta.get('content', '')
+                                if content:
+                                    full_response += content
+
+                        except json.JSONDecodeError:
+                            pass
+
+            # Clean up leading/trailing whitespace
+            full_response = full_response.strip()
+            thinking_content = thinking_content.strip()
+
+            print(f"[llama.cpp] Generation complete")
+            if thinking_content:
+                print(f"[llama.cpp] Thinking: {len(thinking_content)} chars")
+            print(f"[llama.cpp] Response: {len(full_response)} chars")
+
+            return (full_response, thinking_content, True)
+
+        except requests.exceptions.ConnectionError:
+            error_msg = f"Error: Could not connect to server at {server_url}"
+            print(f"[llama.cpp] {error_msg}")
+            return (error_msg, "", False)
+
+        except requests.exceptions.Timeout:
+            error_msg = "Error: Request timed out (300s)"
+            print(f"[llama.cpp] {error_msg}")
+            return (error_msg, "", False)
+
+        except requests.exceptions.HTTPError as e:
+            error_body = ""
+            try:
+                error_body = e.response.text[:500]
+            except:
+                pass
+            error_msg = f"Error: HTTP {e.response.status_code}"
+            if error_body:
+                error_msg += f" - {error_body}"
+            print(f"[llama.cpp] {error_msg}")
+            return (error_msg, "", False)
+
+        except Exception as e:
+            if HAS_COMFY_INTERRUPT and "InterruptProcessingException" in str(type(e)):
+                raise
+            error_msg = f"Error: {e}"
+            print(f"[llama.cpp] {error_msg}")
+            return (error_msg, "", False)
+
+
+NODE_CLASS_MAPPINGS = {
+    "LlamaCppAdvPPPrompt": LlamaCppAdvPPPrompt
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "LlamaCppAdvPPPrompt": "llama.cpp ADV++ Prompt"
+}
