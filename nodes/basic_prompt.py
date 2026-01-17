@@ -3,19 +3,11 @@ Basic Prompt Node
 Sends a prompt to the llama-server and returns the response.
 """
 
-import json
-import requests
 from typing import Optional
 
 from ..server_manager import get_server_manager
 from ..model_manager import get_local_models
-
-# Try to import ComfyUI's interrupt handling
-try:
-    import comfy.model_management
-    HAS_COMFY_INTERRUPT = True
-except ImportError:
-    HAS_COMFY_INTERRUPT = False
+from ..streaming_client import stream_generate
 
 
 class LlamaCppBasicPrompt:
@@ -253,95 +245,16 @@ class LlamaCppBasicPrompt:
         if "model" in payload:
             print(f"[llama.cpp] Model: {payload['model']}")
         print(f"[llama.cpp] Thinking mode: {'ON' if enable_thinking else 'OFF'}")
-        
-        try:
-            response = requests.post(
-                endpoint,
-                json=payload,
-                stream=True,
-                timeout=300
-            )
-            response.raise_for_status()
-            
-            full_response = ""
-            thinking_content = ""
-            
-            for line in response.iter_lines():
-                # Check for interrupt
-                if HAS_COMFY_INTERRUPT:
-                    try:
-                        comfy.model_management.throw_exception_if_processing_interrupted()
-                    except comfy.model_management.InterruptProcessingException:
-                        print("[llama.cpp] Generation interrupted by user")
-                        response.close()
-                        raise
-                
-                if line:
-                    decoded = line.decode('utf-8')
-                    if decoded.startswith('data: '):
-                        json_str = decoded[6:]
-                        
-                        if json_str.strip() == '[DONE]':
-                            break
-                        
-                        try:
-                            chunk = json.loads(json_str)
-                            
-                            if 'choices' in chunk and len(chunk['choices']) > 0:
-                                delta = chunk['choices'][0].get('delta', {})
-                                
-                                # Handle thinking/reasoning content
-                                reasoning = delta.get('reasoning_content', '')
-                                if reasoning:
-                                    thinking_content += reasoning
-                                
-                                # Handle regular content
-                                content = delta.get('content', '')
-                                if content:
-                                    full_response += content
-                                    
-                        except json.JSONDecodeError:
-                            pass
-            
-            # Clean up leading/trailing whitespace
-            full_response = full_response.strip()
-            thinking_content = thinking_content.strip()
-            
-            print(f"[llama.cpp] Generation complete")
-            if thinking_content:
-                print(f"[llama.cpp] Thinking: {len(thinking_content)} chars")
-            print(f"[llama.cpp] Response: {len(full_response)} chars")
 
-            return (full_response, thinking_content, True)
-            
-        except requests.exceptions.ConnectionError:
-            error_msg = f"Error: Could not connect to server at {server_url}"
-            print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "", False)
-        
-        except requests.exceptions.Timeout:
-            error_msg = "Error: Request timed out (300s)"
-            print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "", False)
-        
-        except requests.exceptions.HTTPError as e:
-            error_body = ""
-            try:
-                error_body = e.response.text[:500]
-            except:
-                pass
-            error_msg = f"Error: HTTP {e.response.status_code}"
-            if error_body:
-                error_msg += f" - {error_body}"
-            print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "", False)
-        
-        except Exception as e:
-            if HAS_COMFY_INTERRUPT and "InterruptProcessingException" in str(type(e)):
-                raise
-            error_msg = f"Error: {e}"
-            print(f"[llama.cpp] {error_msg}")
-            return (error_msg, "", False)
+        # Use streaming client with improved error handling
+        result = stream_generate(
+            endpoint=endpoint,
+            payload=payload,
+            timeout=300,
+            chunk_timeout=60,
+        )
+
+        return (result.response, result.thinking, result.success)
 
 
 NODE_CLASS_MAPPINGS = {

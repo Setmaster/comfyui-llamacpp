@@ -9,7 +9,7 @@ Provides nodes for:
 - Model management (list, load, unload)
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 

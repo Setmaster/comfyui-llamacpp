@@ -391,6 +391,20 @@ The `thinking` output only contains content for models that support reasoning mo
 ### Router mode not working
 Router mode requires **llama.cpp build b7389 or later** (December 2025+). If you see "invalid argument: --models-dir", your llama-server version is too old. Update from the [releases page](https://github.com/ggml-org/llama.cpp/releases). Until then, use single-model mode.
 
+### VLM model hangs or crashes
+If a Vision-Language model causes the server to hang:
+- **Check mmproj pairing**: Each VLM needs its matching mmproj file. A 4B model's mmproj won't work with an 8B model.
+- **Separate folders**: In router mode, put each VLM and its mmproj in a dedicated subdirectory. Don't mix multiple VLMs in one folder.
+- **Check error output**: The prompt nodes output descriptive error messages via the `response` pin when `success=False`.
+
+### Common error messages
+| Error | Cause |
+|-------|-------|
+| "Connection reset - server crashed" | Model failed to load (often mmproj mismatch) |
+| "Server response timeout (60s)" | Server hung during generation |
+| "No response received from server" | Model loaded but failed to generate |
+| "Connection refused" | Server crashed or not started |
+
 ## License
 
 MIT License

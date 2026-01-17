@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-llamacpp"
 description = "A modular llama.cpp integration for ComfyUI - local LLM inference nodes"
-version = "0.2.0"
+version = "0.2.1"
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
