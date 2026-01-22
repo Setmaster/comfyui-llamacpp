@@ -114,6 +114,20 @@ class LlamaCppAdvPrompt:
                     "step": 0.05,
                     "tooltip": "Repetition penalty. 1.0 = no penalty."
                 }),
+                "presence_penalty": ("FLOAT", {
+                    "default": 0.0,
+                    "min": -2.0,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "Penalize new tokens based on whether they appear in the text so far. Positive values increase variety."
+                }),
+                "frequency_penalty": ("FLOAT", {
+                    "default": 0.0,
+                    "min": -2.0,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "tooltip": "Penalize new tokens based on their frequency in the text so far. Positive values reduce word repetition."
+                }),
                 "seed": ("INT", {
                     "default": 0,
                     "min": 0,
@@ -175,6 +189,8 @@ class LlamaCppAdvPrompt:
         top_k: int = 40,
         min_p: float = 0.05,
         repeat_penalty: float = 1.1,
+        presence_penalty: float = 0.0,
+        frequency_penalty: float = 0.0,
         seed: int = 0,
         keep_context: bool = False,
         enable_chaining: bool = False,
@@ -242,6 +258,8 @@ class LlamaCppAdvPrompt:
             "top_k": top_k,
             "min_p": min_p,
             "repeat_penalty": repeat_penalty,
+            "presence_penalty": presence_penalty,
+            "frequency_penalty": frequency_penalty,
             "cache_prompt": keep_context,  # When False, starts fresh without prior context
         }
 
