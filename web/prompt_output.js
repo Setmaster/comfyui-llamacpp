@@ -19,8 +19,8 @@ app.registerExtension({
                 this.showValueWidget.inputEl.readOnly = true;
                 this.showValueWidget.inputEl.style.opacity = 0.8;
 
-                // Don't serialize the display widget value
-                this.showValueWidget.serializeValue = async () => "";
+                // Serialize the display widget value so it persists across tab switches
+                this.showValueWidget.serializeValue = async () => this.showValueWidget.value || "";
             };
 
             // Handle executed result to update the display
