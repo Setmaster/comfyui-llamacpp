@@ -169,8 +169,12 @@ class LlamaCppAdvPPPrompt:
                 "trigger": ("*", {
                     "tooltip": "Optional trigger input for chaining. Connect to another node's output to sequence execution."
                 }),
-                "logit_bias": ("LOGIT_BIAS", {
-                    "tooltip": "Optional logit bias for token banning. Connect a Token Ban node."
+                "token_ban": ("LOGIT_BIAS", {
+                    "tooltip": "Token ban list. Connect a Token Ban node."
+                }),
+                "enable_token_ban": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Enable or disable the connected token ban list"
                 }),
             }
         }
@@ -219,7 +223,8 @@ class LlamaCppAdvPPPrompt:
         keep_context: bool = False,
         enable_chaining: bool = False,
         trigger=None,
-        logit_bias=None,
+        token_ban=None,
+        enable_token_ban: bool = True,
         **kwargs,  # Capture dynamic image inputs
     ):
         """Generate a response from the LLM with optional images"""
@@ -345,8 +350,8 @@ class LlamaCppAdvPPPrompt:
             payload["model"] = model_name
 
         # Add logit bias (token banning)
-        if logit_bias:
-            payload["logit_bias"] = logit_bias
+        if token_ban and enable_token_ban:
+            payload["logit_bias"] = token_ban
 
         # Add seed
         payload["seed"] = seed
