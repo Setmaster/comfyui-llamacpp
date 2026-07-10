@@ -29,6 +29,7 @@ desktop.ini
 
 # Testing
 .pytest_cache/
+.playwright-cli/
 .coverage
 htmlcov/
 

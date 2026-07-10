@@ -1,0 +1,906 @@
+{
+  "id": "b71016be-bedc-42bd-808b-8c5fd01cd33c",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "StartLlamaCppRouter",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        400,
+        612
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "context_size",
+          "name": "context_size",
+          "type": "INT",
+          "widget": {
+            "name": "context_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "gpu_layers",
+          "name": "gpu_layers",
+          "type": "STRING",
+          "widget": {
+            "name": "gpu_layers"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "main_gpu",
+          "name": "main_gpu",
+          "type": "INT",
+          "widget": {
+            "name": "main_gpu"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "models_max",
+          "name": "models_max",
+          "type": "INT",
+          "widget": {
+            "name": "models_max"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "port",
+          "name": "port",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "port"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "threads",
+          "name": "threads",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "threads"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "flash_attention",
+          "name": "flash_attention",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "flash_attention"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "models_autoload",
+          "name": "models_autoload",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "models_autoload"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "timeout",
+          "name": "timeout",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "timeout"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "binary_path",
+          "name": "binary_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "binary_path"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "host",
+          "name": "host",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "host"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "tensor_split",
+          "name": "tensor_split",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "tensor_split"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "no_mmap",
+          "name": "no_mmap",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "no_mmap"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "flash_attention_mode",
+          "name": "flash_attention_mode",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "flash_attention_mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sleep_idle_seconds",
+          "name": "sleep_idle_seconds",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "sleep_idle_seconds"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "api_key_file",
+          "name": "api_key_file",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key_file"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "api_key_env",
+          "name": "api_key_env",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key_env"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "media_path",
+          "name": "media_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "media_path"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "fit_mode",
+          "name": "fit_mode",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "fit_mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "unload_comfy_models_before_start",
+          "name": "unload_comfy_models_before_start",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "unload_comfy_models_before_start"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "extra_args",
+          "name": "extra_args",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "extra_args"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "server_url",
+          "name": "server_url",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        },
+        {
+          "localized_name": "success",
+          "name": "success",
+          "type": "BOOLEAN",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StartLlamaCppRouter"
+      },
+      "widgets_values": [
+        2048,
+        "",
+        0,
+        1,
+        8080,
+        "",
+        512,
+        false,
+        true,
+        "60",
+        "",
+        "127.0.0.1",
+        "",
+        false,
+        "auto",
+        0,
+        "",
+        "LLAMACPP_API_KEY",
+        "",
+        "upstream default",
+        false,
+        ""
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LlamaCppListModels",
+      "pos": [
+        430,
+        0
+      ],
+      "size": [
+        183.550390625,
+        46
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "trigger",
+          "name": "trigger",
+          "shape": 7,
+          "type": "*",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "models_json",
+          "name": "models_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "models_list",
+          "name": "models_list",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LlamaCppListModels"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "LlamaCppLoadModel",
+      "pos": [
+        760,
+        0
+      ],
+      "size": [
+        270,
+        102
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "trigger",
+          "name": "trigger",
+          "shape": 7,
+          "type": "*",
+          "link": 2
+        },
+        {
+          "localized_name": "model_name",
+          "name": "model_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "operation_timeout",
+          "name": "operation_timeout",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "operation_timeout"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "success",
+          "name": "success",
+          "type": "BOOLEAN",
+          "links": [
+            3
+          ]
+        },
+        {
+          "localized_name": "message",
+          "name": "message",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LlamaCppLoadModel"
+      },
+      "widgets_values": [
+        "qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf",
+        300
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LlamaCppBasicPrompt",
+      "pos": [
+        1120,
+        0
+      ],
+      "size": [
+        400,
+        668
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "trigger",
+          "name": "trigger",
+          "shape": 7,
+          "type": "*",
+          "link": 3
+        },
+        {
+          "localized_name": "connection",
+          "name": "connection",
+          "shape": 7,
+          "type": "LLAMACPP_CONNECTION",
+          "link": null
+        },
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "model",
+          "name": "model",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "server_url",
+          "name": "server_url",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "server_url"
+          },
+          "link": 4
+        },
+        {
+          "localized_name": "system_prompt",
+          "name": "system_prompt",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "system_prompt"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "enable_thinking",
+          "name": "enable_thinking",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "enable_thinking"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_tokens",
+          "name": "max_tokens",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "max_tokens"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "temperature",
+          "name": "temperature",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "temperature"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "top_p",
+          "name": "top_p",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "top_p"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "top_k",
+          "name": "top_k",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "top_k"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "min_p",
+          "name": "min_p",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "min_p"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "repeat_penalty",
+          "name": "repeat_penalty",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "repeat_penalty"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "keep_context",
+          "name": "keep_context",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "keep_context"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "enable_chaining",
+          "name": "enable_chaining",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "enable_chaining"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "presence_penalty",
+          "name": "presence_penalty",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "presence_penalty"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "frequency_penalty",
+          "name": "frequency_penalty",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "frequency_penalty"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "stop_sequences",
+          "name": "stop_sequences",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "stop_sequences"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "api_key_env",
+          "name": "api_key_env",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key_env"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "verify_tls",
+          "name": "verify_tls",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "verify_tls"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "request_timeout",
+          "name": "request_timeout",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "request_timeout"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "response",
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            5
+          ]
+        },
+        {
+          "localized_name": "thinking",
+          "name": "thinking",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "success",
+          "name": "success",
+          "type": "BOOLEAN",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LlamaCppBasicPrompt"
+      },
+      "widgets_values": [
+        "Reply with exactly: ROUTER_WORKFLOW_OK",
+        "qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf",
+        "",
+        "",
+        false,
+        129,
+        0,
+        0.9,
+        40,
+        0.05,
+        1.1,
+        0,
+        "randomize",
+        false,
+        false,
+        0,
+        0,
+        "",
+        "LLAMACPP_API_KEY",
+        true,
+        300
+      ]
+    },
+    {
+      "id": 5,
+      "type": "LlamaCppPromptOutput",
+      "pos": [
+        1640,
+        0
+      ],
+      "size": [
+        270,
+        112
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "link": 5
+        },
+        {
+          "localized_name": "plaintext",
+          "name": "plaintext",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "plaintext"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LlamaCppPromptOutput"
+      },
+      "widgets_values": [
+        false
+      ]
+    },
+    {
+      "id": 6,
+      "type": "LlamaCppUnloadModel",
+      "pos": [
+        1120,
+        650
+      ],
+      "size": [
+        270,
+        102
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "trigger",
+          "name": "trigger",
+          "shape": 7,
+          "type": "*",
+          "link": 6
+        },
+        {
+          "localized_name": "model_name",
+          "name": "model_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "operation_timeout",
+          "name": "operation_timeout",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "operation_timeout"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "success",
+          "name": "success",
+          "type": "BOOLEAN",
+          "links": [
+            7
+          ]
+        },
+        {
+          "localized_name": "message",
+          "name": "message",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LlamaCppUnloadModel"
+      },
+      "widgets_values": [
+        "qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf",
+        300
+      ]
+    },
+    {
+      "id": 7,
+      "type": "StopLlamaCppServer",
+      "pos": [
+        1540,
+        650
+      ],
+      "size": [
+        185.7720703125,
+        46
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "trigger",
+          "name": "trigger",
+          "shape": 7,
+          "type": "*",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "success",
+          "name": "success",
+          "type": "BOOLEAN",
+          "links": null
+        },
+        {
+          "localized_name": "message",
+          "name": "message",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StopLlamaCppServer"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      1,
+      2,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      2,
+      2,
+      1,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      4,
+      1,
+      0,
+      4,
+      4,
+      "STRING"
+    ],
+    [
+      5,
+      4,
+      0,
+      5,
+      0,
+      "STRING"
+    ],
+    [
+      6,
+      4,
+      2,
+      6,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      0,
+      "BOOLEAN"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.9,
+      "offset": [
+        416,
+        110
+      ]
+    },
+    "llamacpp_example": {
+      "name": "router-text",
+      "version": "0.3.0",
+      "note": "Select a local router model and binary path as needed."
+    }
+  },
+  "version": 0.4
+}
