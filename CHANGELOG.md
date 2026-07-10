@@ -22,6 +22,8 @@
   nonterminal outcomes.
 - Kept runtime diagnostics responsive during startup, shutdown, release, and
   router barriers without weakening lifecycle serialization.
+- Kept an exited POSIX group leader unreaped until descendant cleanup finishes,
+  preventing stale numeric process-group IDs from targeting a later process.
 
 ### llama.cpp protocol
 
@@ -49,11 +51,15 @@
 - Made Prompt Output nonserialized and resilient to tab switching.
 - Added descriptions and input/output tooltips across all 17 nodes, plus native
   Comfy toast notices for queued and failed release events.
+- Kept attached-endpoint model IDs independent from any unrelated owned router
+  catalog.
 
 ### Compatibility and packaging
 
 - Preserved every 0.2.1 released node ID, output, default, socket, and legacy
   primitive widget prefix.
+- Restored the historical process-wide manager identity for direct no-argument
+  construction while retaining independent dependency-injected test managers.
 - Added 0.2.1 contract and saved-workflow fixtures.
 - Added containment-safe Comfy model-folder integration and exact router model
   mapping.

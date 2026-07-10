@@ -4,6 +4,7 @@ import threading
 
 import pytest
 
+import runtime.manager as manager_module
 from runtime.capabilities import ServerCapabilities
 from runtime.client import (
     HealthStatus,
@@ -13,7 +14,7 @@ from runtime.client import (
     ServerProps,
 )
 from runtime.config import RouterConfig, ServerConfig
-from runtime.manager import LlamaCppServerManager, ServerStatus
+from runtime.manager import LlamaCppServerManager, ServerStatus, get_server_manager
 from runtime.process import ProcessLifecycle, StopResult
 from runtime.service import ReleaseStatus, RuntimeMode, RuntimeService
 
@@ -187,6 +188,43 @@ def capabilities(tmp_path):
     )
 
 
+def test_default_manager_construction_preserves_singleton_and_registers_once(monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    listener_registrations = []
+    cleanup_registrations = []
+    add_release_listener = service.add_release_listener
+
+    def record_listener(listener):
+        listener_registrations.append(listener)
+        add_release_listener(listener)
+
+    monkeypatch.setattr(manager_module, "_SERVER_MANAGER", None)
+    monkeypatch.setattr(manager_module, "get_runtime_service", lambda: service)
+    monkeypatch.setattr(service, "add_release_listener", record_listener)
+    monkeypatch.setattr(manager_module.atexit, "register", cleanup_registrations.append)
+
+    first = LlamaCppServerManager()
+    second = LlamaCppServerManager()
+    from_getter = get_server_manager()
+
+    assert first is second is from_getter
+    assert len(listener_registrations) == 1
+    assert len(cleanup_registrations) == 1
+
+
+def test_dependency_injected_manager_construction_remains_independent():
+    first_service = RuntimeService(FakeProcess())  # type: ignore[arg-type]
+    second_service = RuntimeService(FakeProcess())  # type: ignore[arg-type]
+
+    first = LlamaCppServerManager(runtime_service=first_service)
+    second = LlamaCppServerManager(runtime_service=second_service)
+
+    assert first is not second
+    assert first.runtime_service is first_service
+    assert second.runtime_service is second_service
+
+
 def test_direct_start_native_release_and_status(tmp_path, monkeypatch):
     model = tmp_path / "model.gguf"
     model.write_bytes(b"fixture")
@@ -297,6 +335,8 @@ def test_wrong_ready_role_is_stopped_and_reported(tmp_path, monkeypatch):
     assert "router, not the requested direct server" in error
     assert process.stop_calls == 1
     assert manager.status == ServerStatus.ERROR
+    assert manager.capabilities is None
+    assert manager.is_router_mode is False
 
 
 def test_failed_replacement_preflight_preserves_healthy_owned_server(tmp_path, monkeypatch):

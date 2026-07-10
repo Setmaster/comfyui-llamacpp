@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib
 import sys
+from contextlib import contextmanager
 
 import pytest
 
@@ -31,6 +33,60 @@ def test_structured_output_rejects_invalid_schema(node_package):
     node = node_package.NODE_CLASS_MAPPINGS["LlamaCppStructuredOutput"]()
     with pytest.raises(ValueError, match="Invalid JSON schema"):
         node.create_constraint("json_schema", "{", True)
+
+
+@pytest.mark.parametrize(
+    ("managed", "expected_model", "expected_resolutions"),
+    [
+        (False, "attached-model", []),
+        (True, "owned-router-model", ["selected-model"]),
+    ],
+)
+def test_prompt_model_resolution_is_scoped_to_the_managed_router(
+    node_package,
+    monkeypatch,
+    managed,
+    expected_model,
+    expected_resolutions,
+):
+    common = importlib.import_module(f"{node_package.__name__}.nodes.common")
+    observed = {"leases": [], "payloads": [], "resolutions": []}
+
+    class FakeManager:
+        is_router_mode = True
+        is_running = True
+
+        def connection_for(self, server_url, **kwargs):
+            del server_url, kwargs
+            return object(), managed
+
+        @contextmanager
+        def generation_lease(self, *, managed):
+            observed["leases"].append(managed)
+            yield
+
+        def resolve_model_id(self, model):
+            observed["resolutions"].append(model)
+            return "owned-router-model"
+
+    def fake_stream_chat(connection, payload, **kwargs):
+        del connection, kwargs
+        observed["payloads"].append(payload)
+        return common.StreamResult("ok", "", True)
+
+    monkeypatch.setattr(common, "stream_chat", fake_stream_chat)
+
+    result = common.run_prompt(
+        "hello",
+        model="attached-model" if not managed else "selected-model",
+        server_url="http://127.0.0.1:9999" if not managed else "",
+        manager=FakeManager(),
+    )
+
+    assert result.success is True
+    assert observed["leases"] == [managed]
+    assert observed["resolutions"] == expected_resolutions
+    assert observed["payloads"][0]["model"] == expected_model
 
 
 def test_plaintext_conversion_handles_images_links_html_and_ignored_content(node_package):

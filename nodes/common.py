@@ -112,7 +112,12 @@ def run_prompt(
         with manager.generation_lease(managed=managed):
             if managed and not manager.is_running:
                 raise RuntimeError("The owned llama-server was released before generation began")
-            if selected_model and selected_model != RUNNING_MODEL and manager.is_router_mode:
+            if (
+                managed
+                and selected_model
+                and selected_model != RUNNING_MODEL
+                and manager.is_router_mode
+            ):
                 selected_model = manager.resolve_model_id(selected_model)
             options = GenerationOptions(
                 max_tokens=max_tokens,

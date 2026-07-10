@@ -8,6 +8,7 @@ adoption or termination.
 from __future__ import annotations
 
 import collections
+import errno
 import logging
 import os
 import re
@@ -345,6 +346,10 @@ class OwnedProcessController:
         self._windows_job_factory = windows_job_factory or _WindowsJob.create
 
         self._lock = threading.RLock()
+        # A POSIX group ID is safe signal authority only while its original
+        # leader remains our unreaped child.  Monitor and stop cleanup share
+        # this lock so the group authority is retired before either path reaps.
+        self._posix_cleanup_lock = threading.RLock()
         self._process: subprocess.Popen[bytes] | None = None
         self._identity: ProcessIdentity | None = None
         self._process_group_id: int | None = None
@@ -353,11 +358,15 @@ class OwnedProcessController:
         self._descendant_fallback = False
         self._state = ProcessLifecycle.STOPPED
         self._stopping = False
+        self._stop_requested = False
         self._command: tuple[str, ...] = ()
         self._cwd: str | None = None
         self._started_at: float | None = None
         self._stopped_at: float | None = None
         self._returncode: int | None = None
+        self._posix_root_reaped = False
+        self._posix_authority_valid = False
+        self._posix_cleanup_uncertain = False
         self._last_error: str | None = None
         self._log_tail = BoundedLogTail(
             max_lines=max_log_lines,
@@ -371,7 +380,16 @@ class OwnedProcessController:
     @property
     def is_running(self) -> bool:
         with self._lock:
-            return self._process is not None and self._process.poll() is None
+            process = self._process
+            identity = self._identity
+            if process is None or identity is None:
+                return False
+            if os.name == "nt":
+                return process.poll() is None
+            # Popen.poll() calls waitpid(WNOHANG) and can reap an exited POSIX
+            # group leader.  The unreaped leader is what prevents PGID reuse
+            # while descendant cleanup is still in flight.
+            return self._identity_alive(identity)
 
     @property
     def has_owned_process(self) -> bool:
@@ -443,19 +461,27 @@ class OwnedProcessController:
                     identity = self._capture_identity(process.pid)
                     self._identity = identity
                 else:
-                    # ``start_new_session=True`` defines the intended ownership
-                    # group even if an unusually short-lived root exits before
-                    # ``getpgid`` can observe it and leaves workers behind.
+                    # A successful Popen with ``start_new_session=True`` means
+                    # the child called setsid before exec, making its PID the
+                    # new SID and PGID.  Establish that exact launch contract as
+                    # provisional cleanup authority before diagnostic queries,
+                    # so a transient getpgid/getsid failure cannot leak the root.
                     self._process_group_id = process.pid
+                    self._posix_authority_valid = True
                     identity = self._capture_identity(process.pid)
                     self._identity = identity
                     pgid = os.getpgid(process.pid)
-                    if pgid != process.pid or pgid == os.getpgrp():
+                    sid = os.getsid(process.pid)
+                    if pgid != process.pid or sid != process.pid or pgid == os.getpgrp():
                         self._process_group_id = None
+                        self._posix_authority_valid = False
+                        self._posix_cleanup_uncertain = True
                         process.kill()
-                        process.wait(timeout=5)
+                        self._returncode = process.wait(timeout=5)
+                        self._posix_root_reaped = True
                         raise RuntimeError("failed to establish a unique owned process group")
                     self._process_group_id = pgid
+                    self._posix_authority_valid = True
 
                 self._state = ProcessLifecycle.RUNNING
                 self._start_log_drains(process, redactor)
@@ -516,12 +542,17 @@ class OwnedProcessController:
                 return StopResult(
                     False,
                     False,
-                    process.poll() if process is not None else self._returncode,
+                    (
+                        process.poll()
+                        if os.name == "nt" and process is not None
+                        else self._returncode
+                    ),
                     time.monotonic() - started,
                     remaining_pids=(process.pid,) if process is not None else (),
                     error=self._last_error,
                 )
             self._stopping = True
+            self._stop_requested = True
             self._state = ProcessLifecycle.STOPPING
 
         errors: list[str] = []
@@ -556,19 +587,30 @@ class OwnedProcessController:
         unclosed_job = (
             os.name == "nt" and self._windows_job_assigned and self._windows_job is not None
         )
-        complete = not remaining and process.poll() is not None and not unclosed_job
+        returncode = process.poll() if os.name == "nt" else self._returncode
+        root_cleanup_complete = (
+            returncode is not None if os.name == "nt" else self._posix_root_reaped
+        )
+        authority_retired = os.name == "nt" or self._process_group_id is None
+        complete = (
+            not remaining
+            and root_cleanup_complete
+            and authority_retired
+            and not self._posix_cleanup_uncertain
+            and not unclosed_job
+        )
         duration = time.monotonic() - started
         result = StopResult(
             complete=complete,
             escalated=escalated,
-            returncode=process.poll(),
+            returncode=returncode,
             duration_seconds=duration,
             remaining_pids=remaining,
             error="; ".join(errors) or None,
         )
 
         with self._lock:
-            self._returncode = process.poll()
+            self._returncode = returncode
             self._stopped_at = time.time() if complete else None
             self._stopping = False
             if complete:
@@ -601,7 +643,9 @@ class OwnedProcessController:
                 cwd=self._cwd,
                 started_at=self._started_at,
                 stopped_at=self._stopped_at,
-                returncode=process.poll() if process is not None else self._returncode,
+                returncode=(
+                    process.poll() if os.name == "nt" and process is not None else self._returncode
+                ),
                 last_error=self._last_error,
                 log_tail=self._log_tail.snapshot(),
             )
@@ -614,8 +658,12 @@ class OwnedProcessController:
         self._windows_job_assigned = False
         self._descendant_fallback = False
         self._stopping = False
+        self._stop_requested = False
         self._stopped_at = None
         self._returncode = None
+        self._posix_root_reaped = False
+        self._posix_authority_valid = False
+        self._posix_cleanup_uncertain = False
         self._last_error = None
         self._drain_threads = []
         self._known_descendants = {}
@@ -653,17 +701,27 @@ class OwnedProcessController:
             elif os.name == "nt" and identity is not None:
                 identities = self._validated_windows_tree(identity)
                 self._terminate_identities(identities, kill=True)
-            elif self._process_group_id is not None and identity is not None:
-                try:
-                    self._signal_posix_group(signal.SIGKILL, identity)
-                except ProcessLookupError:
-                    pass
-                except Exception as exc:
-                    errors.append(f"process-group cleanup failed ({type(exc).__name__})")
-
-            if process.poll() is None:
+            elif os.name != "nt" and identity is not None:
+                _, _, platform_errors = self._stop_posix_group(
+                    process,
+                    identity,
+                    0.0,
+                    5.0,
+                )
+                errors.extend(platform_errors)
+            elif os.name != "nt":
+                # Identity capture did not complete, so only the exact Popen is
+                # signalable.  Retire any provisional PGID before reaping it.
+                self._process_group_id = None
+                self._posix_authority_valid = False
                 process.kill()
-            process.wait(timeout=5)
+                self._returncode = process.wait(timeout=5)
+                self._posix_root_reaped = True
+
+            if os.name == "nt":
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=5)
         except Exception as exc:
             errors.append(f"root cleanup failed ({type(exc).__name__})")
 
@@ -671,8 +729,18 @@ class OwnedProcessController:
         unclosed_job = (
             os.name == "nt" and self._windows_job_assigned and self._windows_job is not None
         )
-        complete = process.poll() is not None and not remaining and not unclosed_job
-        self._returncode = process.poll()
+        if os.name == "nt":
+            self._returncode = process.poll()
+            root_cleanup_complete = self._returncode is not None
+        else:
+            root_cleanup_complete = self._posix_root_reaped
+        complete = (
+            root_cleanup_complete
+            and self._process_group_id is None
+            and not remaining
+            and not self._posix_cleanup_uncertain
+            and not unclosed_job
+        )
         self._stopping = False
         if complete:
             self._process = None
@@ -798,7 +866,7 @@ class OwnedProcessController:
         process: subprocess.Popen[bytes],
         identity: ProcessIdentity,
     ) -> None:
-        """Continuously retain validated fallback descendants while root ancestry exists."""
+        """Continuously retain positively identified descendants while authority exists."""
 
         thread = threading.Thread(
             target=self._track_descendants,
@@ -819,11 +887,16 @@ class OwnedProcessController:
                 if self._identity != identity:
                     return
             self._collect_windows_descendants(identity)
-            if process.poll() is not None:
+            exited = process.poll() is not None
+            if exited:
                 return
             time.sleep(0.05)
 
     def _monitor(self, process: subprocess.Popen[bytes], identity: ProcessIdentity) -> None:
+        if os.name != "nt":
+            self._monitor_posix(process, identity)
+            return
+
         try:
             returncode = process.wait()
         except Exception as exc:
@@ -841,23 +914,206 @@ class OwnedProcessController:
             self._state = ProcessLifecycle.RUNTIME_FAILED
             self._last_error = f"owned process exited unexpectedly with code {returncode}"
 
-        # A parent can fail while leaving workers alive.  The ownership primitive,
-        # rather than a process-name sweep, is the cleanup authority.
+        # A parent can fail while leaving workers alive.  The Job Object or
+        # positively retained identities, never a process-name sweep, remain
+        # the cleanup authority.
         try:
-            if os.name == "nt":
-                if self._windows_job_assigned and self._windows_job is not None:
-                    self._windows_job.terminate(1)
-                    self._close_windows_job()
-                else:
-                    self._kill_validated_descendants(identity)
-            elif self._process_group_id is not None:
-                self._signal_posix_group(signal.SIGKILL, identity)
-        except ProcessLookupError:
-            # An exited root with no surviving group members is already clean.
-            pass
+            if self._windows_job_assigned and self._windows_job is not None:
+                self._windows_job.terminate(1)
+                self._close_windows_job()
+            else:
+                self._kill_validated_descendants(identity)
         except Exception as exc:
             with self._lock:
                 self._last_error += f"; descendant cleanup failed ({type(exc).__name__})"
+
+    def _monitor_posix(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity,
+    ) -> None:
+        """Observe exit without reaping, clean the anchored group, then reap."""
+
+        try:
+            wait_result, already_reaped = self._wait_for_posix_exit(identity)
+            observed_returncode = self._waitid_returncode(wait_result)
+        except Exception as exc:
+            with self._lock:
+                if self._process is process and self._identity == identity:
+                    self._state = ProcessLifecycle.RUNTIME_FAILED
+                    self._last_error = (
+                        f"process monitor failed without reaping ({type(exc).__name__}: {exc})"
+                    )
+            return
+
+        with self._posix_cleanup_lock:
+            with self._lock:
+                if self._process is not process or self._identity != identity:
+                    return
+                if self._stop_requested:
+                    # Explicit stop owns the same cleanup lock and will retire
+                    # the group authority before it reaps the leader.
+                    return
+                self._returncode = (
+                    observed_returncode if observed_returncode is not None else self._returncode
+                )
+                self._state = ProcessLifecycle.RUNTIME_FAILED
+                suffix = (
+                    f" with code {observed_returncode}" if observed_returncode is not None else ""
+                )
+                self._last_error = f"owned process exited unexpectedly{suffix}"
+
+            errors: list[str] = []
+            remaining: tuple[int, ...] = ()
+            if already_reaped or not self._posix_group_authority_matches(identity):
+                # An external waiter or SIGCHLD policy has already destroyed the
+                # group-generation anchor.  Retire the PGID and fail closed.  A
+                # cached numeric PID/PGID is not authority to signal anything.
+                self._retire_reaped_posix_authority(process, identity)
+                remaining = (identity.pid,)
+                errors.append(
+                    "POSIX group authority was externally reaped; refusing descendant cleanup"
+                )
+            else:
+                signal_failed = False
+                try:
+                    self._signal_posix_group(signal.SIGKILL, identity)
+                except ProcessLookupError:
+                    pass
+                except Exception as exc:
+                    signal_failed = True
+                    errors.append(f"group cleanup failed ({type(exc).__name__}: {exc})")
+                remaining = (
+                    (identity.pid,)
+                    if signal_failed
+                    else self._wait_for_owned_tree(process, identity, 3.0)
+                )
+                if not remaining and not errors:
+                    try:
+                        self._retire_posix_authority_and_reap(process, identity)
+                    except Exception as exc:
+                        errors.append(f"root reap failed ({type(exc).__name__}: {exc})")
+
+            with self._lock:
+                if self._identity != identity:
+                    return
+                if remaining:
+                    errors.append("owned descendants remain: " + ", ".join(map(str, remaining)))
+                if errors:
+                    self._last_error += "; descendant cleanup incomplete: " + "; ".join(errors)
+
+    def _wait_for_posix_exit(self, identity: ProcessIdentity) -> tuple[Any | None, bool]:
+        """Observe child exit without consuming the zombie group leader."""
+
+        waitid = getattr(os, "waitid", None)
+        required = ("P_PID", "WEXITED", "WNOWAIT")
+        if waitid is not None and all(hasattr(os, name) for name in required):
+            while True:
+                try:
+                    result = waitid(
+                        os.P_PID,
+                        identity.pid,
+                        os.WEXITED | os.WNOWAIT,
+                    )
+                    if result is None or int(getattr(result, "si_pid", -1)) != identity.pid:
+                        raise RuntimeError("waitid returned an unexpected child identity")
+                    return result, False
+                except InterruptedError:
+                    continue
+                except ChildProcessError:
+                    # A third-party SIGCHLD policy or waiter consumed it.  From
+                    # this point onward the numeric PGID is not signal authority.
+                    return None, True
+                except OSError as exc:
+                    if exc.errno == errno.ECHILD:
+                        return None, True
+                    if exc.errno in {errno.ENOSYS, errno.EINVAL}:
+                        break
+                    raise
+
+        # Portable fail-closed fallback.  Reading psutil status does not reap.
+        # If the identity disappears without a zombie observation, assume an
+        # external waiter consumed it and retire group authority.
+        while True:
+            try:
+                process = self._psutil.Process(identity.pid)
+                if not self._identity_matches(process, identity):
+                    return None, True
+                if process.status() == getattr(self._psutil, "STATUS_ZOMBIE", "zombie"):
+                    return None, False
+            except self._psutil.AccessDenied:
+                pass
+            except (ProcessLookupError, self._psutil.NoSuchProcess):
+                return None, True
+            time.sleep(0.05)
+
+    @staticmethod
+    def _waitid_returncode(result: Any | None) -> int | None:
+        if result is None:
+            return None
+        code = getattr(result, "si_code", None)
+        status = getattr(result, "si_status", None)
+        if status is None:
+            raise RuntimeError("waitid result omitted exit status")
+        if code == getattr(os, "CLD_EXITED", object()):
+            return int(status)
+        if code in {
+            getattr(os, "CLD_KILLED", object()),
+            getattr(os, "CLD_DUMPED", object()),
+        }:
+            return -int(status)
+        raise RuntimeError(f"waitid returned unsupported exit code {code!r}")
+
+    def _posix_exit_observed_nowait(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity,
+    ) -> bool:
+        """Check root exit without reaping; fail closed if another waiter reaped it."""
+
+        waitid = getattr(os, "waitid", None)
+        required = ("P_PID", "WEXITED", "WNOWAIT", "WNOHANG")
+        if waitid is not None and all(hasattr(os, name) for name in required):
+            while True:
+                try:
+                    result = waitid(
+                        os.P_PID,
+                        identity.pid,
+                        os.WEXITED | os.WNOWAIT | os.WNOHANG,
+                    )
+                    if result is None or int(getattr(result, "si_pid", 0)) == 0:
+                        return False
+                    if int(getattr(result, "si_pid", -1)) != identity.pid:
+                        raise RuntimeError("waitid returned an unexpected child identity")
+                    returncode = self._waitid_returncode(result)
+                    with self._lock:
+                        if self._process is process and self._identity == identity:
+                            self._returncode = returncode
+                    return True
+                except InterruptedError:
+                    continue
+                except ChildProcessError:
+                    self._retire_reaped_posix_authority(process, identity)
+                    return False
+                except OSError as exc:
+                    if exc.errno == errno.ECHILD:
+                        self._retire_reaped_posix_authority(process, identity)
+                        return False
+                    if exc.errno in {errno.ENOSYS, errno.EINVAL}:
+                        break
+                    raise
+
+        try:
+            root = self._psutil.Process(identity.pid)
+            if not self._identity_matches(root, identity):
+                self._retire_reaped_posix_authority(process, identity)
+                return False
+            return root.status() == getattr(self._psutil, "STATUS_ZOMBIE", "zombie")
+        except self._psutil.AccessDenied:
+            return False
+        except (ProcessLookupError, self._psutil.NoSuchProcess):
+            self._retire_reaped_posix_authority(process, identity)
+            return False
 
     def _stop_posix_group(
         self,
@@ -866,53 +1122,158 @@ class OwnedProcessController:
         grace_timeout: float,
         kill_timeout: float,
     ) -> tuple[bool, tuple[int, ...], list[str]]:
-        errors: list[str] = []
-        escalated = False
-        try:
-            self._signal_posix_group(signal.SIGTERM, identity)
-        except ProcessLookupError:
-            pass
-        except Exception as exc:
-            errors.append(f"SIGTERM failed ({type(exc).__name__}: {exc})")
+        with self._posix_cleanup_lock:
+            errors: list[str] = []
+            escalated = False
+            if not self._posix_group_authority_matches(identity):
+                if (
+                    self._posix_root_reaped
+                    and self._process_group_id is None
+                    and not self._posix_cleanup_uncertain
+                ):
+                    return False, (), errors
+                errors.append(
+                    "POSIX group authority is unavailable; refusing to signal a numeric PGID"
+                )
+                remaining = () if self._posix_root_reaped else (identity.pid,)
+                return False, remaining, errors
 
-        remaining = self._wait_for_owned_tree(process, identity, grace_timeout)
-        if remaining:
-            escalated = True
+            term_failed = False
             try:
-                self._signal_posix_group(signal.SIGKILL, identity)
+                self._signal_posix_group(signal.SIGTERM, identity)
             except ProcessLookupError:
                 pass
             except Exception as exc:
-                errors.append(f"SIGKILL failed ({type(exc).__name__}: {exc})")
-            remaining = self._wait_for_owned_tree(process, identity, kill_timeout)
-        return escalated, remaining, errors
+                term_failed = True
+                errors.append(f"SIGTERM failed ({type(exc).__name__}: {exc})")
+
+            remaining = self._wait_for_owned_tree(process, identity, grace_timeout)
+            if term_failed and not remaining:
+                remaining = (identity.pid,)
+            if not remaining and not self._posix_exit_observed_nowait(process, identity):
+                remaining = (identity.pid,)
+            if remaining:
+                escalated = True
+                kill_failed = False
+                try:
+                    if self._posix_group_authority_matches(identity):
+                        self._signal_posix_group(signal.SIGKILL, identity)
+                    else:
+                        raise RuntimeError("POSIX group authority expired before escalation")
+                except ProcessLookupError:
+                    pass
+                except Exception as exc:
+                    kill_failed = True
+                    errors.append(f"SIGKILL failed ({type(exc).__name__}: {exc})")
+                remaining = (
+                    (identity.pid,)
+                    if kill_failed
+                    else self._wait_for_owned_tree(process, identity, kill_timeout)
+                )
+                if not remaining and not self._posix_exit_observed_nowait(process, identity):
+                    remaining = (identity.pid,)
+
+            if not remaining and not self._posix_root_reaped:
+                try:
+                    self._retire_posix_authority_and_reap(process, identity)
+                except Exception as exc:
+                    errors.append(f"root reap failed ({type(exc).__name__}: {exc})")
+
+            return escalated, remaining, errors
 
     def _signal_posix_group(self, sig: int, identity: ProcessIdentity) -> None:
         pgid = self._process_group_id
         if pgid is None or pgid == os.getpgrp():
             raise RuntimeError("refusing to signal an unowned process group")
-        members = self._owned_posix_group_members(identity)
-        if not members:
-            raise ProcessLookupError(pgid)
+        if not self._posix_group_authority_matches(identity):
+            raise RuntimeError("refusing to signal a process group after leader authority expired")
+        # The original setsid leader is still our live or unreaped-zombie child.
+        # POSIX therefore prevents this numeric PGID from being recycled.
         os.killpg(pgid, sig)
 
+    def _posix_group_authority_matches(self, identity: ProcessIdentity) -> bool:
+        with self._lock:
+            pgid = self._process_group_id
+            return bool(
+                self._posix_authority_valid
+                and pgid is not None
+                and pgid != os.getpgrp()
+                and self._identity == identity
+            )
+
     def _owned_posix_group_members(self, identity: ProcessIdentity) -> tuple[int, ...]:
-        pgid = self._process_group_id
+        if not self._posix_group_authority_matches(identity):
+            return ()
+        with self._lock:
+            pgid = self._process_group_id
         if pgid is None:
             return ()
         members: list[int] = []
-        for proc in self._psutil.process_iter(["pid", "create_time", "status"]):
+        for proc in self._psutil.process_iter(["pid", "status"]):
             try:
-                created = float(proc.info.get("create_time") or proc.create_time())
-                if created + 1.0 < identity.create_time:
-                    continue
-                if proc.info.get("status") == getattr(self._psutil, "STATUS_ZOMBIE", "zombie"):
+                info = getattr(proc, "info", {}) or {}
+                status = info.get("status") or proc.status()
+                if status == getattr(self._psutil, "STATUS_ZOMBIE", "zombie"):
                     continue
                 if os.getpgid(proc.pid) == pgid:
                     members.append(proc.pid)
             except (ProcessLookupError, self._psutil.NoSuchProcess, self._psutil.AccessDenied):
                 continue
         return tuple(sorted(set(members)))
+
+    def _retire_posix_authority_and_reap(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity,
+    ) -> None:
+        with self._lock:
+            if self._process is not process or self._identity != identity:
+                return
+            saved_pgid = self._process_group_id
+            saved_authority = self._posix_authority_valid
+            self._process_group_id = None
+            self._posix_authority_valid = False
+        try:
+            returncode = process.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            # The leader was unexpectedly still live.  It has not been reaped,
+            # so restoring the same anchored PGID is safe for a later retry.
+            with self._lock:
+                if self._process is process and self._identity == identity:
+                    self._process_group_id = saved_pgid
+                    self._posix_authority_valid = saved_authority
+            raise
+        with self._lock:
+            if self._process is process and self._identity == identity:
+                self._returncode = returncode
+                self._posix_root_reaped = True
+
+    def _retire_reaped_posix_authority(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity,
+    ) -> None:
+        with self._lock:
+            if self._process is not process or self._identity != identity:
+                return
+            self._process_group_id = None
+            self._posix_authority_valid = False
+            self._posix_cleanup_uncertain = True
+        try:
+            returncode = process.wait(timeout=0)
+        except ChildProcessError:
+            returncode = process.returncode
+            root_reaped = True
+        except subprocess.TimeoutExpired:
+            returncode = process.returncode
+            root_reaped = False
+        else:
+            root_reaped = True
+        with self._lock:
+            if self._process is process and self._identity == identity:
+                if returncode is not None:
+                    self._returncode = returncode
+                self._posix_root_reaped = root_reaped
 
     def _stop_windows_tree(
         self,
@@ -1051,17 +1412,18 @@ class OwnedProcessController:
         timeout: float,
     ) -> tuple[int, ...]:
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                try:
-                    process.wait(timeout=0)
-                except Exception:
-                    pass
+        saw_empty = False
+        while True:
             remaining = self._remaining_owned_pids(identity)
-            if not remaining and process.poll() is not None:
-                return ()
+            if not remaining:
+                if saw_empty:
+                    return ()
+                saw_empty = True
+            else:
+                saw_empty = False
+            if time.monotonic() >= deadline:
+                return remaining
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
-        return self._remaining_owned_pids(identity)
 
     def _remaining_owned_pids(self, identity: ProcessIdentity) -> tuple[int, ...]:
         if os.name == "nt":
@@ -1070,7 +1432,15 @@ class OwnedProcessController:
                 for item in self._validated_windows_tree(identity)
                 if self._identity_alive(item)
             )
-        return self._owned_posix_group_members(identity)
+        if self._posix_group_authority_matches(identity):
+            return self._owned_posix_group_members(identity)
+        if self._posix_cleanup_uncertain:
+            # Diagnostic sentinel only.  This PID is not signal authority and
+            # may already be absent; it keeps cleanup visibly incomplete.
+            return (identity.pid,)
+        if self._identity_alive(identity):
+            return (identity.pid,)
+        return ()
 
     def _identity_alive(self, identity: ProcessIdentity) -> bool:
         try:

@@ -39,6 +39,11 @@ from .service import (
     get_runtime_service,
 )
 
+_DEFAULT_PROBE_BINARY = probe_server_binary
+_DEFAULT_CLIENT_FACTORY = LlamaServerClient
+_DEFAULT_SLEEPER = time.sleep
+_DEFAULT_CLOCK = time.monotonic
+
 
 class ServerStatus(str, Enum):
     STOPPED = "stopped"
@@ -169,6 +174,34 @@ def _path_matches(left: str, right: str) -> bool:
 class LlamaCppServerManager:
     """Own one local llama-server and expose the historical manager API."""
 
+    def __new__(
+        cls,
+        *,
+        runtime_service: RuntimeService | None = None,
+        probe_binary: Callable[..., ServerCapabilities] = probe_server_binary,
+        client_factory: Callable[[ConnectionConfig], LlamaServerClient] = LlamaServerClient,
+        sleeper: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+        register_atexit: bool = False,
+    ) -> LlamaCppServerManager:
+        del register_atexit
+        uses_default_dependencies = (
+            runtime_service is None
+            and probe_binary is _DEFAULT_PROBE_BINARY
+            and client_factory is _DEFAULT_CLIENT_FACTORY
+            and sleeper is _DEFAULT_SLEEPER
+            and clock is _DEFAULT_CLOCK
+        )
+        if cls is not LlamaCppServerManager or not uses_default_dependencies:
+            return super().__new__(cls)
+
+        global _SERVER_MANAGER
+        if _SERVER_MANAGER is None:
+            with _SERVER_MANAGER_LOCK:
+                if _SERVER_MANAGER is None:
+                    _SERVER_MANAGER = super().__new__(cls)
+        return _SERVER_MANAGER
+
     def __init__(
         self,
         *,
@@ -179,25 +212,35 @@ class LlamaCppServerManager:
         clock: Callable[[], float] = time.monotonic,
         register_atexit: bool = False,
     ) -> None:
-        self._runtime = runtime_service or get_runtime_service()
-        self._process: OwnedProcessController = self._runtime.process_controller
-        self._probe_binary = probe_binary
-        self._client_factory = client_factory
-        self._sleeper = sleeper
-        self._clock = clock
-        self._lock = threading.RLock()
+        with _SERVER_MANAGER_LOCK:
+            if getattr(self, "_initialized", False):
+                if register_atexit and not self._atexit_registered:
+                    atexit.register(self._cleanup)
+                    self._atexit_registered = True
+                return
 
-        self._config: LaunchConfig | None = None
-        self._config_fingerprint: str | None = None
-        self._capabilities: ServerCapabilities | None = None
-        self._connection: ConnectionConfig | None = None
-        self._client: LlamaServerClient | None = None
-        self._mode = ServerMode.SINGLE_MODEL
-        self._status = ServerStatus.STOPPED
-        self._last_error: str | None = None
-        self._runtime.add_release_listener(self._on_release)
-        if register_atexit:
-            atexit.register(self._cleanup)
+            self._runtime = runtime_service or get_runtime_service()
+            self._process: OwnedProcessController = self._runtime.process_controller
+            self._probe_binary = probe_binary
+            self._client_factory = client_factory
+            self._sleeper = sleeper
+            self._clock = clock
+            self._lock = threading.RLock()
+
+            self._config: LaunchConfig | None = None
+            self._config_fingerprint: str | None = None
+            self._capabilities: ServerCapabilities | None = None
+            self._connection: ConnectionConfig | None = None
+            self._client: LlamaServerClient | None = None
+            self._mode = ServerMode.SINGLE_MODEL
+            self._status = ServerStatus.STOPPED
+            self._last_error: str | None = None
+            self._atexit_registered = False
+            self._runtime.add_release_listener(self._on_release)
+            if register_atexit or self is _SERVER_MANAGER:
+                atexit.register(self._cleanup)
+                self._atexit_registered = True
+            self._initialized = True
 
     @property
     def status(self) -> ServerStatus:
@@ -471,8 +514,10 @@ class LlamaCppServerManager:
                     if not stop_result.complete:
                         self._last_error += f"\nCleanup incomplete: {stop_result.error}"
                 self._close_client()
+                self._mode = ServerMode.SINGLE_MODEL
                 self._config = None
                 self._config_fingerprint = None
+                self._capabilities = None
                 self._connection = None
                 try:
                     self._runtime.clear_runtime()
@@ -591,8 +636,10 @@ class LlamaCppServerManager:
     def _stop_locked(self) -> tuple[bool, str | None]:
         if not self._process.has_owned_process:
             self._status = ServerStatus.STOPPED
+            self._mode = ServerMode.SINGLE_MODEL
             self._config = None
             self._config_fingerprint = None
+            self._capabilities = None
             self._connection = None
             self._close_client()
             try:
@@ -758,12 +805,7 @@ _SERVER_MANAGER_LOCK = threading.Lock()
 
 
 def get_server_manager() -> LlamaCppServerManager:
-    global _SERVER_MANAGER
-    if _SERVER_MANAGER is None:
-        with _SERVER_MANAGER_LOCK:
-            if _SERVER_MANAGER is None:
-                _SERVER_MANAGER = LlamaCppServerManager(register_atexit=True)
-    return _SERVER_MANAGER
+    return LlamaCppServerManager(register_atexit=True)
 
 
 __all__ = [

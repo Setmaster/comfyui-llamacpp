@@ -39,6 +39,13 @@ Diagnostic API routes are also available:
 HTTP-visible diagnostics withhold raw backend exception material. The Server
 Status node and local Comfy log retain useful redacted details.
 
+These routes use ComfyUI's network trust boundary and do not add separate
+authentication. Status can disclose local executable, model, and working
+directory paths plus a redacted log tail. Release can stop or unload this
+pack's owned runtime. Bind ComfyUI to loopback or place it behind trusted
+authentication when those capabilities should not be exposed to network
+clients.
+
 Status remains available while startup, shutdown, release, or a router barrier
 is in progress. Service and process fields are captured independently under
 short locks, so a transitional response can describe adjacent moments rather
@@ -108,6 +115,13 @@ the kernel's parent-death signal facility to tie that group to the owning Comfy
 process, so a hard owner exit does not leave llama.cpp workers behind. The PID
 reported by Server Status is therefore the supervisor/group leader on Linux;
 `llama-server` is its child.
+
+If a POSIX leader exits unexpectedly, the controller observes it without
+reaping it. That held leader keeps the original process-group generation from
+being reused while surviving members are cleaned up. The group authority is
+retired before the leader is finally reaped. If another component has already
+reaped the leader, cleanup fails closed and never signals the stale numeric
+group ID.
 
 Other POSIX systems retain exact process-group cleanup for explicit stop and
 normal Comfy exit, but they do not currently provide the same abrupt-owner
