@@ -125,6 +125,15 @@ class ConnectionConfig:
             raise ValueError("base_url must not contain credentials")
         if parsed.query or parsed.fragment:
             raise ValueError("base_url must not contain a query or fragment")
+        try:
+            hostname = parsed.hostname
+            _port = parsed.port
+        except ValueError as exc:
+            raise ValueError(f"base_url has an invalid host or port: {exc}") from exc
+        if not hostname or hostname == "*" or any(character.isspace() for character in hostname):
+            raise ValueError(
+                "base_url must contain a concrete host; IPv6 literals must use brackets"
+            )
         normalized_path = parsed.path.rstrip("/")
         normalized = urlunsplit((parsed.scheme.lower(), parsed.netloc, normalized_path, "", ""))
         object.__setattr__(self, "base_url", normalized)
@@ -536,11 +545,18 @@ class LlamaServerClient:
     def models(
         self,
         *,
+        reload: bool = False,
         deadline: Deadline | None = None,
         timeout: float | None = None,
     ) -> tuple[RouterModel, ...]:
         active = self._deadline(deadline, timeout)
-        _, data, _ = self._request_json("GET", "/models", deadline=active)
+        params = {"reload": "1"} if reload else None
+        _, data, _ = self._request_json(
+            "GET",
+            "/models",
+            deadline=active,
+            params=params,
+        )
         entries = data.get("data") if isinstance(data, Mapping) else data
         if not isinstance(entries, list):
             raise LlamaClientError("/models returned an invalid model list", endpoint="/models")

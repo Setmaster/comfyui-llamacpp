@@ -49,6 +49,14 @@ class ServerCapabilities:
         return self.supports("--api-key-file")
 
     @property
+    def supports_symbolic_gpu_layers(self) -> bool:
+        option_help = _option_help(
+            self.help_output,
+            ("-ngl", "--gpu-layers", "--n-gpu-layers"),
+        ).lower()
+        return bool(option_help) and "auto" in option_help and "all" in option_help
+
+    @property
     def version_line(self) -> str:
         return next(
             (line.strip() for line in self.version_output.splitlines() if line.strip()), "unknown"
@@ -60,6 +68,24 @@ ProbeRunner = Callable[..., subprocess.CompletedProcess[str]]
 _CACHE_LOCK = threading.Lock()
 _CAPABILITY_CACHE: dict[tuple[str, int, int], ServerCapabilities] = {}
 _LONG_FLAG_RE = re.compile(r"(?<![\w-])(--[a-z0-9][a-z0-9-]*)")
+_OPTION_START_RE = re.compile(r"^\s*-{1,2}[a-z0-9]", re.IGNORECASE)
+
+
+def _option_help(help_output: str, aliases: Sequence[str]) -> str:
+    """Return one option's help block without bleeding into later options."""
+
+    lines = help_output.splitlines()
+    for index, line in enumerate(lines):
+        if not any(re.search(rf"(?<![\w-]){re.escape(alias)}(?![\w-])", line) for alias in aliases):
+            continue
+        block = [line]
+        for continuation in lines[index + 1 :]:
+            if _OPTION_START_RE.match(continuation):
+                break
+            if continuation.strip():
+                block.append(continuation)
+        return "\n".join(block)
+    return ""
 
 
 def _candidate_from_text(candidate: str) -> Path | None:
@@ -150,7 +176,11 @@ def _run_probe(runner: ProbeRunner, path: Path, argument: str, timeout: float) -
 
 
 def _parse_build_number(version_output: str) -> int | None:
-    for pattern in (r"\bbuild(?:\s+number)?\s*[:=]?\s*b?(\d+)\b", r"\bb(\d{3,})\b"):
+    for pattern in (
+        r"\bversion\s*:\s*b?(\d+)\b",
+        r"\bbuild(?:\s+number)?\s*[:=]?\s*b?(\d+)\b",
+        r"\bb(\d{3,})\b",
+    ):
         match = re.search(pattern, version_output, re.IGNORECASE)
         if match:
             return int(match.group(1))

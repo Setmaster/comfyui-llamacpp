@@ -31,6 +31,11 @@ Do not duplicate typed transport, authentication, model, or lifecycle options
 inside `extra_args`. The pack rejects overrides that would make its readiness
 URL or ownership model disagree with the actual process.
 
+If an upgraded workflow now reports that `extra_args` cannot override a typed
+option, remove that duplicate raw flag and set the corresponding node widget
+instead. Numeric GPU layers are the compatibility choice when an older binary
+does not advertise `auto` or `all`.
+
 ## Port already in use
 
 The manager refuses to adopt an unknown listener. Change `port`, stop the
@@ -98,6 +103,13 @@ Ordinary explicit stop still tracks validated descendants, but abrupt Comfy
 termination is not proven safe. Inspect the local warning, remove process/job
 restrictions, and repeat the acceptance test. A passing Windows crash-cleanup
 test requires `windows_job_assigned: true`.
+
+## Linux status PID is Python
+
+On Linux, Server Status reports the small Python supervisor that owns the
+unique process group. `llama-server` runs as its child. This is expected and is
+what lets a hard Comfy owner exit trigger kernel-backed group cleanup. Process
+commands remain reported as the original redacted llama-server command.
 
 ## A VLM fails or ignores the image
 

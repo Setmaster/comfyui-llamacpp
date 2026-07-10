@@ -2,48 +2,66 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-07-10 20:34:02Z
-Commit: 1e3b7a5a2d90ee3a40cf40e01784de1c343ea85a
+Generated: 2026-07-10 21:51:13Z
+Commit: e566bd427cf0f1bd9866eeb5645de6bc953b3d49
 Source: git ls-files (tracked files)
 
 ## Stack signals
+- `package.json`
 - `pyproject.toml`
 - `requirements.txt`
+- `uv.lock`
+- `.github/workflows`
 
 ## Key files
 - `README.md`
+- `.github/workflows`
 
 ## Directory structure (depth <= 3)
-- (root files): 8
-- `nodes/`: 10 files
-- `web/`: 4 files
+- (root files): 15
+- `nodes/`: 17 files
+- `tests/`: 17 files
+  - `tests/fixtures/`: 3 files
+    - `tests/fixtures/workflows/`: 2 files
+  - `tests/js/`: 1 files
+- `runtime/`: 9 files
+- `web/`: 7 files
+- `changes/`: 5 files
+  - `changes/2026-07-10-sota-refactor/`: 5 files
+- `generation/`: 5 files
+- `docs/`: 4 files
+  - `docs/research/`: 4 files
+- `models/`: 3 files
+- `.github/`: 1 files
+  - `.github/workflows/`: 1 files
 
 ## Suggested commands (best-effort)
+- `npm run test`
 - `python -m pytest`
 
 ## Hotspots (largest text files)
-- `server_manager.py`: 30.8 KiB
+- `uv.lock`: 367.3 KiB
+- `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
+- `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 49.3 KiB
+- `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 47.2 KiB
+- `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 43.6 KiB
+- `runtime/process.py`: 40.6 KiB
+- `runtime/client.py`: 28.3 KiB
+- `runtime/service.py`: 24.8 KiB
+- `runtime/manager.py`: 22.4 KiB
 - `README.md`: 15.9 KiB
-- `nodes/advpp_prompt.py`: 13.2 KiB
-- `nodes/adv_prompt.py`: 11.4 KiB
-- `streaming_client.py`: 10.3 KiB
-- `nodes/basic_prompt.py`: 9.0 KiB
-- `web/advpp_prompt.js`: 7.8 KiB
-- `nodes/model_management.py`: 6.8 KiB
-- `model_manager.py`: 6.1 KiB
-- `nodes/start_router.py`: 5.0 KiB
 
 ## Hotspots (most lines, sampled from large files)
-- `server_manager.py`: 877 lines
+- `uv.lock`: 1501 lines
+- `runtime/process.py`: 1093 lines
+- `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 1061 lines
+- `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 976 lines
+- `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines
+- `runtime/client.py`: 833 lines
+- `runtime/service.py`: 716 lines
+- `runtime/manager.py`: 593 lines
+- `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 501 lines
 - `README.md`: 410 lines
-- `nodes/advpp_prompt.py`: 371 lines
-- `nodes/adv_prompt.py`: 323 lines
-- `streaming_client.py`: 299 lines
-- `nodes/basic_prompt.py`: 252 lines
-- `nodes/model_management.py`: 227 lines
-- `model_manager.py`: 191 lines
-- `web/advpp_prompt.js`: 183 lines
-- `nodes/start_router.py`: 151 lines
 
 <!-- agent-evolve:END AUTO -->
 

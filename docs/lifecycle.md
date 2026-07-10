@@ -93,12 +93,18 @@ ordinary stop but cannot provide the same abrupt-owner guarantee. Server Status
 reports `windows_job_assigned` and `descendant_fallback`; treat fallback as a
 degraded result in release testing.
 
-### POSIX
+### Linux and other POSIX systems
 
 Each launch receives a new session and process group distinct from ComfyUI.
-Signals target only that verified group. Abrupt-owner protection ties the group
-to the owning Comfy process so a hard owner exit does not leave llama.cpp
-workers behind.
+Signals target only that verified group. On Linux, a small owned supervisor uses
+the kernel's parent-death signal facility to tie that group to the owning Comfy
+process, so a hard owner exit does not leave llama.cpp workers behind. The PID
+reported by Server Status is therefore the supervisor/group leader on Linux;
+`llama-server` is its child.
+
+Other POSIX systems retain exact process-group cleanup for explicit stop and
+normal Comfy exit, but they do not currently provide the same abrupt-owner
+guarantee.
 
 The implementation never discovers targets by executable name.
 

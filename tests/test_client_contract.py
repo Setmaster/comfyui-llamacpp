@@ -102,6 +102,19 @@ class ConnectionContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ConnectionConfig("http://user:password@localhost:8080")
 
+    def test_malformed_or_non_connectable_url_hosts_are_rejected(self) -> None:
+        for value in (
+            "http://::1:8080",
+            "http://*:8080",
+            "http://localhost:not-a-port",
+            "http://localhost:99999",
+        ):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                ConnectionConfig(value)
+
+        ipv6 = ConnectionConfig("http://[::1]:8080/")
+        self.assertEqual(ipv6.base_url, "http://[::1]:8080")
+
     def test_default_auth_headers_are_hidden_and_managed_auth_wins(self) -> None:
         config = ConnectionConfig(
             default_headers=(("authorization", "Bearer stale-token"),),
@@ -181,6 +194,19 @@ class TypedClientTests(unittest.TestCase):
         client, _ = self.make_client(session)
         with self.assertRaises(LlamaClientError):
             client.models()
+
+    def test_models_can_request_current_router_catalog_reload(self) -> None:
+        session = FakeSession(
+            FakeResponse(200, model_payload("unloaded")),
+            FakeResponse(200, model_payload("unloaded")),
+        )
+        client, _ = self.make_client(session)
+
+        client.models()
+        client.list_models(reload=True)
+
+        self.assertNotIn("params", session.calls[0][2])
+        self.assertEqual(session.calls[1][2]["params"], {"reload": "1"})
 
     def test_exact_id_and_alias_resolution_never_guess(self) -> None:
         models = (

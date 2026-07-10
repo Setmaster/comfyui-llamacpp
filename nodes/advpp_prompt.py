@@ -7,9 +7,18 @@ from .schemas import MAX_IMAGES, advanced_pp_prompt_inputs
 
 
 class LlamaCppAdvPPPrompt:
+    DESCRIPTION = (
+        "Runs multimodal generation with reusable prompt templates, token bans, and "
+        "structured-output constraints."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
+    OUTPUT_TOOLTIPS = (
+        "Generated multimodal or structured response text.",
+        "Reasoning content reported separately by compatible models.",
+        "Whether generation completed successfully.",
+    )
     FUNCTION = "generate"
     MAX_IMAGES = MAX_IMAGES
 

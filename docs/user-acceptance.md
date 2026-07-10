@@ -84,8 +84,10 @@ OS, GPU, driver, and model names.
 - [ ] Use native Comfy unload and confirm the attached server remains alive.
 - [ ] On Windows, require `windows_job_assigned=true` and
       `descendant_fallback=false` for abrupt-owner cleanup acceptance.
-- [ ] Exit Comfy normally and confirm the owned tree disappears.
-- [ ] Repeat with abrupt owner termination and confirm the owned tree disappears.
+- [ ] Exit Comfy normally and confirm the owned tree disappears on every
+      supported platform.
+- [ ] On Linux or Windows with an assigned Job Object, repeat with abrupt owner
+      termination and confirm the owned tree disappears.
 
 ## 9. Full GPU handoff
 

@@ -6,9 +6,18 @@ from .schemas import basic_prompt_inputs
 
 
 class LlamaCppBasicPrompt:
+    DESCRIPTION = (
+        "Runs local text generation through llama-server with sampling, reasoning, "
+        "and workflow-chaining controls."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
+    OUTPUT_TOOLTIPS = (
+        "Generated response text.",
+        "Reasoning content reported separately by compatible models.",
+        "Whether generation completed successfully.",
+    )
     FUNCTION = "generate"
 
     @classmethod

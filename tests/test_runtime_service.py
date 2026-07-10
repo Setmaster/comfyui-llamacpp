@@ -120,6 +120,10 @@ def test_release_during_generation_is_deferred_until_final_lease_exits() -> None
     with service.generation_lease():
         result = service.request_release(source="comfy_free")
         assert result.status == ReleaseStatus.DEFERRED
+        assert result.success is True
+        assert result.accepted is True
+        assert result.terminal is False
+        assert result.as_dict()["accepted"] is True
         assert process.stop_calls == 0
         assert service.release_pending is True
         with pytest.raises(RuntimeReleasePending):
@@ -173,6 +177,26 @@ def test_concurrent_release_requests_coalesce_onto_one_stop() -> None:
     process.stop_gate = threading.Event()
     service = RuntimeService(process)  # type: ignore[arg-type]
     service.configure_direct_owned()
+
+    class InstrumentedOperationLock:
+        def __init__(self) -> None:
+            self._lock = threading.RLock()
+            self.waiter_attempted = threading.Event()
+
+        def __enter__(self):
+            if threading.current_thread().name == "waiting-release":
+                # request_release reaches operation acquisition only after its
+                # read-only release-generation snapshot.  This removes scheduler
+                # luck from the coalesced-wait assertion below.
+                self.waiter_attempted.set()
+            self._lock.acquire()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self._lock.release()
+
+    operation_lock = InstrumentedOperationLock()
+    service._operation_lock = operation_lock  # type: ignore[assignment]
     results: dict[str, object] = {}
 
     def first_release() -> None:
@@ -186,8 +210,9 @@ def test_concurrent_release_requests_coalesce_onto_one_stop() -> None:
     assert process.stop_entered.wait(timeout=5)
 
     immediate = service.request_release(source="immediate", wait_for_coalesced=False)
-    waiter = threading.Thread(target=waiting_release)
+    waiter = threading.Thread(target=waiting_release, name="waiting-release")
     waiter.start()
+    assert operation_lock.waiter_attempted.wait(timeout=5)
     assert waiter.is_alive()
 
     process.stop_gate.set()
@@ -229,7 +254,7 @@ def test_router_release_unloads_each_resident_model_to_terminal_state() -> None:
     assert service.diagnostics()["lifecycle"] == RuntimeLifecycle.READY.value
 
 
-@pytest.mark.parametrize("terminal_state", ["loaded", "failed", "unknown"])
+@pytest.mark.parametrize("terminal_state", ["loaded", "unknown"])
 def test_router_non_unloaded_terminal_state_stops_owned_router_as_fallback(
     terminal_state: str,
 ) -> None:
@@ -245,6 +270,27 @@ def test_router_non_unloaded_terminal_state_stops_owned_router_as_fallback(
     assert result.fallback_used is True
     assert process.stop_calls == 1
     assert service.mode == RuntimeMode.NONE
+
+
+def test_router_failed_terminal_state_is_released_without_stopping_router() -> None:
+    process = FakeProcessController()
+    client = FakeRouterClient([{"id": "model-a", "state": "loaded"}])
+    client.terminal_state = "failed"
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    service.configure_router_owned(client)
+
+    result = service.request_release(source="comfy_free")
+
+    assert result.status == ReleaseStatus.COMPLETE
+    assert result.released_models == ("model-a",)
+    assert result.released_model_states == (("model-a", "failed"),)
+    assert result.as_dict()["released_model_states"] == [{"id": "model-a", "state": "failed"}]
+    assert result.as_dict()["released_model_diagnostics"] == [
+        {"id": "model-a", "state": "failed", "raw": {"id": "model-a", "state": "failed"}}
+    ]
+    assert process.stop_calls == 0
+    assert process.is_running is True
+    assert service.mode == RuntimeMode.ROUTER
 
 
 def test_router_barrier_failure_stops_owned_router_but_not_an_external_one() -> None:

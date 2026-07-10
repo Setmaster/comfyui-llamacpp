@@ -13,6 +13,7 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -349,7 +350,7 @@ class OwnedProcessController:
         self._process_group_id: int | None = None
         self._windows_job: Any | None = None
         self._windows_job_assigned = False
-        self._descendant_fallback = os.name == "nt"
+        self._descendant_fallback = False
         self._state = ProcessLifecycle.STOPPED
         self._stopping = False
         self._command: tuple[str, ...] = ()
@@ -431,7 +432,8 @@ class OwnedProcessController:
                 kwargs["start_new_session"] = True
 
             try:
-                process = self._popen_factory(list(command), **kwargs)
+                launch_command = self._platform_launch_command(command)
+                process = self._popen_factory(list(launch_command), **kwargs)
                 # Keep a handle before identity capture so every post-spawn failure
                 # can still terminate and reap the exact process we just created.
                 self._process = process
@@ -575,6 +577,7 @@ class OwnedProcessController:
                 self._identity = None
                 self._process_group_id = None
                 self._known_descendants.clear()
+                self._descendant_fallback = False
                 self._last_error = result.error
             else:
                 self._state = ProcessLifecycle.INCOMPLETE_STOP
@@ -609,7 +612,7 @@ class OwnedProcessController:
         self._process_group_id = None
         self._close_windows_job()
         self._windows_job_assigned = False
-        self._descendant_fallback = os.name == "nt"
+        self._descendant_fallback = False
         self._stopping = False
         self._stopped_at = None
         self._returncode = None
@@ -676,6 +679,7 @@ class OwnedProcessController:
             self._identity = None
             self._process_group_id = None
             self._known_descendants.clear()
+            self._descendant_fallback = False
             self._stopped_at = time.time()
         return complete, errors
 
@@ -689,6 +693,20 @@ class OwnedProcessController:
             # us reject older unrelated descendants in fallback scans.
             created = time.time()
         return ProcessIdentity(pid=pid, create_time=created)
+
+    @staticmethod
+    def _platform_launch_command(command: Sequence[str]) -> tuple[str, ...]:
+        if os.name != "nt" and sys.platform.startswith("linux"):
+            supervisor = Path(__file__).with_name("_posix_supervisor.py")
+            return (
+                sys.executable,
+                "-u",
+                str(supervisor),
+                str(os.getpid()),
+                "--",
+                *command,
+            )
+        return tuple(command)
 
     def _setup_windows_ownership(self, process: subprocess.Popen[bytes]) -> None:
         job: Any | None = None

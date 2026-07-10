@@ -16,8 +16,79 @@ from typing import Any
 GpuLayers = int | str
 
 
+_RESERVED_EXTRA_FLAGS = frozenset(
+    {
+        "-m",
+        "--model",
+        "-mu",
+        "--model-url",
+        "-dr",
+        "--docker-repo",
+        "-hf",
+        "-hfr",
+        "--hf-repo",
+        "-hff",
+        "--hf-file",
+        "-hft",
+        "--hf-token",
+        "-a",
+        "--alias",
+        "--port",
+        "--host",
+        "--reuse-port",
+        "--api-prefix",
+        "-c",
+        "--ctx-size",
+        "-ngl",
+        "--gpu-layers",
+        "--n-gpu-layers",
+        "-mg",
+        "--main-gpu",
+        "-ts",
+        "--tensor-split",
+        "-t",
+        "--threads",
+        "-b",
+        "--batch-size",
+        "-fa",
+        "--flash-attn",
+        "--no-mmap",
+        "--mmap",
+        "-mm",
+        "--mmproj",
+        "-mmu",
+        "--mmproj-url",
+        "--mmproj-auto",
+        "--no-mmproj",
+        "--sleep-idle-seconds",
+        "--api-key",
+        "--api-key-file",
+        "--ssl-key-file",
+        "--ssl-cert-file",
+        "--media-path",
+        "--fit",
+        "-fit",
+        "--models-dir",
+        "--models-preset",
+        "--models-max",
+        "--models-autoload",
+        "--no-models-autoload",
+    }
+)
+
+
 def _path_text(value: str | os.PathLike[str]) -> str:
     return os.fspath(value)
+
+
+def _validate_extra_args(extra_args: tuple[str, ...]) -> None:
+    for argument in extra_args:
+        option = argument.partition("=")[0].lower()
+        if option in _RESERVED_EXTRA_FLAGS:
+            raise ValueError(
+                f"extra_args cannot override typed option {option!r}; "
+                "use its dedicated configuration field"
+            )
 
 
 def _validate_common(
@@ -150,6 +221,7 @@ class ServerConfig:
             raise ValueError("model_path must not be empty")
         if not all(isinstance(argument, str) for argument in self.extra_args):
             raise TypeError("extra_args must contain only strings")
+        _validate_extra_args(self.extra_args)
         if self.flash_attention and self.flash_attention_mode is not None:
             raise ValueError("set either flash_attention or flash_attention_mode, not both")
         _validate_common(
@@ -252,6 +324,7 @@ class RouterConfig:
             raise ValueError("models_dir or models_preset must be set")
         if not all(isinstance(argument, str) for argument in self.extra_args):
             raise TypeError("extra_args must contain only strings")
+        _validate_extra_args(self.extra_args)
         if self.flash_attention and self.flash_attention_mode is not None:
             raise ValueError("set either flash_attention or flash_attention_mode, not both")
         if self.models_max < 0:

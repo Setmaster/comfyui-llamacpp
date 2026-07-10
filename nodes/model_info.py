@@ -10,9 +10,17 @@ from .connection import LlamaCppConnectionProfile
 
 
 class LlamaCppModelInfo:
+    DESCRIPTION = (
+        "Reads the active model identity, context length, and server metadata from llama-server."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "INT", "STRING")
     RETURN_NAMES = ("model_name", "context_length", "info_json")
+    OUTPUT_TOOLTIPS = (
+        "Active model alias, path, or router identity.",
+        "Context length reported by llama-server.",
+        "Complete server properties as formatted JSON.",
+    )
     FUNCTION = "get_info"
     OUTPUT_NODE = True
 
@@ -21,16 +29,45 @@ class LlamaCppModelInfo:
         return {
             "required": {},
             "optional": {
-                "server_url": ("STRING", {"default": ""}),
-                "trigger": ("*", {}),
-                "model": ("STRING", {"default": ""}),
-                "api_key_env": ("STRING", {"default": "LLAMACPP_API_KEY"}),
-                "verify_tls": ("BOOLEAN", {"default": True}),
+                "server_url": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "llama-server URL, or empty for the managed runtime.",
+                    },
+                ),
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to refresh model metadata."},
+                ),
+                "model": (
+                    "STRING",
+                    {"default": "", "tooltip": "Optional exact router model ID."},
+                ),
+                "api_key_env": (
+                    "STRING",
+                    {
+                        "default": "LLAMACPP_API_KEY",
+                        "tooltip": "Environment variable containing the API key.",
+                    },
+                ),
+                "verify_tls": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Verify HTTPS certificates."},
+                ),
                 "request_timeout": (
                     "INT",
-                    {"default": 30, "min": 1, "max": 3600},
+                    {
+                        "default": 30,
+                        "min": 1,
+                        "max": 3600,
+                        "tooltip": "Server metadata deadline in seconds.",
+                    },
                 ),
-                "connection": ("LLAMACPP_CONNECTION", {}),
+                "connection": (
+                    "LLAMACPP_CONNECTION",
+                    {"tooltip": "Optional reusable connection profile."},
+                ),
             },
         }
 

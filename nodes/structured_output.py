@@ -7,9 +7,13 @@ from collections.abc import Mapping
 
 
 class LlamaCppStructuredOutput:
+    DESCRIPTION = (
+        "Builds a JSON Schema, JSON object, or GBNF grammar constraint for ADV++ generation."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRUCTURED_OUTPUT",)
     RETURN_NAMES = ("structured_output",)
+    OUTPUT_TOOLTIPS = ("Validated structured-output constraint for an ADV++ Prompt node.",)
     FUNCTION = "create_constraint"
 
     @classmethod
@@ -18,7 +22,10 @@ class LlamaCppStructuredOutput:
             "required": {
                 "mode": (
                     ["json_schema", "json_object", "grammar"],
-                    {"default": "json_schema"},
+                    {
+                        "default": "json_schema",
+                        "tooltip": "Constraint type to send to llama-server.",
+                    },
                 ),
                 "constraint": (
                     "STRING",
@@ -32,7 +39,10 @@ class LlamaCppStructuredOutput:
                         "tooltip": "JSON schema object, or GBNF grammar for grammar mode.",
                     },
                 ),
-                "enable": ("BOOLEAN", {"default": True}),
+                "enable": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Enable or bypass this constraint."},
+                ),
             },
             "optional": {
                 "schema_name": (

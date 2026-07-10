@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -66,9 +67,10 @@ def test_start_owns_unique_process_group_and_stops_entire_tree(tmp_path: Path) -
     try:
         snapshot = controller.snapshot()
         assert snapshot.state == ProcessLifecycle.RUNNING
-        assert snapshot.pid == pids["root"]
-        assert snapshot.process_group_id == pids["root"]
-        assert os.getpgid(pids["child"]) == pids["root"]
+        assert snapshot.pid is not None
+        assert snapshot.process_group_id == snapshot.pid
+        assert os.getpgid(pids["root"]) == snapshot.pid
+        assert os.getpgid(pids["child"]) == snapshot.pid
 
         result = controller.stop(grace_timeout=2.0, kill_timeout=2.0)
 
@@ -80,6 +82,63 @@ def test_start_owns_unique_process_group_and_stops_entire_tree(tmp_path: Path) -
         _wait_until(lambda: not _pid_is_live(pids["child"]))
     finally:
         controller.stop(grace_timeout=0.1, kill_timeout=1.0)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux PDEATHSIG assertion")
+def test_abrupt_owner_exit_kills_the_supervised_process_group(tmp_path: Path) -> None:
+    pid_file = tmp_path / "abrupt-tree.json"
+    repo_root = Path(__file__).resolve().parents[1]
+    script = "\n".join(
+        (
+            "import os, sys, time",
+            "from runtime.process import OwnedProcessController",
+            f"pid_file = {str(pid_file)!r}",
+            "controller = OwnedProcessController()",
+            "controller.start([",
+            f"    sys.executable, '-u', {str(HELPER)!r}, '--pid-file', pid_file",
+            "])",
+            "deadline = time.monotonic() + 5",
+            "while not os.path.exists(pid_file) and time.monotonic() < deadline:",
+            "    time.sleep(0.01)",
+            "if not os.path.exists(pid_file):",
+            "    raise SystemExit('target did not start')",
+            "print(controller.snapshot().pid, flush=True)",
+            "os._exit(0)",
+        )
+    )
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(repo_root)
+    owner = subprocess.Popen(
+        [sys.executable, "-u", "-c", script],
+        cwd=repo_root,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    supervisor_pid: int | None = None
+    pids: dict[str, int] = {}
+    try:
+        stdout, stderr = owner.communicate(timeout=10)
+        assert owner.returncode == 0, stderr
+        supervisor_pid = int(stdout.strip())
+        pids = _read_pid_file(pid_file)
+
+        _wait_until(lambda: not _pid_is_live(supervisor_pid), timeout=5)
+        _wait_until(lambda: not _pid_is_live(pids["root"]), timeout=5)
+        _wait_until(lambda: not _pid_is_live(pids["child"]), timeout=5)
+    finally:
+        if owner.poll() is None:
+            owner.kill()
+            owner.wait(timeout=5)
+        for pid in (*pids.values(), supervisor_pid):
+            if pid is None or not _pid_is_live(pid):
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX signal escalation assertion")
@@ -206,6 +265,7 @@ def test_windows_job_setup_is_fresh_and_degrades_to_validated_fallback() -> None
 
     process = object()
     controller = OwnedProcessController(windows_job_factory=make_job)
+    assert controller.snapshot().descendant_fallback is False
     controller._setup_windows_ownership(process)  # type: ignore[arg-type]
 
     first = created_jobs[0]
@@ -215,6 +275,7 @@ def test_windows_job_setup_is_fresh_and_degrades_to_validated_fallback() -> None
 
     controller._reset_for_launch(SecretRedactor())
     assert first.closed is True  # type: ignore[attr-defined]
+    assert controller.snapshot().descendant_fallback is False
     controller._setup_windows_ownership(process)  # type: ignore[arg-type]
     assert len(created_jobs) == 2
     assert created_jobs[0] is not created_jobs[1]

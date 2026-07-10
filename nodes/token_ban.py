@@ -4,9 +4,14 @@ from ..generation.types import parse_text_list
 
 
 class LlamaCppTokenBan:
+    DESCRIPTION = (
+        "Builds a llama-server token-ban list from newline, JSON-array, or legacy "
+        "comma-separated text entries."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("LOGIT_BIAS",)
     RETURN_NAMES = ("logit_bias",)
+    OUTPUT_TOOLTIPS = ("Token-ban entries for an ADV++ Prompt node.",)
     FUNCTION = "create_ban_list"
 
     @classmethod

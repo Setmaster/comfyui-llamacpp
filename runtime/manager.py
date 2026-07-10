@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import ipaddress
 import os
 import socket
 import threading
@@ -12,6 +13,7 @@ from collections.abc import Callable, Iterator
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 if "." in __package__:
     from ..models.identity import RouterIdentityError, resolve_router_model
@@ -29,7 +31,13 @@ from .client import (
 from .comfy_bridge import evict_comfy_models
 from .config import LaunchConfig, RouterConfig, ServerConfig
 from .process import OwnedProcessController, ProcessLifecycle
-from .service import ReleaseResult, RuntimeService, get_runtime_service
+from .service import (
+    ReleaseResult,
+    ReleaseStatus,
+    RuntimeOperationBusy,
+    RuntimeService,
+    get_runtime_service,
+)
 
 
 class ServerStatus(str, Enum):
@@ -45,21 +53,108 @@ class ServerMode(str, Enum):
     ROUTER = "router"
 
 
-def _port_is_bound(host: str, port: int) -> bool:
-    target = "127.0.0.1" if host in {"0.0.0.0", "::", "*"} else host
+_UNIX_HOST_PREFIXES = ("unix:", "http+unix:", "https+unix:")
+
+
+def _validate_bind_host(host: str) -> str:
+    value = host.strip()
+    lowered = value.lower()
+    if not value:
+        raise ValueError("host must not be empty")
+    if (
+        value.startswith(("/", "\\"))
+        or lowered.startswith(_UNIX_HOST_PREFIXES)
+        or lowered.endswith(".sock")
+        or "/" in value
+        or "\\" in value
+    ):
+        raise ValueError("Unix-socket hosts are not supported; provide a TCP bind host")
+    if "://" in value or any(character in value for character in "?#@"):
+        raise ValueError("host must be a bind hostname or IP address, not a URL")
+    if any(character.isspace() for character in value):
+        raise ValueError("host must not contain whitespace")
+    if value.startswith("[") or value.endswith("]"):
+        raise ValueError("IPv6 bind hosts must be unbracketed (for example ::1)")
+    if value == "*":
+        return value
     try:
-        addresses = socket.getaddrinfo(target, port, type=socket.SOCK_STREAM)
-    except OSError:
-        return False
-    for family, socktype, protocol, _, address in addresses:
-        probe = socket.socket(family, socktype, protocol)
-        probe.settimeout(0.2)
+        ipaddress.ip_address(value)
+    except ValueError:
+        if ":" in value:
+            raise ValueError(f"invalid bind host: {host!r}") from None
+    return value
+
+
+def _connect_host(bind_host: str) -> str:
+    host = _validate_bind_host(bind_host)
+    if host == "*":
+        return "127.0.0.1"
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if address.is_unspecified:
+        return "::1" if address.version == 6 else "127.0.0.1"
+    return host
+
+
+def _connect_url(bind_host: str, port: int) -> str:
+    host = _connect_host(bind_host)
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        rendered = host
+    else:
+        rendered = f"[{host}]" if address.version == 6 else host
+    return f"http://{rendered}:{port}"
+
+
+def _port_is_bound(host: str, port: int) -> bool:
+    bind_host = _validate_bind_host(host)
+    targets = ("127.0.0.1", "::1") if bind_host == "*" else (_connect_host(bind_host),)
+    for target in targets:
         try:
-            if probe.connect_ex(address) == 0:
-                return True
-        finally:
-            probe.close()
+            addresses = socket.getaddrinfo(target, port, type=socket.SOCK_STREAM)
+        except OSError:
+            continue
+        for family, socktype, protocol, _, address in addresses:
+            probe = socket.socket(family, socktype, protocol)
+            probe.settimeout(0.2)
+            try:
+                if probe.connect_ex(address) == 0:
+                    return True
+            finally:
+                probe.close()
     return False
+
+
+def _canonical_endpoint(url: str) -> tuple[str, str, int, str]:
+    parsed = urlsplit(url)
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname
+    if scheme not in {"http", "https"} or host is None:
+        raise ValueError("server URL must use http or https and include a host")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"invalid server URL port: {exc}") from exc
+    port = port or (443 if scheme == "https" else 80)
+    normalized_host = host.rstrip(".").lower()
+    try:
+        address = ipaddress.ip_address(normalized_host)
+    except ValueError:
+        host_key = "loopback" if normalized_host == "localhost" else normalized_host
+    else:
+        host_key = "loopback" if address.is_loopback else address.compressed
+    path = parsed.path.rstrip("/")
+    return scheme, host_key, port, path
+
+
+def _same_endpoint(left: str, right: str) -> bool:
+    try:
+        return _canonical_endpoint(left) == _canonical_endpoint(right)
+    except ValueError:
+        return False
 
 
 def _path_matches(left: str, right: str) -> bool:
@@ -147,7 +242,7 @@ class LlamaCppServerManager:
         if self._connection is not None:
             return self._connection.base_url
         if self._config is not None:
-            return f"http://{self._config.host}:{self._config.port}"
+            return _connect_url(self._config.host, self._config.port)
         return "http://127.0.0.1:8080"
 
     @property
@@ -182,7 +277,7 @@ class LlamaCppServerManager:
             base_url = self._connection.base_url
         else:
             base_url = requested
-            managed = self.is_running and base_url.rstrip("/") == self.server_url.rstrip("/")
+            managed = self.is_running and _same_endpoint(base_url, self.server_url)
 
         api_key = os.environ.get(api_key_env.strip()) if api_key_env.strip() else None
         connection = ConnectionConfig(
@@ -270,7 +365,35 @@ class LlamaCppServerManager:
         verify_tls: bool,
         unload_comfy_models_before_start: bool,
     ) -> tuple[bool, str | None]:
-        with self._runtime.serialized_operation(), self._lock:
+        try:
+            with self._runtime.serialized_operation(
+                require_idle=True,
+                operation="start or reconfigure llama-server",
+            ):
+                return self._start_locked(
+                    config,
+                    mode,
+                    timeout,
+                    binary_path=binary_path,
+                    api_key_env=api_key_env,
+                    verify_tls=verify_tls,
+                    unload_comfy_models_before_start=unload_comfy_models_before_start,
+                )
+        except RuntimeOperationBusy as exc:
+            return False, str(exc)
+
+    def _start_locked(
+        self,
+        config: LaunchConfig,
+        mode: ServerMode,
+        timeout: float | None,
+        *,
+        binary_path: str | None,
+        api_key_env: str,
+        verify_tls: bool,
+        unload_comfy_models_before_start: bool,
+    ) -> tuple[bool, str | None]:
+        with self._lock:
             prior_status = self.status
             had_owned_process = self._process.has_owned_process
             destructive_start = False
@@ -307,7 +430,7 @@ class LlamaCppServerManager:
                 destructive_start = True
                 api_key = os.environ.get(api_key_env.strip()) if api_key_env.strip() else None
                 connection = ConnectionConfig(
-                    base_url=f"http://{config.host}:{config.port}",
+                    base_url=_connect_url(config.host, config.port),
                     auth=AuthConfig(api_key),
                     tls=TLSConfig(verify_tls),
                     default_deadline=timeout,
@@ -363,6 +486,16 @@ class LlamaCppServerManager:
         mode: ServerMode,
         capabilities: ServerCapabilities,
     ) -> None:
+        _validate_bind_host(config.host)
+        if (
+            isinstance(config.n_gpu_layers, str)
+            and config.n_gpu_layers in {"auto", "all"}
+            and not capabilities.supports_symbolic_gpu_layers
+        ):
+            raise RuntimeError(
+                "llama-server does not advertise symbolic --gpu-layers values; "
+                "use an integer for this binary"
+            )
         if mode == ServerMode.ROUTER:
             if not isinstance(config, RouterConfig):
                 raise TypeError("router mode requires RouterConfig")
@@ -440,8 +573,20 @@ class LlamaCppServerManager:
         raise TimeoutError(f"llama-server readiness timed out: {last_error}")
 
     def stop(self) -> tuple[bool, str | None]:
-        with self._runtime.serialized_operation(), self._lock:
-            return self._stop_locked()
+        return self._stop(force=False)
+
+    def _stop(self, *, force: bool) -> tuple[bool, str | None]:
+        try:
+            with (
+                self._runtime.serialized_operation(
+                    require_idle=not force,
+                    operation="stop llama-server",
+                ),
+                self._lock,
+            ):
+                return self._stop_locked()
+        except RuntimeOperationBusy as exc:
+            return False, str(exc)
 
     def _stop_locked(self) -> tuple[bool, str | None]:
         if not self._process.has_owned_process:
@@ -472,11 +617,15 @@ class LlamaCppServerManager:
         self._last_error = result.error or f"Owned processes remain: {result.remaining_pids}"
         return False, self._last_error
 
-    def list_models(self) -> tuple[bool, list[dict[str, Any]] | None, str | None]:
+    def list_models(
+        self,
+        *,
+        reload: bool = False,
+    ) -> tuple[bool, list[dict[str, Any]] | None, str | None]:
         if not self.is_running or self._client is None:
             return False, None, "Server not running"
         try:
-            models = self._client.models()
+            models = self._client.models(reload=reload)
             return True, [self._model_dict(model) for model in models], None
         except LlamaClientError as exc:
             return False, None, str(exc)
@@ -495,26 +644,38 @@ class LlamaCppServerManager:
         return resolve_router_model(model_name, records)
 
     def load_model(self, model_name: str, timeout: float | None = 300) -> tuple[bool, str | None]:
-        if not self.is_router_mode or self._client is None:
-            return False, "Server not in router mode"
         try:
-            model_id = self.resolve_model_id(model_name)
-            result = self._client.load_model(model_id, timeout=timeout)
-            if not result.success:
-                return False, f"Model did not reach loaded state: {model_id}"
-            return True, None
+            with self._runtime.serialized_operation(
+                require_idle=True,
+                operation="load a router model",
+            ):
+                if not self.is_router_mode or self._client is None:
+                    return False, "Server not in router mode"
+                model_id = self.resolve_model_id(model_name)
+                result = self._client.load_model(model_id, timeout=timeout)
+                if not result.success:
+                    return False, f"Model did not reach loaded state: {model_id}"
+                return True, None
+        except RuntimeOperationBusy as exc:
+            return False, str(exc)
         except (LlamaClientError, RouterIdentityError, ValueError) as exc:
             return False, str(exc)
 
     def unload_model(self, model_name: str, timeout: float | None = 300) -> tuple[bool, str | None]:
-        if not self.is_router_mode or self._client is None:
-            return False, "Server not in router mode"
         try:
-            model_id = self.resolve_model_id(model_name)
-            result = self._client.unload_model(model_id, timeout=timeout)
-            if not result.success:
-                return False, f"Model did not reach unloaded state: {model_id}"
-            return True, None
+            with self._runtime.serialized_operation(
+                require_idle=True,
+                operation="unload a router model",
+            ):
+                if not self.is_router_mode or self._client is None:
+                    return False, "Server not in router mode"
+                model_id = self.resolve_model_id(model_name)
+                result = self._client.unload_model(model_id, timeout=timeout)
+                if not result.success:
+                    return False, f"Model did not reach unloaded state: {model_id}"
+                return True, None
+        except RuntimeOperationBusy as exc:
+            return False, str(exc)
         except (LlamaClientError, RouterIdentityError, ValueError) as exc:
             return False, str(exc)
 
@@ -537,6 +698,7 @@ class LlamaCppServerManager:
                 "identity": self._capabilities.identity,
                 "supports_router": self._capabilities.supports_router,
                 "supports_idle_sleep": self._capabilities.supports_idle_sleep,
+                "supports_symbolic_gpu_layers": (self._capabilities.supports_symbolic_gpu_layers),
             }
         if self._config is not None:
             info["config"] = self._config.effective_values()
@@ -547,7 +709,12 @@ class LlamaCppServerManager:
         return info
 
     def _on_release(self, result: ReleaseResult) -> None:
-        if result.stop_result is None or not result.stop_result.complete:
+        direct_runtime_cleared = result.mode.value == "direct" and result.status in {
+            ReleaseStatus.NOOP,
+            ReleaseStatus.COMPLETE,
+        }
+        owned_process_stopped = result.stop_result is not None and result.stop_result.complete
+        if not direct_runtime_cleared and not owned_process_stopped:
             return
         with self._lock:
             self._status = ServerStatus.STOPPED
@@ -565,7 +732,7 @@ class LlamaCppServerManager:
 
     def _cleanup(self) -> None:
         try:
-            self.stop()
+            self._stop(force=True)
         except Exception:
             pass
 

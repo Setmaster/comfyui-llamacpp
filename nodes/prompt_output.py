@@ -31,9 +31,14 @@ class _HTMLTextExtractor(HTMLParser):
 
 
 class LlamaCppPromptOutput:
+    DESCRIPTION = (
+        "Displays and forwards LLM text, with optional conversion of common Markdown and "
+        "HTML to plaintext."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
+    OUTPUT_TOOLTIPS = ("Displayed text, converted to plaintext when requested.",)
     FUNCTION = "preview_text"
     OUTPUT_NODE = True
 

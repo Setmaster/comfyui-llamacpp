@@ -54,7 +54,10 @@ def _common_widgets(*, penalties_are_legacy: bool) -> dict[str, Any]:
             {
                 "default": "",
                 "placeholder": "http://127.0.0.1:8080",
-                "tooltip": "Leave empty to use the server owned by this node pack.",
+                "tooltip": (
+                    "Leave empty to use the server owned by this node pack. Attached "
+                    "endpoints are never implicitly stopped."
+                ),
             },
         ),
         "system_prompt": (
@@ -75,18 +78,63 @@ def _common_widgets(*, penalties_are_legacy: bool) -> dict[str, Any]:
         ),
         "max_tokens": (
             "INT",
-            {"default": 2048, "min": 1, "max": 131072, "step": 64},
+            {
+                "default": 2048,
+                "min": 1,
+                "max": 131072,
+                "step": 64,
+                "tooltip": "Maximum number of tokens to generate.",
+            },
         ),
         "temperature": (
             "FLOAT",
-            {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.05},
+            {
+                "default": 0.7,
+                "min": 0.0,
+                "max": 2.0,
+                "step": 0.05,
+                "tooltip": "Sampling randomness. Lower values are more deterministic.",
+            },
         ),
-        "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0, "step": 0.05}),
-        "top_k": ("INT", {"default": 40, "min": 0, "max": 200, "step": 1}),
-        "min_p": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
+        "top_p": (
+            "FLOAT",
+            {
+                "default": 0.9,
+                "min": 0.0,
+                "max": 1.0,
+                "step": 0.05,
+                "tooltip": "Keep tokens within this cumulative probability mass.",
+            },
+        ),
+        "top_k": (
+            "INT",
+            {
+                "default": 40,
+                "min": 0,
+                "max": 200,
+                "step": 1,
+                "tooltip": "Sample from the top K tokens. 0 disables top-k filtering.",
+            },
+        ),
+        "min_p": (
+            "FLOAT",
+            {
+                "default": 0.05,
+                "min": 0.0,
+                "max": 1.0,
+                "step": 0.01,
+                "tooltip": "Discard tokens below this probability relative to the best token.",
+            },
+        ),
         "repeat_penalty": (
             "FLOAT",
-            {"default": 1.1, "min": 1.0, "max": 2.0, "step": 0.05},
+            {
+                "default": 1.1,
+                "min": 1.0,
+                "max": 2.0,
+                "step": 0.05,
+                "tooltip": "Penalize recently repeated tokens. 1.0 disables the penalty.",
+            },
         ),
     }
     if penalties_are_legacy:
@@ -120,11 +168,23 @@ def _penalty_widgets() -> dict[str, Any]:
     return {
         "presence_penalty": (
             "FLOAT",
-            {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
+            {
+                "default": 0.0,
+                "min": -2.0,
+                "max": 2.0,
+                "step": 0.1,
+                "tooltip": "Penalize tokens that have appeared at least once.",
+            },
         ),
         "frequency_penalty": (
             "FLOAT",
-            {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
+            {
+                "default": 0.0,
+                "min": -2.0,
+                "max": 2.0,
+                "step": 0.1,
+                "tooltip": "Penalize tokens in proportion to how often they appeared.",
+            },
         ),
     }
 
@@ -244,7 +304,13 @@ def advanced_pp_prompt_inputs(template_names: list[str]) -> dict[str, dict[str, 
     )
     return {
         "required": {
-            "template": (template_names, {"default": "Empty"}),
+            "template": (
+                template_names,
+                {
+                    "default": "Empty",
+                    "tooltip": "Apply a bundled prompt template before generation.",
+                },
+            ),
             "prompt": _prompt(),
             "image_amount": _image_amount(),
         },

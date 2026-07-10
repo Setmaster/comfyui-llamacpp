@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import threading
+
+import pytest
+
 from runtime.capabilities import ServerCapabilities
 from runtime.client import (
     HealthStatus,
@@ -58,6 +62,10 @@ class FakeProcess:
         self.error = None
         self.logs = []
         self.stop_calls = 0
+        self.start_entered = None
+        self.start_gate = None
+        self.stop_entered = None
+        self.stop_gate = None
 
     @property
     def is_running(self):
@@ -68,6 +76,10 @@ class FakeProcess:
         return self.owned
 
     def start(self, command, **kwargs):
+        if self.start_entered is not None:
+            self.start_entered.set()
+        if self.start_gate is not None:
+            assert self.start_gate.wait(timeout=5)
         self.command = list(command)
         self.running = True
         self.owned = True
@@ -76,6 +88,10 @@ class FakeProcess:
 
     def stop(self, **kwargs):
         self.stop_calls += 1
+        if self.stop_entered is not None:
+            self.stop_entered.set()
+        if self.stop_gate is not None:
+            assert self.stop_gate.wait(timeout=5)
         self.running = False
         self.owned = False
         self.state = ProcessLifecycle.STOPPED
@@ -94,6 +110,12 @@ class FakeClient:
         self.closed = False
         self.model_records = ()
         self.unload_calls = []
+        self.load_calls = []
+        self.models_kwargs = []
+        self.load_entered = None
+        self.load_gate = None
+        self.unload_entered = None
+        self.unload_gate = None
 
     def close(self):
         self.closed = True
@@ -113,16 +135,26 @@ class FakeClient:
         )
 
     def models(self, **kwargs):
+        self.models_kwargs.append(dict(kwargs))
         return tuple(self.model_records)
 
     list_models = models
 
     def load_model(self, model_id, **kwargs):
+        self.load_calls.append(model_id)
+        if self.load_entered is not None:
+            self.load_entered.set()
+        if self.load_gate is not None:
+            assert self.load_gate.wait(timeout=5)
         model = RouterModel(model_id, ModelState.LOADED)
         return ModelOperationResult(model, True, True, 0.1)
 
     def unload_model(self, model_id, **kwargs):
         self.unload_calls.append(model_id)
+        if self.unload_entered is not None:
+            self.unload_entered.set()
+        if self.unload_gate is not None:
+            assert self.unload_gate.wait(timeout=5)
         model = RouterModel(model_id, ModelState.UNLOADED)
         return ModelOperationResult(model, True, True, 0.1)
 
@@ -221,6 +253,25 @@ def test_port_collision_is_rejected_without_adopting_process(tmp_path, monkeypat
     assert process.has_owned_process is False
 
 
+def test_symbolic_gpu_layers_are_rejected_for_integer_only_binary(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(ServerConfig(str(model), n_gpu_layers="auto"), timeout=2)
+
+    assert success is False
+    assert "does not advertise symbolic --gpu-layers" in error
+    assert process.has_owned_process is False
+
+
 def test_wrong_ready_role_is_stopped_and_reported(tmp_path, monkeypatch):
     model = tmp_path / "model.gguf"
     model.write_bytes(b"fixture")
@@ -275,3 +326,241 @@ def test_failed_replacement_preflight_preserves_healthy_owned_server(tmp_path, m
     assert manager.current_config == ServerConfig(str(model))
     assert manager.client is original_client
     assert original_client.closed is False
+
+
+@pytest.mark.parametrize(
+    ("bind_host", "expected_url"),
+    [
+        ("0.0.0.0", "http://127.0.0.1:8080"),
+        ("*", "http://127.0.0.1:8080"),
+        ("::", "http://[::1]:8080"),
+        ("0:0:0:0:0:0:0:0", "http://[::1]:8080"),
+        ("::1", "http://[::1]:8080"),
+    ],
+)
+def test_bind_hosts_produce_valid_loopback_connect_urls(
+    tmp_path,
+    monkeypatch,
+    bind_host,
+    expected_url,
+):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    assert manager.start(ServerConfig(str(model), host=bind_host), timeout=2) == (True, None)
+    assert manager.server_url == expected_url
+
+
+def test_equivalent_loopback_urls_retain_managed_generation_leases(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    assert manager.start(ServerConfig(str(model), host="127.0.0.1"), timeout=2)[0]
+
+    for url in (
+        "http://127.0.0.1:8080",
+        "http://localhost:8080/",
+        "http://[::1]:8080",
+    ):
+        connection, managed = manager.connection_for(url)
+        assert connection.base_url == url.rstrip("/")
+        assert managed is True
+
+    _, managed = manager.connection_for("http://localhost:8081")
+    assert managed is False
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["/tmp/llama.sock", "llama.sock", "unix:/tmp/llama.sock", "http+unix:x"],
+)
+def test_unix_socket_hosts_are_rejected_before_spawn(tmp_path, monkeypatch, host):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(ServerConfig(str(model), host=host), timeout=2)
+
+    assert success is False
+    assert "Unix-socket hosts are not supported" in error
+    assert process.has_owned_process is False
+
+
+def test_model_list_reload_is_forwarded_to_router_client(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    success, _, error = manager.list_models(reload=True)
+
+    assert (success, error) == (True, None)
+    assert client.models_kwargs[-1] == {"reload": True}
+
+
+def test_native_release_waits_for_startup_then_stops_new_runtime(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    process.start_entered = threading.Event()
+    process.start_gate = threading.Event()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    results = {}
+    starter = threading.Thread(
+        target=lambda: results.setdefault("start", manager.start(ServerConfig(str(model))))
+    )
+    releaser = threading.Thread(
+        target=lambda: results.setdefault("release", service.request_release(source="comfy_free"))
+    )
+
+    starter.start()
+    assert process.start_entered.wait(timeout=5)
+    releaser.start()
+    releaser.join(timeout=0.1)
+    assert releaser.is_alive()
+
+    process.start_gate.set()
+    starter.join(timeout=5)
+    releaser.join(timeout=5)
+
+    assert results["start"] == (True, None)
+    assert results["release"].status == ReleaseStatus.COMPLETE
+    assert process.stop_calls == 1
+    assert manager.status == ServerStatus.STOPPED
+
+
+def test_native_release_waits_for_explicit_stop_without_state_corruption(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    assert manager.start(ServerConfig(str(model)), timeout=2)[0]
+    process.stop_entered = threading.Event()
+    process.stop_gate = threading.Event()
+    results = {}
+    stopper = threading.Thread(target=lambda: results.setdefault("stop", manager.stop()))
+    releaser = threading.Thread(
+        target=lambda: results.setdefault("release", service.request_release(source="comfy_free"))
+    )
+
+    stopper.start()
+    assert process.stop_entered.wait(timeout=5)
+    releaser.start()
+    releaser.join(timeout=0.1)
+    assert releaser.is_alive()
+
+    process.stop_gate.set()
+    stopper.join(timeout=5)
+    releaser.join(timeout=5)
+
+    assert results["stop"] == (True, None)
+    assert results["release"].status == ReleaseStatus.NOOP
+    assert process.stop_calls == 1
+    assert service.mode == RuntimeMode.NONE
+
+
+def test_native_release_serializes_behind_router_load(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("model-a", ModelState.LOADED),)
+    client.load_entered = threading.Event()
+    client.load_gate = threading.Event()
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+    results = {}
+    loader = threading.Thread(
+        target=lambda: results.setdefault("load", manager.load_model("model-a"))
+    )
+    releaser = threading.Thread(
+        target=lambda: results.setdefault("release", service.request_release(source="comfy_free"))
+    )
+
+    loader.start()
+    assert client.load_entered.wait(timeout=5)
+    releaser.start()
+    releaser.join(timeout=0.1)
+    assert releaser.is_alive()
+
+    client.load_gate.set()
+    loader.join(timeout=5)
+    releaser.join(timeout=5)
+
+    assert results["load"] == (True, None)
+    assert results["release"].status == ReleaseStatus.COMPLETE
+    assert client.unload_calls == ["model-a"]
+    assert process.stop_calls == 0
+
+
+def test_explicit_mutations_reject_before_change_during_generation(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("model-a", ModelState.LOADED),)
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    config = RouterConfig(str(tmp_path))
+    assert manager.start_router(config, timeout=2)[0]
+
+    with manager.generation_lease(managed=True):
+        outcomes = (
+            manager.stop(),
+            manager.start_router(config),
+            manager.load_model("model-a"),
+            manager.unload_model("model-a"),
+        )
+
+    assert all(success is False and "generation request" in error for success, error in outcomes)
+    assert process.stop_calls == 0
+    assert client.load_calls == []
+    assert client.unload_calls == []
+    assert manager.status == ServerStatus.RUNNING

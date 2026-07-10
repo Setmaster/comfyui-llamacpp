@@ -108,6 +108,34 @@ class ConfigContractTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             config.port = 9000  # type: ignore[misc]
 
+    def test_extra_args_cannot_override_typed_or_security_options(self) -> None:
+        reserved = (
+            "--port",
+            "--host=0.0.0.0",
+            "-m",
+            "--model=other.gguf",
+            "-mu",
+            "--reuse-port",
+            "--api-prefix=/hidden",
+            "--api-key=secret",
+            "--api-key-file",
+            "--ssl-key-file=key.pem",
+            "--ssl-cert-file",
+            "--sleep-idle-seconds=1",
+            "--models-dir",
+            "--models-max=9",
+        )
+        for argument in reserved:
+            with self.subTest(argument=argument):
+                with self.assertRaisesRegex(ValueError, "cannot override typed option"):
+                    ServerConfig("model.gguf", extra_args=(argument,))
+
+        # Untyped diagnostic/tuning flags remain available.
+        self.assertEqual(
+            ServerConfig("model.gguf", extra_args=("--metrics",)).extra_args,
+            ("--metrics",),
+        )
+
     def test_fingerprint_covers_every_field_and_binary(self) -> None:
         base = ServerConfig("model.gguf")
         baseline = base.fingerprint("binary-a")
@@ -193,9 +221,14 @@ class CapabilityProbeTests(unittest.TestCase):
         def run(command, **kwargs):
             calls.append(command)
             if command[-1] == "--version":
-                output = "version b9957 (commit abcdef123456)\n"
+                output = "version: 9957 (abcdef123456)\n"
             else:
-                output = "--models-dir PATH\n--models-max N\n--sleep-idle-seconds N\n--api-key-file FILE\n"
+                output = (
+                    "-ngl, --gpu-layers, --n-gpu-layers N  max layers, either an exact "
+                    "number, 'auto', or 'all' (default: auto)\n"
+                    "--models-dir PATH\n--models-max N\n--sleep-idle-seconds N\n"
+                    "--api-key-file FILE\n"
+                )
             return subprocess.CompletedProcess(command, 0, stdout=output)
 
         with mock.patch("runtime.capabilities.subprocess.run", side_effect=run):
@@ -207,6 +240,7 @@ class CapabilityProbeTests(unittest.TestCase):
         self.assertTrue(first.supports_router)
         self.assertTrue(first.supports_idle_sleep)
         self.assertTrue(first.supports_api_key_file)
+        self.assertTrue(first.supports_symbolic_gpu_layers)
         self.assertEqual(first.build_number, 9957)
         self.assertEqual(first.commit, "abcdef123456")
         self.assertEqual(len(first.identity), 64)
@@ -222,6 +256,19 @@ class CapabilityProbeTests(unittest.TestCase):
         probe_server_binary(self.binary, runner=run)
         probe_server_binary(self.binary, runner=run)
         self.assertEqual(calls, 4)
+
+    def test_old_integer_only_gpu_layers_help_is_not_treated_as_symbolic(self) -> None:
+        def run(command, **kwargs):
+            output = (
+                "version b6000\n"
+                if command[-1] == "--version"
+                else "-ngl, --n-gpu-layers N  number of layers to store in VRAM\n"
+            )
+            return subprocess.CompletedProcess(command, 0, stdout=output)
+
+        result = probe_server_binary(self.binary, runner=run)
+
+        self.assertFalse(result.supports_symbolic_gpu_layers)
 
 
 if __name__ == "__main__":

@@ -125,7 +125,7 @@ class ChatStreamingTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(result.response, "Hello world")
-        self.assertEqual(result.thinking, "think")
+        self.assertEqual(result.thinking, "think ")
         self.assertEqual(result.finish_reason, "stop")
         self.assertEqual(result.usage["completion_tokens"], 2)
         self.assertEqual(result.response_id, "chat-1")
@@ -139,6 +139,46 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer top-secret")
         self.assertFalse(kwargs["verify"])
         self.assertTrue(kwargs["stream"])
+
+    def test_complete_stream_preserves_exact_content_and_reasoning_whitespace(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "content": "  leading",
+                                    "reasoning_content": "\nthink ",
+                                }
+                            }
+                        ]
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "content": "\ntrailing  ",
+                                    "reasoning_content": "tail\n",
+                                },
+                                "finish_reason": "stop",
+                            }
+                        ]
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(self.connection(), {"stream": True}, session=FakeSession(response))
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.response, "  leading\ntrailing  ")
+        self.assertEqual(result.thinking, "\nthink tail\n")
+        self.assertFalse(result.partial)
 
     def test_finish_reason_is_terminal_without_done_marker(self) -> None:
         response = FakeResponse(
@@ -174,10 +214,37 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertEqual(result.error_type, "incomplete")
         self.assertTrue(response.closed)
 
+    def test_unterminated_partial_stream_preserves_exact_whitespace(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "content": "\n  partial  \n",
+                                    "reasoning_content": "  unfinished thought ",
+                                }
+                            }
+                        ]
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(self.connection(), {"stream": True}, session=FakeSession(response))
+
+        self.assertFalse(result.success)
+        self.assertTrue(result.partial)
+        self.assertEqual(result.response, "\n  partial  \n")
+        self.assertEqual(result.thinking, "  unfinished thought ")
+        self.assertEqual(result.error_type, "incomplete")
+
     def test_server_error_preserves_partial_content_and_redacts_secret(self) -> None:
         response = FakeResponse(
             [
-                data_line({"choices": [{"delta": {"content": "partial"}}]}),
+                data_line({"choices": [{"delta": {"content": "  partial error\n"}}]}),
                 "",
                 data_line({"error": {"message": "key top-secret rejected"}}),
                 "",
@@ -186,6 +253,7 @@ class ChatStreamingTests(unittest.TestCase):
         result = stream_chat(self.connection(), {"stream": True}, session=FakeSession(response))
         self.assertFalse(result.success)
         self.assertTrue(result.partial)
+        self.assertEqual(result.response, "  partial error\n")
         self.assertEqual(result.error_type, "server")
         self.assertNotIn("top-secret", result.error_message)
 

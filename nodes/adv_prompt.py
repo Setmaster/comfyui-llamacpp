@@ -6,9 +6,18 @@ from .schemas import MAX_IMAGES, advanced_prompt_inputs
 
 
 class LlamaCppAdvPrompt:
+    DESCRIPTION = (
+        "Runs multimodal llama-server generation with full sampling controls and up to "
+        "ten ComfyUI images."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
+    OUTPUT_TOOLTIPS = (
+        "Generated multimodal response text.",
+        "Reasoning content reported separately by compatible models.",
+        "Whether generation completed successfully.",
+    )
     FUNCTION = "generate"
     MAX_IMAGES = MAX_IMAGES
 

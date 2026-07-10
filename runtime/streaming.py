@@ -307,8 +307,12 @@ def stream_chat(
         status_code: int | None = None,
         cancelled: bool = False,
     ) -> StreamResult:
-        response_text = "".join(content_parts).strip()
-        thinking_text = "".join(thinking_parts).strip()
+        # Model output is a byte-for-byte workflow value once each decoded SSE
+        # delta reaches us. Leading and trailing whitespace can be meaningful
+        # for code, templates, and downstream string composition, so never
+        # normalize the assembled response here.
+        response_text = "".join(content_parts)
+        thinking_text = "".join(thinking_parts)
         has_partial = bool(response_text or thinking_text) and not success
         return StreamResult(
             response=response_text,

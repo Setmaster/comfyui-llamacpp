@@ -29,7 +29,9 @@ setting.
 `llama-server`. Version 0.3 never does that. It controls only the exact process
 tree it started and identified.
 
-- POSIX uses a unique owned process group and abrupt-owner protection.
+- Linux uses a unique owned process group plus kernel-backed abrupt-owner
+  protection. Other POSIX systems retain exact process-group cleanup for normal
+  stop and exit, without the Linux abrupt-owner guarantee.
 - Windows uses a fresh Job Object with kill-on-close when assignment succeeds.
 - A validated Windows descendant fallback is used only when Job assignment is
   unavailable, and status reports that degraded mode.
@@ -44,6 +46,10 @@ lifecycle coordinator:
   keeps the router process.
 - Attached endpoints are untouched.
 - Active managed generation defers implicit release until its lease ends.
+
+Explicit start, stop, router load, and router unload now reject before mutation
+while managed generation is active. Native Comfy release remains the safe
+deferred path.
 
 The explicit Stop, Release, Load Model, and Unload Model nodes remain.
 
@@ -60,6 +66,22 @@ Version 0.3 uses current llama.cpp contracts:
 It does not use `POST /models` for loading because current llama.cpp reserves
 that endpoint for other operations. Model selection resolves exact IDs and
 aliases returned by the router and fails on ambiguity.
+
+The List Models node can request a current router catalog rescan through
+`GET /models?reload=1`.
+
+### Advanced launch arguments
+
+`extra_args` remains available for llama.cpp tuning flags that do not have a
+dedicated field. It can no longer duplicate typed model, transport, GPU,
+authentication, TLS, router, or lifecycle options. Move any such legacy
+duplicate to the corresponding node widget. This prevents the manager from
+checking one endpoint or ownership configuration while the process runs
+another.
+
+Symbolic GPU-layer values (`auto` and `all`) are accepted only when the probed
+binary help explicitly advertises them. Numeric values remain portable across
+older builds.
 
 ### Model discovery
 
@@ -93,7 +115,8 @@ image in each Comfy batch is sent, preserving old behavior. Enable
 
 Streaming now has an overall deadline, closes every HTTP response, respects
 Comfy interrupts, requires a valid terminal marker, and preserves partial
-output with failure metadata.
+output with failure metadata. Successful and partial content now preserves
+leading and trailing whitespace exactly.
 
 ## New nodes
 

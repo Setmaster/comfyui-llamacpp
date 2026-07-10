@@ -9,22 +9,48 @@ from ..server_manager import get_server_manager
 
 
 class LlamaCppListModels:
+    DESCRIPTION = (
+        "Lists the current llama-server model catalog and normalized router residency states."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("models_json", "models_list")
+    OUTPUT_TOOLTIPS = (
+        "Complete router model catalog as formatted JSON.",
+        "Human-readable model identities and residency states.",
+    )
     FUNCTION = "list_models"
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {}, "optional": {"trigger": ("*", {})}}
+        return {
+            "required": {},
+            "optional": {
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to sequence model listing."},
+                ),
+                "reload_catalog": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": (
+                            "Ask a current llama-server router to rescan its configured "
+                            "model sources before listing. Changed or removed running models "
+                            "may be unloaded by the router."
+                        ),
+                    },
+                ),
+            },
+        }
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         return float("nan")
 
-    def list_models(self, trigger=None):
+    def list_models(self, trigger=None, reload_catalog: bool = False):
         del trigger
-        success, models, error = get_server_manager().list_models()
+        success, models, error = get_server_manager().list_models(reload=reload_catalog)
         if not success or models is None:
             message = f"Error: {error or 'Could not list models'}"
             return message, message
@@ -43,9 +69,14 @@ def _model_choices() -> list[str]:
 
 
 class LlamaCppLoadModel:
+    DESCRIPTION = "Loads one exact router model and waits for its terminal loaded state."
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
+    OUTPUT_TOOLTIPS = (
+        "Whether the model reached a terminal loaded state.",
+        "Load result or failure detail.",
+    )
     FUNCTION = "load_model"
     OUTPUT_NODE = True
 
@@ -53,12 +84,28 @@ class LlamaCppLoadModel:
     def INPUT_TYPES(cls):
         models = _model_choices()
         return {
-            "required": {"model_name": (models, {"default": models[0]})},
+            "required": {
+                "model_name": (
+                    models,
+                    {
+                        "default": models[0],
+                        "tooltip": "Local model to resolve to one exact router model ID.",
+                    },
+                )
+            },
             "optional": {
-                "trigger": ("*", {}),
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to sequence model loading."},
+                ),
                 "operation_timeout": (
                     "INT",
-                    {"default": 300, "min": 1, "max": 86400},
+                    {
+                        "default": 300,
+                        "min": 1,
+                        "max": 86400,
+                        "tooltip": "Seconds to wait for the router's terminal loaded state.",
+                    },
                 ),
             },
         }
@@ -71,9 +118,14 @@ class LlamaCppLoadModel:
 
 
 class LlamaCppUnloadModel:
+    DESCRIPTION = "Unloads one exact router model and waits for its terminal unloaded state."
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
+    OUTPUT_TOOLTIPS = (
+        "Whether the model reached a terminal unloaded state.",
+        "Unload result or failure detail.",
+    )
     FUNCTION = "unload_model"
     OUTPUT_NODE = True
 
@@ -81,12 +133,28 @@ class LlamaCppUnloadModel:
     def INPUT_TYPES(cls):
         models = _model_choices()
         return {
-            "required": {"model_name": (models, {"default": models[0]})},
+            "required": {
+                "model_name": (
+                    models,
+                    {
+                        "default": models[0],
+                        "tooltip": "Local model to resolve to one exact router model ID.",
+                    },
+                )
+            },
             "optional": {
-                "trigger": ("*", {}),
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to sequence model unloading."},
+                ),
                 "operation_timeout": (
                     "INT",
-                    {"default": 300, "min": 1, "max": 86400},
+                    {
+                        "default": 300,
+                        "min": 1,
+                        "max": 86400,
+                        "tooltip": "Seconds to wait for the router's terminal unloaded state.",
+                    },
                 ),
             },
         }

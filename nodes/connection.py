@@ -15,9 +15,14 @@ class LlamaCppConnectionProfile:
 
 
 class LlamaCppConnection:
+    DESCRIPTION = (
+        "Creates a reusable llama-server connection profile while keeping API-key values "
+        "out of saved workflows."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("LLAMACPP_CONNECTION",)
     RETURN_NAMES = ("connection",)
+    OUTPUT_TOOLTIPS = ("Reusable secret-free llama-server connection profile.",)
     FUNCTION = "create_connection"
 
     @classmethod
@@ -29,7 +34,10 @@ class LlamaCppConnection:
                     {
                         "default": "",
                         "placeholder": "empty = server owned by this pack",
-                        "tooltip": "Local llama-server URL, or empty for the managed server.",
+                        "tooltip": (
+                            "Local or remote llama-server URL, or empty for the managed server. "
+                            "Attached endpoints are never implicitly stopped."
+                        ),
                     },
                 )
             },
@@ -45,10 +53,19 @@ class LlamaCppConnection:
                         "tooltip": "Environment variable containing the API key.",
                     },
                 ),
-                "verify_tls": ("BOOLEAN", {"default": True}),
+                "verify_tls": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Verify HTTPS certificates."},
+                ),
                 "request_timeout": (
                     "INT",
-                    {"default": 300, "min": 1, "max": 86400, "step": 1},
+                    {
+                        "default": 300,
+                        "min": 1,
+                        "max": 86400,
+                        "step": 1,
+                        "tooltip": "Overall request deadline in seconds.",
+                    },
                 ),
             },
         }

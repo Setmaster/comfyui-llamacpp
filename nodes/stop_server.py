@@ -8,15 +8,28 @@ from ..server_manager import get_server_manager
 
 
 class StopLlamaCppServer:
+    DESCRIPTION = "Stops only the local llama-server process tree started by this node pack."
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
+    OUTPUT_TOOLTIPS = (
+        "Whether the owned process tree stopped completely.",
+        "Shutdown result or failure detail.",
+    )
     FUNCTION = "stop_server"
     OUTPUT_NODE = True
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {}, "optional": {"trigger": ("*", {})}}
+        return {
+            "required": {},
+            "optional": {
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to sequence server shutdown."},
+                )
+            },
+        }
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -32,15 +45,32 @@ class StopLlamaCppServer:
 class LlamaCppReleaseRuntime:
     """Release model VRAM while retaining the router control process when possible."""
 
+    DESCRIPTION = (
+        "Releases this node pack's owned llama.cpp VRAM, deferring safely while a "
+        "generation is active."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("BOOLEAN", "STRING", "STRING")
     RETURN_NAMES = ("success", "message", "result_json")
+    OUTPUT_TOOLTIPS = (
+        "Whether the release request was accepted; deferred requests complete after generation.",
+        "Release status summary, including queued or terminal state.",
+        "Complete release result as formatted JSON.",
+    )
     FUNCTION = "release_runtime"
     OUTPUT_NODE = True
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {}, "optional": {"trigger": ("*", {})}}
+        return {
+            "required": {},
+            "optional": {
+                "trigger": (
+                    "*",
+                    {"tooltip": "Optional dependency input used to sequence VRAM release."},
+                )
+            },
+        }
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -57,9 +87,18 @@ class LlamaCppReleaseRuntime:
 
 
 class LlamaCppServerStatus:
+    DESCRIPTION = (
+        "Reports managed llama.cpp ownership, lifecycle, process identity, capabilities, "
+        "model residency, and recent logs."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("BOOLEAN", "STRING", "STRING")
     RETURN_NAMES = ("is_running", "status", "info")
+    OUTPUT_TOOLTIPS = (
+        "Whether the owned llama-server process is running.",
+        "Current process lifecycle state.",
+        "Human-readable ownership, capability, residency, and log details.",
+    )
     FUNCTION = "get_status"
 
     @classmethod

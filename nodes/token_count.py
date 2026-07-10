@@ -10,9 +10,17 @@ from .connection import LlamaCppConnectionProfile
 
 
 class LlamaCppTokenCount:
+    DESCRIPTION = (
+        "Tokenizes text through llama-server and returns the token count plus optional "
+        "token or piece details."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("INT", "STRING")
     RETURN_NAMES = ("token_count", "tokens_json")
+    OUTPUT_TOOLTIPS = (
+        "Number of tokens returned by llama-server.",
+        "Token IDs or token-piece details as JSON.",
+    )
     FUNCTION = "count_tokens"
 
     @classmethod
@@ -21,19 +29,62 @@ class LlamaCppTokenCount:
             "required": {
                 "text": (
                     "STRING",
-                    {"multiline": True, "default": "", "placeholder": "Text to tokenize"},
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "placeholder": "Text to tokenize",
+                        "tooltip": "Text to tokenize with the selected llama-server model.",
+                    },
                 )
             },
             "optional": {
-                "server_url": ("STRING", {"default": ""}),
-                "model": ("STRING", {"default": ""}),
-                "add_special": ("BOOLEAN", {"default": False}),
-                "parse_special": ("BOOLEAN", {"default": True}),
-                "with_pieces": ("BOOLEAN", {"default": False}),
-                "api_key_env": ("STRING", {"default": "LLAMACPP_API_KEY"}),
-                "verify_tls": ("BOOLEAN", {"default": True}),
-                "request_timeout": ("INT", {"default": 30, "min": 1, "max": 3600}),
-                "connection": ("LLAMACPP_CONNECTION", {}),
+                "server_url": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "llama-server URL, or empty for the managed runtime.",
+                    },
+                ),
+                "model": (
+                    "STRING",
+                    {"default": "", "tooltip": "Optional exact router model ID."},
+                ),
+                "add_special": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Add the model's special boundary tokens."},
+                ),
+                "parse_special": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Recognize special-token text in the input."},
+                ),
+                "with_pieces": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Ask llama-server to include token pieces."},
+                ),
+                "api_key_env": (
+                    "STRING",
+                    {
+                        "default": "LLAMACPP_API_KEY",
+                        "tooltip": "Environment variable containing the API key.",
+                    },
+                ),
+                "verify_tls": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Verify HTTPS certificates."},
+                ),
+                "request_timeout": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 1,
+                        "max": 3600,
+                        "tooltip": "Tokenization deadline in seconds.",
+                    },
+                ),
+                "connection": (
+                    "LLAMACPP_CONNECTION",
+                    {"tooltip": "Optional reusable connection profile."},
+                ),
             },
         }
 

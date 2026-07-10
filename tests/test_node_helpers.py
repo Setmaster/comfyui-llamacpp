@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 
@@ -36,3 +38,27 @@ def test_plaintext_conversion_handles_images_links_html_and_ignored_content(node
     text = "# Title\n![alt](image.png) [link](https://example.com)<br><b>bold</b><script>x</script>"
     output = node.preview_text(text, True)["result"][0]
     assert output == "Title\nalt link\nbold"
+
+
+def test_list_models_can_request_router_catalog_reload(node_package, monkeypatch):
+    node_class = node_package.NODE_CLASS_MAPPINGS["LlamaCppListModels"]
+    node = node_class()
+    observed = []
+
+    class FakeManager:
+        def list_models(self, *, reload=False):
+            observed.append(reload)
+            return (
+                True,
+                [{"id": "fresh-model", "status": {"value": "unloaded"}}],
+                None,
+            )
+
+    module = sys.modules[node_class.__module__]
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+
+    models_json, models_list = node.list_models(reload_catalog=True)
+
+    assert observed == [True]
+    assert '"id": "fresh-model"' in models_json
+    assert models_list == "fresh-model (unloaded)"

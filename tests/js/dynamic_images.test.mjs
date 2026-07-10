@@ -68,6 +68,20 @@ test("setup is idempotent and widget callback updates sockets", () => {
     assert.equal(dirty, 1);
 });
 
+test("loaded graph setup restores saved image counts 0, 1, and 10", () => {
+    for (const count of [0, 1, 10]) {
+        const node = fakeNode();
+        node.widgets[0].value = count;
+
+        setupDynamicImageInputs(node, { graph: {} });
+
+        assert.deepEqual(
+            node.inputs.filter((input) => input.name.startsWith("image_")).map((input) => input.name),
+            Array.from({ length: count }, (_, index) => `image_${index + 1}`),
+        );
+    }
+});
+
 test("template helper updates only the intended widgets", () => {
     const widgets = [
         { name: "prompt", value: "old" },

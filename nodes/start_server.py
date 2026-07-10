@@ -17,9 +17,17 @@ from .server_utils import (
 
 
 class StartLlamaCppServer:
+    DESCRIPTION = (
+        "Launches and owns a local single-model llama-server process with "
+        "capability-checked modern options."
+    )
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING", "BOOLEAN")
     RETURN_NAMES = ("server_url", "success")
+    OUTPUT_TOOLTIPS = (
+        "URL of the running owned llama-server.",
+        "Whether server startup reached its ready state.",
+    )
     FUNCTION = "start_server"
 
     @classmethod
@@ -28,45 +36,144 @@ class StartLlamaCppServer:
         mmproj = ["(auto)", *get_local_mmproj()]
         return {
             "required": {
-                "model": (models, {"default": models[0]}),
+                "model": (
+                    models,
+                    {
+                        "default": models[0],
+                        "tooltip": "GGUF model file to serve from a configured Comfy model folder.",
+                    },
+                ),
                 "context_size": (
                     "INT",
-                    {"default": 4096, "min": 0, "max": 1048576, "step": 256},
+                    {
+                        "default": 4096,
+                        "min": 0,
+                        "max": 1048576,
+                        "step": 256,
+                        "tooltip": "Maximum context size in tokens. 0 lets llama-server choose.",
+                    },
                 ),
                 "gpu_layers": (
                     "STRING",
                     {
                         "default": "",
                         "placeholder": "empty = legacy all, or auto/all/number",
+                        "tooltip": (
+                            "Layers to offload to GPU. Empty preserves legacy all-layers "
+                            "behavior; auto, all, or a number are also accepted."
+                        ),
                     },
                 ),
-                "main_gpu": ("INT", {"default": 0, "min": 0, "max": 31, "step": 1}),
+                "main_gpu": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 31,
+                        "step": 1,
+                        "tooltip": "Primary GPU index used by llama-server.",
+                    },
+                ),
             },
             "optional": {
                 # Released v0.2.1 prefix. Append only after timeout.
-                "port": ("INT", {"default": 8080, "min": 1, "max": 65535}),
-                "threads": ("STRING", {"default": "", "placeholder": "auto"}),
+                "port": (
+                    "INT",
+                    {
+                        "default": 8080,
+                        "min": 1,
+                        "max": 65535,
+                        "tooltip": "TCP port for the owned llama-server.",
+                    },
+                ),
+                "threads": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "placeholder": "auto",
+                        "tooltip": "CPU generation threads. Empty lets llama-server choose.",
+                    },
+                ),
                 "batch_size": (
                     "INT",
-                    {"default": 512, "min": 1, "max": 65536, "step": 1},
+                    {
+                        "default": 512,
+                        "min": 1,
+                        "max": 65536,
+                        "step": 1,
+                        "tooltip": "Logical prompt-processing batch size.",
+                    },
                 ),
-                "flash_attention": ("BOOLEAN", {"default": False}),
-                "timeout": ("STRING", {"default": "60", "placeholder": "empty = no limit"}),
+                "flash_attention": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": (
+                            "Legacy flash-attention toggle. Prefer flash_attention_mode "
+                            "for new workflows."
+                        ),
+                    },
+                ),
+                "timeout": (
+                    "STRING",
+                    {
+                        "default": "60",
+                        "placeholder": "empty = no limit",
+                        "tooltip": "Startup readiness deadline in seconds. Empty has no limit.",
+                    },
+                ),
                 "binary_path": (
                     "STRING",
                     {
                         "default": "",
                         "placeholder": "empty = LLAMA_SERVER_BINARY or PATH",
+                        "tooltip": (
+                            "Explicit llama-server executable. Empty uses "
+                            "LLAMA_SERVER_BINARY, then PATH."
+                        ),
                     },
                 ),
-                "host": ("STRING", {"default": "127.0.0.1"}),
-                "tensor_split": ("STRING", {"default": ""}),
-                "no_mmap": ("BOOLEAN", {"default": False}),
+                "host": (
+                    "STRING",
+                    {
+                        "default": "127.0.0.1",
+                        "tooltip": "Network interface address to bind. Loopback is safest.",
+                    },
+                ),
+                "tensor_split": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "Per-GPU model proportions, for example 3,1.",
+                    },
+                ),
+                "no_mmap": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Disable memory-mapped model loading.",
+                    },
+                ),
                 "flash_attention_mode": (
                     ["legacy", "auto", "on", "off"],
-                    {"default": "legacy"},
+                    {
+                        "default": "legacy",
+                        "tooltip": (
+                            "Modern flash-attention mode. Legacy preserves the released "
+                            "flash_attention widget behavior."
+                        ),
+                    },
                 ),
-                "mmproj": (mmproj, {"default": "(auto)"}),
+                "mmproj": (
+                    mmproj,
+                    {
+                        "default": "(auto)",
+                        "tooltip": (
+                            "Matching multimodal projector for local VLMs. (auto) leaves "
+                            "projector discovery to llama-server."
+                        ),
+                    },
+                ),
                 "sleep_idle_seconds": (
                     "INT",
                     {
@@ -78,19 +185,37 @@ class StartLlamaCppServer:
                 ),
                 "api_key_file": (
                     "STRING",
-                    {"default": "", "tooltip": "Path to a llama-server API key file."},
+                    {
+                        "default": "",
+                        "tooltip": "Path to a llama-server API key file, one key per line.",
+                    },
                 ),
                 "api_key_env": (
                     "STRING",
                     {
                         "default": "LLAMACPP_API_KEY",
-                        "tooltip": "Environment variable containing the matching client key.",
+                        "tooltip": (
+                            "Environment variable containing the matching client key. "
+                            "The secret is not serialized."
+                        ),
                     },
                 ),
-                "media_path": ("STRING", {"default": ""}),
+                "media_path": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "Directory allowed for llama-server file:// media inputs.",
+                    },
+                ),
                 "fit_mode": (
                     ["upstream default", "on", "off"],
-                    {"default": "upstream default"},
+                    {
+                        "default": "upstream default",
+                        "tooltip": (
+                            "Control whether llama-server adjusts unset arguments to fit "
+                            "device memory."
+                        ),
+                    },
                 ),
                 "unload_comfy_models_before_start": (
                     "BOOLEAN",

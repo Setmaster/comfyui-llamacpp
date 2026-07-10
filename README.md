@@ -27,7 +27,8 @@ stop and unload nodes remain available.
 - Reusable local connection profiles with API-key environment variables, TLS
   verification, and request deadlines.
 - Positively owned process trees, bounded redacted logs, and deterministic stop
-  barriers. It never sweeps processes by name.
+  barriers. Linux adds kernel-backed abrupt-owner cleanup; Windows uses Job
+  Objects when available. It never sweeps processes by name.
 - Two-sided GPU handoff: optionally evict Comfy-managed models before starting
   an owned LLM, then release the LLM through Comfy's native unload action.
 
@@ -157,6 +158,7 @@ preflight does not tear down a healthy existing server.
 
 Router load and unload nodes return only after `/models` shows the requested
 terminal state. HTTP acceptance by itself is not considered completion.
+**llama.cpp List Models** can optionally ask the router to rescan its catalog.
 
 ### Attach to an existing local server
 
@@ -183,6 +185,10 @@ release is complete only after the owned process tree is gone. Router release
 is complete only after every target reaches a nonresident terminal state; if a
 trustworthy router barrier is unavailable, the owned router is stopped as a
 safe fallback.
+
+The Release node's Boolean reports whether the request was accepted. Check its
+status or `terminal` field before assuming VRAM is already free: `deferred`
+and `coalesced` are accepted, nonterminal outcomes.
 
 Set `unload_comfy_models_before_start` on either start node to ask ComfyUI to
 evict its managed models and empty its cache before llama.cpp allocates GPU
@@ -300,9 +306,10 @@ git diff --check
 
 The test suite contains v0.2.1 node/widget contracts, historical workflow
 fixtures, current router/client contracts, lifecycle race tests, process-tree
-tests, frontend helper tests, and package-build checks. CI covers the supported
-Python matrix. Real ComfyUI, current llama.cpp, Windows Job Object, VLM, and GPU
-handoff evidence is recorded during release validation.
+tests, frontend helper tests, and package-build checks. CI covers Python 3.10
+through 3.14 on Linux plus Python 3.13 on Windows. Real ComfyUI, current
+llama.cpp, Windows Job Object, VLM, and GPU handoff evidence is recorded during
+release validation.
 
 ## Project documentation
 

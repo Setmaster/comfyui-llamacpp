@@ -14,6 +14,12 @@
 - Added optional Comfy model eviction before owned LLM startup.
 - Added capability probing, full configuration fingerprints, port-collision
   refusal, API-key environment support, TLS policy, and overall deadlines.
+- Serialized release against startup, stop, router mutation, and generation so
+  native unload cannot observe or leave a half-transitioned runtime.
+- Added Linux parent-death supervision, loopback/IPv6 endpoint normalization,
+  and accurate Windows Job fallback diagnostics.
+- Deferred and coalesced release requests are now reported as accepted,
+  nonterminal outcomes.
 
 ### llama.cpp protocol
 
@@ -21,8 +27,11 @@
 - Added exact ID and alias resolution with ambiguity errors.
 - Added terminal load/unload polling and normalized current router states.
 - Added shared `/props` and `/tokenize` clients.
+- Added optional router catalog rescanning through `/models?reload=1`.
 - Added robust SSE parsing, terminal success semantics, partial-output metadata,
-  cancellation, and response closure.
+  cancellation, response closure, and exact output-whitespace preservation.
+- Added current build-number parsing, symbolic GPU-layer capability checks, and
+  protection against typed/security flags being duplicated in `extra_args`.
 
 ### Nodes and frontend
 
@@ -34,6 +43,8 @@
 - Applied ADV++ templates in Python for frontend and API-format consistency.
 - Replaced prototype-level frontend mutation with per-node lifecycle hooks.
 - Made Prompt Output nonserialized and resilient to tab switching.
+- Added descriptions and input/output tooltips across all 17 nodes, plus native
+  Comfy toast notices for queued and failed release events.
 
 ### Compatibility and packaging
 
@@ -43,7 +54,8 @@
 - Added containment-safe Comfy model-folder integration and exact router model
   mapping.
 - Added MIT license, single-source 0.3.0 versioning, locked dependencies,
-  Registry metadata, package builds, Ruff, pytest, JavaScript tests, and CI.
+  Registry metadata, package builds, Ruff, pytest, JavaScript tests, Linux
+  Python 3.10 through 3.14 CI, and Windows Python 3.13 CI.
 
 ### Documentation
 
