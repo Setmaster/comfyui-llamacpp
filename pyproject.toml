@@ -50,6 +50,9 @@ PublisherId = "setmaster"
 DisplayName = "ComfyUI llama.cpp Suite"
 Icon = ""
 
+[tool.comfy.version]
+path = "_version.py"
+
 [tool.setuptools]
 include-package-data = true
 packages = [
