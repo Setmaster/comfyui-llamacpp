@@ -1,410 +1,318 @@
 # ComfyUI llama.cpp Suite
 
-A modular llama.cpp integration for ComfyUI, providing clean and extensible nodes for local LLM inference.
+Focused local `llama-server` integration for ComfyUI. It provides full text and
+vision prompting, structured output, direct and router modes, and explicit
+control over the external process that owns LLM VRAM.
 
-## Features
+Version 0.3 keeps the external-process design that motivated this project. A
+model is not hidden inside ComfyUI's Python process, and this pack can release
+only the `llama-server` process tree it started. ComfyUI's native **Unload
+Models** action also releases this pack's owned runtime. The existing explicit
+stop and unload nodes remain available.
 
-- **Single Model Mode** - Launch llama-server with a specific model
-- **Router Mode** - Multi-model support with dynamic loading/unloading (LRU eviction)
-- **Basic Prompt** - Send prompts with full sampling control and thinking mode support
-- **ADV Prompt** - Advanced prompt with vision/image support for VLM models
-- **ADV++ Prompt** - Full-featured prompt with templates for common tasks (Image2Prompt, Prompt Enhancer)
-- **Prompt Output** - Display and preview LLM responses with optional plaintext conversion
-- **Model Management** - List, load, and unload models in router mode
+> The 0.3 refactor is being validated on the `dev` branch. `master` remains the
+> stable 0.2.1 line until hands-on testing is complete.
 
-### Key Design Principles
+## What it covers
 
-- **Singleton Server Management** - Only one llama-server instance runs at a time
-- **Smart Restart** - Server only restarts when configuration changes
-- **Clean Shutdown** - Automatic cleanup on ComfyUI exit (Windows job objects, signal handlers)
-- **Orphan Cleanup** - Kills any stray llama-server processes
-- **Thinking Mode Support** - Capture reasoning content from thinking models separately
+- Direct mode for one GGUF model.
+- Current `llama-server` router mode with exact model identities and terminal
+  load/unload barriers.
+- Freeform chat completions with sampling, thinking/reasoning output, stop
+  sequences, token bans, and prompt-prefix caching.
+- VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
+- Backend-applied Image2Prompt and Prompt Enhancer templates.
+- JSON object, JSON Schema, and GBNF structured-output constraints.
+- Token counting and live model/server properties.
+- Reusable local connection profiles with API-key environment variables, TLS
+  verification, and request deadlines.
+- Positively owned process trees, bounded redacted logs, and deterministic stop
+  barriers. It never sweeps processes by name.
+- Two-sided GPU handoff: optionally evict Comfy-managed models before starting
+  an owned LLM, then release the LLM through Comfy's native unload action.
+
+This is intentionally not an agent, RAG, MCP, cloud-provider, or conversation
+database suite. It is a small local llama.cpp runtime and generation surface.
+
+## Requirements
+
+- ComfyUI with Python 3.10 or newer.
+- A current `llama-server` build. Optional controls are capability-checked
+  before launch. Router mode requires a build that exposes `--models-dir` and
+  `--models-max`.
+- One or more GGUF models.
+- For GPU inference, a llama.cpp build for the installed CUDA, Vulkan, ROCm,
+  Metal, or other supported backend.
+
+No cloud service or cloud API key is required.
 
 ## Installation
 
-### 1. Clone the Repository
+### Install the current development branch
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/Setmaster/comfyui-llamacpp
+git clone --branch dev https://github.com/Setmaster/comfyui-llamacpp.git
+cd comfyui-llamacpp
 ```
 
-### 2. Install Python Dependencies
+Install dependencies with the Python that launches ComfyUI:
 
 ```bash
-cd comfyui-llamacpp
+# ComfyUI virtual environment on Windows
+C:\ComfyUI\venv\Scripts\python.exe -m pip install -r requirements.txt
 
-# Windows (portable ComfyUI)
+# ComfyUI portable Windows build, adjust the relative path if needed
 ..\..\..\python_embeded\python.exe -s -m pip install -r requirements.txt
 
-# Linux/Mac
-pip install -r requirements.txt
+# Linux or macOS virtual environment
+python -m pip install -r requirements.txt
 ```
 
-### 3. Install llama.cpp
+Restart ComfyUI. Startup should report version `0.3.0` and 17 registered nodes.
 
-The nodes require `llama-server` to be available in your PATH.
+### Update an existing checkout
 
-**Windows:**
 ```bash
-winget install llama.cpp
+cd ComfyUI/custom_nodes/comfyui-llamacpp
+git fetch origin
+git switch dev
+git pull --ff-only origin dev
+python -m pip install -r requirements.txt
 ```
 
-**Linux/Mac:**
-See [llama.cpp installation guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md)
+Existing 0.2.1 workflows retain released node IDs, socket names, output order,
+defaults, and legacy widget positions. Read [the 0.3 migration guide](docs/migration-0.3.md)
+before testing important saved workflows.
 
-### 4. Add Models
+## Install llama.cpp
 
-Place your `.gguf` model files in:
+Use an official current build from the
+[llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases), build it
+from source, or install it with your platform package manager. On Windows, the
+official CUDA release consists of the matching llama binary and CUDA runtime
+archives. Extract both into the same directory.
+
+The start nodes resolve the executable in this order:
+
+1. The node's `binary_path` input.
+2. The `LLAMA_SERVER_BINARY` environment variable.
+3. `llama-server` or `llama-server.exe` on `PATH`.
+
+An explicit path is easiest when several llama.cpp builds are installed. The
+pack probes `--version` and `--help`, records the binary identity, and refuses
+unsupported requested options before spawning it.
+
+## Model folders
+
+The default location is:
+
+```text
+ComfyUI/
+└── models/
+    └── LLM/
+        └── gguf/
+            ├── model.gguf
+            └── vision-model/
+                ├── vision-model.gguf
+                └── mmproj-vision-model.gguf
 ```
-ComfyUI/models/LLM/gguf/
+
+The pack also honors Comfy model roots configured as `LLM` or `llm` in
+`extra_model_paths.yaml`. If such a root contains a `gguf` child, that child is
+used. Paths are resolved through a containment-safe catalog; traversal and
+symlink escapes are rejected.
+
+Files whose names contain `mmproj` are listed separately from text/model GGUFs.
+
+### VLM pairing
+
+- Direct mode: select the matching projector in the `mmproj` widget. `(auto)`
+  means this pack does not pass an explicit `--mmproj`; it does not promise
+  discovery of an arbitrary adjacent local projector.
+- Router mode: put each VLM and its matching projector in one dedicated
+  subdirectory. The router controls the exact model ID and projector pairing.
+- Never pair projectors from a different model size or architecture.
+
+## Quick start
+
+### Direct text workflow
+
+1. Add **Start llama.cpp Server** and select a GGUF.
+2. Connect `server_url` to **llama.cpp Basic Prompt**.
+3. Connect `response` to **llama.cpp Prompt Output**.
+4. Queue the workflow.
+
+The start node is idempotent for the same full configuration. A changed binary
+or effective setting performs a coordinated restart. A failed replacement
+preflight does not tear down a healthy existing server.
+
+### Router workflow
+
+1. Add **Start llama.cpp Router**.
+2. Optionally sequence **llama.cpp Load Model** from its `success` output.
+3. Choose the model on a prompt node and generate.
+4. Use **llama.cpp Unload Model** for one exact model, or **Release llama.cpp
+   VRAM** for all resident router models.
+
+Router load and unload nodes return only after `/models` shows the requested
+terminal state. HTTP acceptance by itself is not considered completion.
+
+### Attach to an existing local server
+
+Use `server_url` directly or create a **llama.cpp Connection** profile. An
+explicit endpoint that this pack did not start is treated as externally owned.
+Native Comfy unload and implicit lifecycle actions never stop or unload it.
+
+## VRAM and lifecycle behavior
+
+ComfyUI does not have a universal custom-runtime unloader. This pack bridges
+successful `POST /free` and `POST /api/free` requests into its own lifecycle
+coordinator.
+
+| Action | Owned direct server | Owned router | Attached endpoint |
+| --- | --- | --- | --- |
+| Comfy **Unload Models** | Stops the owned process tree | Unloads resident models, keeps the router when barriers succeed | No action |
+| **Release llama.cpp VRAM** | Stops the owned process tree | Unloads all resident models | No action |
+| **llama.cpp Unload Model** | Not applicable | Unloads one exact model to terminal state | Not used for implicit ownership |
+| **Stop llama.cpp Server** | Stops the process tree | Stops the router process tree | Does not target an attached endpoint |
+
+Release requested during managed generation is deferred until the final active
+generation lease exits. Concurrent release requests are coordinated. Direct
+release is complete only after the owned process tree is gone. Router release
+is complete only after every target reaches a nonresident terminal state; if a
+trustworthy router barrier is unavailable, the owned router is stopped as a
+safe fallback.
+
+Set `unload_comfy_models_before_start` on either start node to ask ComfyUI to
+evict its managed models and empty its cache before llama.cpp allocates GPU
+memory. This is opt-in because it changes the residency of the rest of the
+workflow.
+
+See [Lifecycle and VRAM ownership](docs/lifecycle.md) for the full contract and
+limitations.
+
+## Node catalog
+
+All nodes are in the `LlamaCpp` category.
+
+| Node | Purpose |
+| --- | --- |
+| Start llama.cpp Server | Start one positively owned direct server. |
+| Start llama.cpp Router | Start one positively owned multi-model router. |
+| Stop llama.cpp Server | Explicitly stop the owned direct server or router. |
+| Release llama.cpp VRAM | Release direct or router model VRAM while retaining the router when safe. |
+| llama.cpp Server Status | Show mode, lifecycle, ownership, PID/group/job state, capabilities, errors, and bounded logs. |
+| llama.cpp Connection | Reuse a URL, model, API-key environment name, TLS policy, and deadline. |
+| llama.cpp Basic Prompt | Freeform text generation with the common sampling controls. |
+| llama.cpp ADV Prompt | Text plus 0 to 10 image sockets and optional full Comfy image batches. |
+| llama.cpp ADV++ Prompt | ADV prompting plus templates, token bans, and structured output. |
+| llama.cpp Prompt Output | Preview and pass through text, optionally converting common markup to plaintext. |
+| llama.cpp List Models | List current router model records and residency states. |
+| llama.cpp Load Model | Load one exact router model and wait for a callable state. |
+| llama.cpp Unload Model | Unload one exact router model and wait for a nonresident state. |
+| llama.cpp Token Count | Call `/tokenize` with model-aware routing. |
+| llama.cpp Model Info | Call `/props` and expose model name, context length, and raw properties. |
+| llama.cpp Structured Output | Build JSON object, JSON Schema, or GBNF generation constraints. |
+| llama.cpp Token Ban | Build llama.cpp text-form logit-bias entries. |
+
+## Important prompt semantics
+
+- `keep_context` maps to llama.cpp `cache_prompt`. It reuses a matching prompt
+  prefix in the KV cache. It is not chat history, durable memory, or a session
+  database.
+- `enable_chaining` remains for saved-workflow compatibility. A connected
+  `trigger` socket is what establishes graph ordering.
+- Stop sequences accept one entry per line, a JSON string array, or the legacy
+  comma-separated form. Use JSON when commas or surrounding whitespace matter.
+- Token bans use the same robust list forms and are sent as llama.cpp text-form
+  logit-bias entries.
+- `image_amount` accepts 0 through 10. All ten sockets exist in Python so saved
+  workflows survive frontend reload. `include_image_batch` sends every item in
+  a connected Comfy image batch; off preserves the legacy first-image behavior.
+- Templates are applied in Python as well as reflected in the UI, so API-format
+  and headless workflows behave consistently.
+- A generation succeeds only after a valid stream terminal marker. Partial text
+  is preserved and labelled when a stream times out, is cancelled, or ends
+  without completion.
+
+## Authentication and TLS
+
+Secrets are read from environment variables and are not serialized in a
+workflow. The default name is `LLAMACPP_API_KEY`.
+
+```bash
+# Linux or macOS
+export LLAMACPP_API_KEY='your-local-key'
+
+# Windows PowerShell, set before launching ComfyUI
+$env:LLAMACPP_API_KEY = 'your-local-key'
 ```
 
-The directory will be created automatically on first run if it doesn't exist.
+For an owned server, point `api_key_file` at the llama.cpp key file and set
+`api_key_env` to the environment variable containing the matching client key.
+Connection and prompt nodes also expose `verify_tls` and an overall request
+deadline. Commands, status payloads, and bounded server logs redact configured
+secret values and common credential-shaped fields.
 
-## Nodes
+## Templates
 
-### Start llama.cpp Server (Single Model)
+Built-in ADV++ templates live in [`web/templates.json`](web/templates.json).
+Each entry contains `system_prompt` and `prompt` fields:
 
-Starts the llama-server with a specific model. Best for workflows that use one model.
-
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| model | dropdown | - | Select from available .gguf models |
-| context_size | int | 4096 | Context window size (tokens) |
-| gpu_layers | string | empty | Layers to offload to GPU. Empty = all layers, 0 = CPU only |
-| main_gpu | int | 0 | Primary GPU index |
-| port | int | 8080 | Server port |
-| threads | string | empty | CPU threads. Empty = auto |
-| batch_size | int | 512 | Prompt processing batch size |
-| flash_attention | bool | false | Enable flash attention |
-| timeout | string | 60 | Startup timeout in seconds. Empty = no timeout |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| server_url | STRING | Server URL (e.g., "http://127.0.0.1:8080") |
-| success | BOOLEAN | True if server started successfully |
-
-### Start llama.cpp Router (Multi-Model)
-
-Starts the llama-server in router mode for dynamic multi-model support. Models are loaded on-demand and managed with LRU eviction.
-
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| context_size | int | 4096 | Context window size (applied to all models) |
-| gpu_layers | string | empty | Layers to offload to GPU. Empty = all layers |
-| main_gpu | int | 0 | Primary GPU index |
-| models_max | int | 4 | Maximum models loaded simultaneously |
-| port | int | 8080 | Server port |
-| threads | string | empty | CPU threads. Empty = auto |
-| batch_size | int | 512 | Prompt processing batch size |
-| flash_attention | bool | false | Enable flash attention |
-| models_autoload | bool | true | Auto-load models on first request |
-| timeout | string | 60 | Startup timeout in seconds. Empty = no timeout |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| server_url | STRING | Server URL |
-| success | BOOLEAN | True if router started successfully |
-
-### Stop llama.cpp Server
-
-Stops the running server (works for both single model and router mode).
-
-**Inputs:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| trigger | * | Optional workflow trigger input |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| success | BOOLEAN | True if stopped (or wasn't running) |
-| message | STRING | Status message |
-
-### llama.cpp Server Status
-
-Returns current server status information.
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| is_running | BOOLEAN | True if server is running |
-| status | STRING | Status state (stopped/starting/running/error) |
-| info | STRING | Detailed status information (includes mode) |
-
-### llama.cpp Basic Prompt
-
-Sends a prompt to the llama-server and returns the response. Supports thinking/reasoning models and workflow chaining.
-
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| prompt | string | - | The user prompt to send to the LLM |
-| model | string | empty | Model to use (router mode only). Empty = use loaded model |
-| server_url | string | empty | Server URL. Empty = use running server |
-| system_prompt | string | empty | Optional system prompt |
-| enable_thinking | bool | true | Enable thinking mode for supported models |
-| max_tokens | int | 2048 | Maximum tokens to generate |
-| temperature | float | 0.7 | Sampling temperature (0.0-2.0) |
-| top_p | float | 0.9 | Top-p nucleus sampling (0.0-1.0) |
-| top_k | int | 40 | Top-k sampling (0 = disabled) |
-| min_p | float | 0.05 | Min-p sampling threshold |
-| repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
-| seed | int | 0 | Random seed for generation |
-| keep_context | bool | false | Keep conversation context between requests |
-| enable_chaining | bool | false | Enable chaining mode for sequential workflows |
-| trigger | * | - | Optional trigger input for chaining |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| response | STRING | The generated response text |
-| thinking | STRING | Reasoning/thinking content (for supported models) |
-| success | BOOLEAN | True if generation completed successfully (for chaining) |
-
-### llama.cpp ADV Prompt
-
-Advanced prompt node with vision/image support. Use with VLM (Vision Language Models) like LLaVA, Qwen-VL, etc.
-
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| prompt | string | - | The user prompt to send to the LLM |
-| image_amount | int | 2 | Number of image input slots (0-10) |
-| image_1...image_N | IMAGE | - | Dynamic image inputs for vision models |
-| model | string | empty | Model to use (router mode only) |
-| server_url | string | empty | Server URL. Empty = use running server |
-| system_prompt | string | empty | Optional system prompt |
-| enable_thinking | bool | true | Enable thinking mode for supported models |
-| max_tokens | int | 2048 | Maximum tokens to generate |
-| temperature | float | 0.7 | Sampling temperature (0.0-2.0) |
-| top_p | float | 0.9 | Top-p nucleus sampling (0.0-1.0) |
-| top_k | int | 40 | Top-k sampling (0 = disabled) |
-| min_p | float | 0.05 | Min-p sampling threshold |
-| repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
-| seed | int | 0 | Random seed for generation |
-| keep_context | bool | false | Keep conversation context between requests |
-| enable_chaining | bool | false | Enable chaining mode |
-| trigger | * | - | Optional trigger input for chaining |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| response | STRING | The generated response text |
-| thinking | STRING | Reasoning/thinking content (for supported models) |
-| success | BOOLEAN | True if generation completed successfully |
-
-**VLM Setup:** Vision models require proper organization for llama-server to auto-detect the mmproj file:
-
-- **Router mode:** Create a subdirectory in `ComfyUI/models/LLM/gguf/` containing both the model and mmproj file. The **directory name** becomes the model ID:
-  ```
-  ComfyUI/models/LLM/gguf/
-  └── qwen-vl/                          # Subdirectory name = model ID
-      ├── qwen-vl-4b-Q8_0.gguf          # Main model
-      └── mmproj-qwen-vl-f16.gguf       # Multimodal projector (filename must contain "mmproj")
-  ```
-- **Single-model mode:** Use `Start llama.cpp Server` - llama-server will auto-detect mmproj files with `--mmproj-auto` (enabled by default)
-
-**Note:** Keep mmproj files in subdirectories with their models. Loose mmproj files in the root directory will appear in the server's model list but won't work correctly.
-
-### llama.cpp ADV++ Prompt
-
-Full-featured prompt node with all ADV Prompt capabilities plus template presets for common tasks. Templates auto-fill the system prompt and prompt fields when selected.
-
-**Templates:**
-| Template | Description |
-|----------|-------------|
-| Empty | Default - both fields blank for custom use |
-| Image2Prompt | Generates detailed image prompts from input images (for VLM) |
-| Prompt Enhancer | Transforms rough prompts into detailed image generation prompts |
-
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| template | dropdown | Empty | Select a template to auto-fill prompts |
-| prompt | string | - | The user prompt (auto-filled by template) |
-| image_amount | int | 2 | Number of image input slots (0-10) |
-| image_1...image_N | IMAGE | - | Dynamic image inputs for vision models |
-| model | string | empty | Model to use (router mode only) |
-| server_url | string | empty | Server URL. Empty = use running server |
-| system_prompt | string | empty | System prompt (auto-filled by template) |
-| enable_thinking | bool | true | Enable thinking mode for supported models |
-| max_tokens | int | 2048 | Maximum tokens to generate |
-| temperature | float | 0.7 | Sampling temperature (0.0-2.0) |
-| top_p | float | 0.9 | Top-p nucleus sampling (0.0-1.0) |
-| top_k | int | 40 | Top-k sampling (0 = disabled) |
-| min_p | float | 0.05 | Min-p sampling threshold |
-| repeat_penalty | float | 1.1 | Repetition penalty (1.0 = none) |
-| seed | int | 0 | Random seed for generation |
-| keep_context | bool | false | Keep conversation context between requests |
-| enable_chaining | bool | false | Enable chaining mode |
-| trigger | * | - | Optional trigger input for chaining |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| response | STRING | The generated response text |
-| thinking | STRING | Reasoning/thinking content (for supported models) |
-| success | BOOLEAN | True if generation completed successfully |
-
-**Usage:**
-- **Image2Prompt**: Connect an image, select the template, and run - generates a detailed prompt describing the image
-- **Prompt Enhancer**: Select the template, type a rough prompt like "cat on roof", and get a polished image generation prompt
-
-**Custom Templates:** Templates are stored in `web/templates.json`. Add your own by editing this file:
 ```json
 {
   "My Template": {
-    "system_prompt": "Your system prompt here...",
+    "system_prompt": "Your system instruction",
     "prompt": "Optional default user prompt"
   }
 }
 ```
-Restart ComfyUI after editing to load new templates.
 
-### llama.cpp Prompt Output
+Restart ComfyUI after changing the file. Existing templates include
+`Image2Prompt` and `Prompt Enhancer`.
 
-Displays text in the ComfyUI interface with optional plaintext conversion. Similar to Preview as Text but optimized for LLM output.
+## Examples and validation
 
-**Inputs:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| text | string | - | Text to display (force input) |
-| plaintext | bool | false | Convert markdown/HTML to plaintext |
+Importable workflow examples live in [`examples/`](examples/). The
+[user acceptance checklist](docs/user-acceptance.md) covers upgrade
+compatibility, direct and router release, Windows ownership, VLMs, structured
+output, attached endpoints, and the final diffusion-to-LLM-to-diffusion GPU
+handoff.
 
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| text | STRING | The text (converted or original) for chaining |
+For failures, start with **llama.cpp Server Status** and
+[Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
+binary identity, process ownership mode, lifecycle state, pending releases,
+and a bounded redacted server-log tail.
 
-### llama.cpp List Models
+## Development
 
-Lists available models from the server. In router mode, shows load status.
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| models_json | STRING | Full model info as JSON |
-| models_list | STRING | Simple list of model names with status |
-
-### llama.cpp Load Model (Router Mode)
-
-Explicitly loads a model into memory.
-
-**Inputs:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| model_name | string | Name of the model to load |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| success | BOOLEAN | True if loaded successfully |
-| message | STRING | Status message |
-
-### llama.cpp Unload Model (Router Mode)
-
-Unloads a model to free VRAM.
-
-**Inputs:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| model_name | string | Name of the model to unload |
-
-**Outputs:**
-| Name | Type | Description |
-|------|------|-------------|
-| success | BOOLEAN | True if unloaded successfully |
-| message | STRING | Status message |
-
-## Usage Examples
-
-### Single Model Workflow
-```
-[Start llama.cpp Server] → [Basic Prompt] → [Output]
-         ↓
-    (model.gguf)
+```bash
+uv sync --extra dev
+uv run python -m pytest -q
+uv run ruff check .
+uv run ruff format --check .
+node --test tests/js/*.test.mjs
+for file in web/*.js; do node --check "$file"; done
+uv build
+git diff --check
 ```
 
-### Multi-Model Workflow (Router Mode)
-```
-[Start llama.cpp Router] → [Basic Prompt (model=small.gguf)] → [Classifier Output]
-                         → [Basic Prompt (model=large.gguf)] → [Generation Output]
-```
+The test suite contains v0.2.1 node/widget contracts, historical workflow
+fixtures, current router/client contracts, lifecycle race tests, process-tree
+tests, frontend helper tests, and package-build checks. CI covers the supported
+Python matrix. Real ComfyUI, current llama.cpp, Windows Job Object, VLM, and GPU
+handoff evidence is recorded during release validation.
 
-### Explicit Model Control
-```
-[Start llama.cpp Router] → [Load Model] → [Basic Prompt] → [Unload Model]
-```
+## Project documentation
 
-### Chained Prompt Workflow
-Use the `success` output and `trigger` input to sequence multiple prompts:
-```
-[Start llama.cpp Router] → [Basic Prompt 1 (model=classifier.gguf)]
-                                    ↓ success
-                           [Basic Prompt 2 (model=generator.gguf, trigger=success)]
-                                    ↓ success
-                           [Basic Prompt 3 (model=editor.gguf, trigger=success)]
-```
-
-## Recommended Models
-
-### Instruct Models (for prompt enhancement)
-- [Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF)
-- [Llama-3.2-3B-Instruct-GGUF](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF)
-
-### Thinking/Reasoning Models
-- [Qwen3-4B-Thinking-GGUF](https://huggingface.co/unsloth/Qwen3-4B-Thinking-2507-GGUF)
-
-## Roadmap
-
-- [x] Basic Prompt - Send prompts to the server
-- [x] Router Mode - Multi-model support with dynamic loading
-- [x] VLM Support - Vision-language model integration (ADV Prompt)
-- [x] ADV++ Prompt - Template-based prompts (Image2Prompt, Prompt Enhancer)
-- [ ] Text Embedding - Generate embeddings for text
-- [ ] Model Info - Display model metadata
-
-## Troubleshooting
-
-### "llama-server not found"
-Ensure llama.cpp is installed and `llama-server` is in your system PATH.
-
-### Server won't start
-- Check if another process is using the port (default 8080)
-- Verify the model file isn't corrupted
-- Check you have enough VRAM for the model
-
-### Server crashes on startup
-- Try reducing `context_size`
-- Try reducing `gpu_layers` to offload some layers to CPU
-- Check llama-server output in console for specific errors
-
-### No thinking output
-The `thinking` output only contains content for models that support reasoning mode (like Qwen3-Thinking, DeepSeek-R1). Standard instruct models won't produce thinking output.
-
-### Router mode not working
-Router mode requires **llama.cpp build b7389 or later** (December 2025+). If you see "invalid argument: --models-dir", your llama-server version is too old. Update from the [releases page](https://github.com/ggml-org/llama.cpp/releases). Until then, use single-model mode.
-
-### VLM model hangs or crashes
-If a Vision-Language model causes the server to hang:
-- **Check mmproj pairing**: Each VLM needs its matching mmproj file. A 4B model's mmproj won't work with an 8B model.
-- **Separate folders**: In router mode, put each VLM and its mmproj in a dedicated subdirectory. Don't mix multiple VLMs in one folder.
-- **Check error output**: The prompt nodes output descriptive error messages via the `response` pin when `success=False`.
-
-### Common error messages
-| Error | Cause |
-|-------|-------|
-| "Connection reset - server crashed" | Model failed to load (often mmproj mismatch) |
-| "Server response timeout (60s)" | Server hung during generation |
-| "No response received from server" | Model loaded but failed to generate |
-| "Connection refused" | Server crashed or not started |
+- [0.3 migration guide](docs/migration-0.3.md)
+- [Lifecycle and VRAM ownership](docs/lifecycle.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [User acceptance checklist](docs/user-acceptance.md)
+- [0.3 changelog](CHANGELOG.md)
+- [Research and ecosystem analysis](docs/research/)
 
 ## License
 
-MIT License
+[MIT](LICENSE)
