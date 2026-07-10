@@ -1,6 +1,6 @@
 """Start a positively owned multi-model llama-server router."""
 
-from ..model_manager import get_models_directory
+from ..model_manager import get_model_directories, get_router_models_directory
 from ..server_manager import RouterConfig, get_server_manager
 from .server_utils import (
     optional_path,
@@ -27,6 +27,7 @@ class StartLlamaCppRouter:
 
     @classmethod
     def INPUT_TYPES(cls):
+        router_roots = ["(auto)", *get_model_directories()]
         return {
             "required": {
                 "context_size": (
@@ -223,6 +224,18 @@ class StartLlamaCppRouter:
                         "tooltip": "Advanced llama-server arguments. No shell is used.",
                     },
                 ),
+                "models_directory": (
+                    router_roots,
+                    {
+                        "default": "(auto)",
+                        "tooltip": (
+                            "Configured GGUF root exposed to the router. Auto selects the "
+                            "root with the most unambiguous models visible to llama-server's "
+                            "one-level directory scan. Each bundle directory must contain "
+                            "one base model and at most one projector."
+                        ),
+                    },
+                ),
             },
         }
 
@@ -254,12 +267,13 @@ class StartLlamaCppRouter:
         fit_mode: str = "upstream default",
         unload_comfy_models_before_start: bool = False,
         extra_args: str = "",
+        models_directory: str = "(auto)",
     ):
         modern_flash = None if flash_attention_mode == "legacy" else flash_attention_mode
         fit = None if fit_mode == "upstream default" else fit_mode == "on"
         try:
             config = RouterConfig(
-                models_dir=get_models_directory(),
+                models_dir=get_router_models_directory(models_directory),
                 port=port,
                 host=host.strip() or "127.0.0.1",
                 context_size=context_size,

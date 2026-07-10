@@ -37,7 +37,8 @@ class LlamaCppListModels:
                         "tooltip": (
                             "Ask a current llama-server router to rescan its configured "
                             "model sources before listing. Changed or removed running models "
-                            "may be unloaded by the router."
+                            "may be unloaded by the router. Reload waits for an idle managed "
+                            "runtime and serializes with lifecycle operations."
                         ),
                     },
                 ),
@@ -89,7 +90,10 @@ class LlamaCppLoadModel:
                     models,
                     {
                         "default": models[0],
-                        "tooltip": "Local model to resolve to one exact router model ID.",
+                        "tooltip": (
+                            "Local model to resolve against the active router catalog. "
+                            "Use List Models to confirm the authoritative ID and residency."
+                        ),
                     },
                 )
             },
@@ -138,7 +142,10 @@ class LlamaCppUnloadModel:
                     models,
                     {
                         "default": models[0],
-                        "tooltip": "Local model to resolve to one exact router model ID.",
+                        "tooltip": (
+                            "Local model to resolve against the active router catalog. "
+                            "Use List Models to confirm the authoritative ID and residency."
+                        ),
                     },
                 )
             },

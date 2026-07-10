@@ -70,6 +70,8 @@ one lifecycle authority.
 - Native release during managed generation is deferred.
 - New managed generation is rejected while release is pending or running.
 - Router mutations and replacements do not run through an active generation.
+- Router catalog reload is treated as a mutation and uses the same idle
+  lifecycle barrier.
 - Concurrent release requests share one result or observe the resulting idle
   state.
 - A failed replacement preflight leaves a healthy existing runtime intact.

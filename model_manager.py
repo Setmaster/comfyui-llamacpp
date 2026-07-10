@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from .models import catalog as catalog_module
 from .models.catalog import ModelCatalog, ModelCatalogError
-from .models.catalog import get_comfyui_root as _root
 from .models.identity import RouterIdentityError, resolve_router_model
 
 
@@ -12,13 +12,27 @@ def _catalog() -> ModelCatalog:
 
 
 def get_comfyui_root() -> str:
-    return str(_root())
+    return str(catalog_module.get_comfyui_root())
 
 
 def get_models_directory() -> str:
     """Return and create the primary `models/LLM/gguf` directory."""
 
-    return str(_catalog().ensure_default_root())
+    root = catalog_module.get_default_models_directory()
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root)
+
+
+def get_model_directories() -> list[str]:
+    """Return all configured llama.cpp roots in ComfyUI priority order."""
+
+    return [str(root) for root in _catalog().roots]
+
+
+def get_router_models_directory(selection: str = "(auto)") -> str:
+    """Resolve a configured root suitable for llama-server router discovery."""
+
+    return str(_catalog().resolve_router_root(selection))
 
 
 def get_local_models() -> list[str]:
@@ -70,7 +84,9 @@ __all__ = [
     "get_local_models",
     "get_model_info",
     "get_model_path",
+    "get_model_directories",
     "get_models_directory",
+    "get_router_models_directory",
     "is_model_local",
     "resolve_router_model",
     "validate_model",

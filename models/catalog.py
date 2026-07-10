@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,16 +77,16 @@ def register_model_folder() -> None:
         return
     default = str(get_default_models_directory())
     try:
-        folder_paths.add_model_folder_path(FOLDER_KEY, default, is_default=True)
-    except TypeError:
-        folder_paths.add_model_folder_path(FOLDER_KEY, default)
-    for root in _existing_llm_roots(folder_paths):
-        if str(root) == default:
+        existing = list(folder_paths.get_folder_paths(FOLDER_KEY))
+    except (KeyError, AttributeError):
+        existing = []
+    ordered = [*existing, *(str(root) for root in _existing_llm_roots(folder_paths)), default]
+    registered = set(existing)
+    for path in ordered:
+        if path in registered:
             continue
-        try:
-            folder_paths.add_model_folder_path(FOLDER_KEY, str(root), is_default=False)
-        except TypeError:
-            folder_paths.add_model_folder_path(FOLDER_KEY, str(root))
+        folder_paths.add_model_folder_path(FOLDER_KEY, path)
+        registered.add(path)
 
 
 def _configured_roots() -> list[Path]:
@@ -136,16 +137,120 @@ class ModelEntry:
 
 class ModelCatalog:
     def __init__(self, roots: Iterable[str | os.PathLike[str]] | None = None):
-        configured = roots if roots is not None else _configured_roots()
+        configured = tuple(roots) if roots is not None else tuple(_configured_roots())
         self.roots = tuple(dict.fromkeys(Path(root).expanduser().resolve() for root in configured))
+        fallback = (
+            self.roots[0] if roots is not None and self.roots else get_default_models_directory()
+        )
+        self._default_root = fallback.resolve()
 
     @property
     def default_root(self) -> Path:
-        return self.roots[0] if self.roots else get_default_models_directory()
+        return self._default_root
 
     def ensure_default_root(self) -> Path:
         self.default_root.mkdir(parents=True, exist_ok=True)
         return self.default_root
+
+    @staticmethod
+    def _router_preset_count(root: Path) -> int:
+        """Count safe, unambiguous presets in llama-server's one-level scan."""
+
+        if not root.is_dir():
+            return 0
+        count = 0
+        try:
+            children = tuple(root.iterdir())
+        except OSError:
+            return 0
+        for child in children:
+            try:
+                if child.is_file():
+                    # Current llama.cpp checks this suffix case-sensitively and
+                    # treats every root-level GGUF as a preset. Ignore projector
+                    # files and symlink escapes even though upstream does not.
+                    actual = child.resolve(strict=True)
+                    if (
+                        child.name.endswith(".gguf")
+                        and "mmproj" not in child.name
+                        and _contained(root, actual)
+                    ):
+                        count += 1
+                    continue
+                if not child.is_dir():
+                    continue
+                directory = child.resolve(strict=True)
+                if not _contained(root, directory):
+                    continue
+                ggufs = tuple(
+                    candidate
+                    for candidate in directory.iterdir()
+                    if candidate.is_file()
+                    and candidate.name.endswith(".gguf")
+                    and _contained(root, candidate.resolve(strict=True))
+                )
+                models = tuple(item for item in ggufs if "mmproj" not in item.name)
+                projectors = tuple(item for item in ggufs if "mmproj" in item.name)
+                if len(projectors) > 1:
+                    continue
+                if len(models) == 1 or ModelCatalog._is_complete_shard_bundle(models):
+                    count += 1
+            except OSError:
+                continue
+        return count
+
+    @staticmethod
+    def _is_complete_shard_bundle(models: tuple[Path, ...]) -> bool:
+        if not models:
+            return False
+        pattern = re.compile(r"^(?P<base>.+)-(?P<index>\d{5})-of-(?P<total>\d{5})\.gguf$")
+        parsed = [pattern.fullmatch(model.name) for model in models]
+        if any(match is None for match in parsed):
+            return False
+        matches = [match for match in parsed if match is not None]
+        identities = {(match["base"], int(match["total"])) for match in matches}
+        if len(identities) != 1:
+            return False
+        _, total = identities.pop()
+        indices = {int(match["index"]) for match in matches}
+        return total > 0 and indices == set(range(1, total + 1))
+
+    def preferred_router_root(self) -> Path:
+        """Choose the configured root exposing the most current router presets."""
+
+        if not self.roots:
+            return get_default_models_directory()
+        ranked = [
+            (self._router_preset_count(root), -index, root) for index, root in enumerate(self.roots)
+        ]
+        count, _, root = max(ranked, key=lambda item: (item[0], item[1]))
+        if count:
+            return root
+        return next(
+            (candidate for candidate in self.roots if candidate.is_dir()), self.default_root
+        )
+
+    def resolve_router_root(self, selection: str | os.PathLike[str] | None = None) -> Path:
+        """Resolve an optional configured router root, or select the best populated root."""
+
+        value = os.fspath(selection).strip() if selection is not None else ""
+        if not value or value == "(auto)":
+            root = self.preferred_router_root()
+            if root == self.default_root and not root.exists():
+                return self.ensure_default_root()
+            return root
+
+        requested = Path(value).expanduser().resolve()
+        for root in self.roots:
+            if os.path.normcase(str(root)) == os.path.normcase(str(requested)):
+                if not root.is_dir():
+                    raise ModelCatalogError(
+                        f"Configured router model folder does not exist: {root}"
+                    )
+                return root
+        raise ModelCatalogError(
+            "Router model folder must be one of ComfyUI's configured llama.cpp roots"
+        )
 
     def entries(self) -> list[ModelEntry]:
         found: dict[str, ModelEntry] = {}

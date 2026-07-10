@@ -73,8 +73,20 @@ filename is resolved only when it maps unambiguously to one record. Put each
 VLM bundle in its own directory and avoid colliding directory names, filenames,
 or aliases.
 
+The native router exposes one configured local root plus its own cache. It sees
+root-level GGUFs and one immediate bundle level only. Put one base model or one
+complete shard set, plus at most one projector, in each bundle. Multiple
+quantizations in one directory are filesystem-order-dependent upstream; deeper
+directories are not visible. A model appearing in the recursive direct-mode
+dropdown therefore does not prove it exists in the active router catalog.
+
 Load and unload operations can take time. Their `operation_timeout` is an
 overall deadline, not a socket-read timeout per poll.
+
+Catalog reload is serialized with generation, load, unload, release, and
+replacement. It compares model identities and launch options, not GGUF content
+at an unchanged path. Stop and reload a running child after replacing a file in
+place.
 
 ## Native Unload Models did not release the LLM
 

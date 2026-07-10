@@ -151,14 +151,22 @@ preflight does not tear down a healthy existing server.
 ### Router workflow
 
 1. Add **Start llama.cpp Router**.
-2. Optionally sequence **llama.cpp Load Model** from its `success` output.
-3. Choose the model on a prompt node and generate.
-4. Use **llama.cpp Unload Model** for one exact model, or **Release llama.cpp
+2. Leave `models_directory` on `(auto)`, or choose the configured GGUF root
+   the router should expose.
+3. Optionally sequence **llama.cpp Load Model** from its `success` output.
+4. Choose the model on a prompt node and generate.
+5. Use **llama.cpp Unload Model** for one exact model, or **Release llama.cpp
    VRAM** for all resident router models.
 
 Router load and unload nodes return only after `/models` shows the requested
 terminal state. HTTP acceptance by itself is not considered completion.
 **llama.cpp List Models** can optionally ask the router to rescan its catalog.
+Current llama.cpp combines its cache with one selected local root. Root-level
+GGUFs are separate models; each immediate child directory is one logical model
+bundle and should contain one base model plus at most one projector. Multiple
+base models or projectors in one bundle are ambiguous, and deeper directories
+are invisible. Direct-mode dropdowns remain recursive across all configured
+roots, so **List Models** is the authoritative router catalog.
 
 ### Attach to an existing local server
 

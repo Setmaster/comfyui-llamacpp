@@ -62,3 +62,60 @@ def test_list_models_can_request_router_catalog_reload(node_package, monkeypatch
     assert observed == [True]
     assert '"id": "fresh-model"' in models_json
     assert models_list == "fresh-model (unloaded)"
+
+
+def test_router_node_appends_and_forwards_configured_model_root(
+    node_package, monkeypatch, tmp_path
+):
+    node_class = node_package.NODE_CLASS_MAPPINGS["StartLlamaCppRouter"]
+    node = node_class()
+    module = sys.modules[node_class.__module__]
+    selections = []
+    configs = []
+
+    class FakeManager:
+        server_url = "http://127.0.0.1:8080"
+
+        def start_router(self, config, **kwargs):
+            configs.append((config, kwargs))
+            return True, None
+
+    def resolve(selection):
+        selections.append(selection)
+        return str(tmp_path)
+
+    monkeypatch.setattr(module, "get_router_models_directory", resolve)
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+
+    result = node.start_router(2048, "all", 0, 1, models_directory="chosen-root")
+
+    schema = node_class.INPUT_TYPES()
+    assert list(schema["optional"])[-1] == "models_directory"
+    assert schema["optional"]["models_directory"][1]["default"] == "(auto)"
+    assert selections == ["chosen-root"]
+    assert configs[0][0].models_dir == str(tmp_path)
+    assert result == ("http://127.0.0.1:8080", True)
+
+
+def test_router_node_omitted_model_root_retains_auto_default(node_package, monkeypatch, tmp_path):
+    node_class = node_package.NODE_CLASS_MAPPINGS["StartLlamaCppRouter"]
+    node = node_class()
+    module = sys.modules[node_class.__module__]
+    selections = []
+
+    class FakeManager:
+        server_url = "http://127.0.0.1:8080"
+
+        def start_router(self, config, **kwargs):
+            return True, None
+
+    def resolve(selection):
+        selections.append(selection)
+        return str(tmp_path)
+
+    monkeypatch.setattr(module, "get_router_models_directory", resolve)
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+
+    node.start_router(2048, "", 0, 1)
+
+    assert selections == ["(auto)"]

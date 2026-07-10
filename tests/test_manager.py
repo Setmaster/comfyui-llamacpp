@@ -112,6 +112,8 @@ class FakeClient:
         self.unload_calls = []
         self.load_calls = []
         self.models_kwargs = []
+        self.models_entered = None
+        self.models_gate = None
         self.load_entered = None
         self.load_gate = None
         self.unload_entered = None
@@ -136,6 +138,10 @@ class FakeClient:
 
     def models(self, **kwargs):
         self.models_kwargs.append(dict(kwargs))
+        if kwargs.get("reload") and self.models_entered is not None:
+            self.models_entered.set()
+        if kwargs.get("reload") and self.models_gate is not None:
+            assert self.models_gate.wait(timeout=5)
         return tuple(self.model_records)
 
     list_models = models
@@ -424,6 +430,61 @@ def test_model_list_reload_is_forwarded_to_router_client(tmp_path, monkeypatch):
 
     assert (success, error) == (True, None)
     assert client.models_kwargs[-1] == {"reload": True}
+
+
+def test_model_list_reload_rejects_before_request_during_generation(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    with manager.generation_lease(managed=True):
+        success, models, error = manager.list_models(reload=True)
+
+    assert success is False
+    assert models is None
+    assert "generation request" in error
+    assert {"reload": True} not in client.models_kwargs
+
+
+def test_concurrent_model_catalog_reloads_are_serialized(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.models_entered = threading.Event()
+    client.models_gate = threading.Event()
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+    results = []
+    first = threading.Thread(target=lambda: results.append(manager.list_models(reload=True)))
+    second = threading.Thread(target=lambda: results.append(manager.list_models(reload=True)))
+
+    first.start()
+    assert client.models_entered.wait(timeout=5)
+    second.start()
+    second.join(timeout=0.1)
+
+    assert second.is_alive()
+    assert client.models_kwargs.count({"reload": True}) == 1
+
+    client.models_gate.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert len(results) == 2
+    assert all(result == (True, [], None) for result in results)
+    assert client.models_kwargs.count({"reload": True}) == 2
 
 
 def test_native_release_waits_for_startup_then_stops_new_runtime(tmp_path, monkeypatch):

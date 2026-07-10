@@ -622,6 +622,22 @@ class LlamaCppServerManager:
         *,
         reload: bool = False,
     ) -> tuple[bool, list[dict[str, Any]] | None, str | None]:
+        if reload:
+            try:
+                with self._runtime.serialized_operation(
+                    require_idle=True,
+                    operation="reload the router model catalog",
+                ):
+                    return self._list_models(reload=True)
+            except RuntimeOperationBusy as exc:
+                return False, None, str(exc)
+        return self._list_models(reload=False)
+
+    def _list_models(
+        self,
+        *,
+        reload: bool,
+    ) -> tuple[bool, list[dict[str, Any]] | None, str | None]:
         if not self.is_running or self._client is None:
             return False, None, "Server not running"
         try:

@@ -28,6 +28,8 @@
 - Added terminal load/unload polling and normalized current router states.
 - Added shared `/props` and `/tokenize` clients.
 - Added optional router catalog rescanning through `/models?reload=1`.
+- Added populated-root auto-selection and an explicit configured-root selector
+  for llama.cpp's one-level `--models-dir` router scan.
 - Added robust SSE parsing, terminal success semantics, partial-output metadata,
   cancellation, response closure, and exact output-whitespace preservation.
 - Added current build-number parsing, symbolic GPU-layer capability checks, and

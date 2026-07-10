@@ -70,6 +70,20 @@ aliases returned by the router and fails on ambiguity.
 The List Models node can request a current router catalog rescan through
 `GET /models?reload=1`.
 
+Current llama.cpp exposes one `--models-dir` root and scans GGUF files at that
+root plus one bundle-directory level. The Router node's appended
+`models_directory` widget defaults to `(auto)`, which selects the configured
+Comfy root with the most safe, unambiguous models visible under that rule.
+Select a specific configured root when several collections are available.
+
+Each immediate directory represents one logical router model and must contain
+one base GGUF, or one complete shard set, plus at most one matching projector.
+Multiple quantizations or projectors in one directory are selected by upstream
+in unspecified filesystem order, so this pack excludes them from auto-root
+scoring and does not claim an exact mapping for them. Deeper models are
+invisible to the native router. Direct dropdowns still scan recursively across
+all configured roots; use List Models for the active router's canonical IDs.
+
 ### Advanced launch arguments
 
 `extra_args` remains available for llama.cpp tuning flags that do not have a
