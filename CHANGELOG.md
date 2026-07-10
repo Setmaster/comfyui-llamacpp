@@ -20,6 +20,8 @@
   and accurate Windows Job fallback diagnostics.
 - Deferred and coalesced release requests are now reported as accepted,
   nonterminal outcomes.
+- Kept runtime diagnostics responsive during startup, shutdown, release, and
+  router barriers without weakening lifecycle serialization.
 
 ### llama.cpp protocol
 

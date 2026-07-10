@@ -39,6 +39,11 @@ Diagnostic API routes are also available:
 HTTP-visible diagnostics withhold raw backend exception material. The Server
 Status node and local Comfy log retain useful redacted details.
 
+Status remains available while startup, shutdown, release, or a router barrier
+is in progress. Service and process fields are captured independently under
+short locks, so a transitional response can describe adjacent moments rather
+than one atomic lifecycle instant.
+
 ## Completion barriers
 
 An unload request is not complete merely because an HTTP endpoint accepted it.

@@ -745,20 +745,24 @@ class RuntimeService:
         return {"id": model.model_id, "state": model.state, "raw": exact}
 
     def diagnostics(self) -> dict[str, Any]:
-        with self._operation_lock:
-            with self._state_lock:
-                last_release = self._last_release
-                data = {
-                    "mode": self._mode.value,
-                    "owned": self._owned,
-                    "lifecycle": self._lifecycle.value,
-                    "active_generations": self._active_generations,
-                    "release_pending": self._pending_release,
-                    "release_in_progress": self._release_in_progress,
-                    "last_error": self._last_error,
-                    "last_release": last_release.as_dict() if last_release else None,
-                }
-            data["process"] = self._process.snapshot().as_dict()
+        # Diagnostics is observability, not a lifecycle mutation.  Waiting on the
+        # operation lock would make status unavailable throughout model startup,
+        # shutdown, and router barriers.  Copy each owner's state under its own
+        # short lock instead.  During a transition the two snapshots can describe
+        # adjacent instants, which is truthful and preferable to blocking status.
+        with self._state_lock:
+            last_release = self._last_release
+            data = {
+                "mode": self._mode.value,
+                "owned": self._owned,
+                "lifecycle": self._lifecycle.value,
+                "active_generations": self._active_generations,
+                "release_pending": self._pending_release,
+                "release_in_progress": self._release_in_progress,
+                "last_error": self._last_error,
+                "last_release": last_release.as_dict() if last_release else None,
+            }
+        data["process"] = self._process.snapshot().as_dict()
         return data
 
 

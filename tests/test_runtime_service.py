@@ -343,3 +343,76 @@ def test_release_listeners_receive_terminal_and_noop_results() -> None:
     service.configure_direct_owned()
     complete = service.request_release(source="owned")
     assert observed[-1] == complete
+
+
+def test_diagnostics_remains_available_during_serialized_operation() -> None:
+    process = FakeProcessController()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    service.configure_direct_owned()
+    operation_entered = threading.Event()
+    operation_gate = threading.Event()
+    diagnostics_complete = threading.Event()
+    observed: dict[str, object] = {}
+
+    def hold_operation() -> None:
+        with service.serialized_operation():
+            operation_entered.set()
+            assert operation_gate.wait(timeout=5)
+
+    def read_diagnostics() -> None:
+        observed.update(service.diagnostics())
+        diagnostics_complete.set()
+
+    holder = threading.Thread(target=hold_operation)
+    reader = threading.Thread(target=read_diagnostics)
+    holder.start()
+    assert operation_entered.wait(timeout=5)
+    reader.start()
+    status_available = diagnostics_complete.wait(timeout=0.5)
+
+    operation_gate.set()
+    holder.join(timeout=5)
+    reader.join(timeout=5)
+
+    assert status_available is True
+    assert not holder.is_alive()
+    assert not reader.is_alive()
+    assert observed["lifecycle"] == RuntimeLifecycle.READY.value
+    assert observed["process"] == {"state": "running"}
+
+
+def test_diagnostics_observes_release_while_stop_barrier_is_blocked() -> None:
+    process = FakeProcessController()
+    process.stop_entered = threading.Event()
+    process.stop_gate = threading.Event()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    service.configure_direct_owned()
+    diagnostics_complete = threading.Event()
+    observed: dict[str, object] = {}
+    released: dict[str, object] = {}
+
+    def release() -> None:
+        released["result"] = service.request_release(source="test")
+
+    def read_diagnostics() -> None:
+        observed.update(service.diagnostics())
+        diagnostics_complete.set()
+
+    releaser = threading.Thread(target=release)
+    reader = threading.Thread(target=read_diagnostics)
+    releaser.start()
+    assert process.stop_entered.wait(timeout=5)
+    reader.start()
+    status_available = diagnostics_complete.wait(timeout=0.5)
+
+    process.stop_gate.set()
+    releaser.join(timeout=5)
+    reader.join(timeout=5)
+
+    assert status_available is True
+    assert not releaser.is_alive()
+    assert not reader.is_alive()
+    assert observed["lifecycle"] == RuntimeLifecycle.RELEASING.value
+    assert observed["release_in_progress"] is True
+    assert observed["process"] == {"state": "running"}
+    assert released["result"].status == ReleaseStatus.COMPLETE  # type: ignore[union-attr]
