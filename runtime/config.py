@@ -92,8 +92,10 @@ def _append_common_args(
     if flash_attention_mode is not None:
         args.extend(("-fa", flash_attention_mode))
     elif flash_attention:
-        # Preserve the historical bare flag emitted by this node pack.
-        args.append("-fa")
+        # The saved-workflow surface remains a legacy boolean, but current
+        # llama-server treats -fa as a value-taking option. Preserve the
+        # user's intended behavior by translating True to the explicit mode.
+        args.extend(("-fa", "on"))
     if no_mmap:
         args.append("--no-mmap")
     if mmproj_path:

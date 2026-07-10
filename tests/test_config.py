@@ -17,7 +17,7 @@ from runtime.config import RouterConfig, ServerConfig
 
 
 class ConfigContractTests(unittest.TestCase):
-    def test_single_legacy_command_is_preserved(self) -> None:
+    def test_single_legacy_flash_boolean_maps_to_current_explicit_on(self) -> None:
         config = ServerConfig(
             model_path="/models/legacy.gguf",
             tensor_split="3,1",
@@ -48,6 +48,7 @@ class ConfigContractTests(unittest.TestCase):
                 "-b",
                 "512",
                 "-fa",
+                "on",
                 "--no-mmap",
             ],
         )

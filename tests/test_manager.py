@@ -240,3 +240,38 @@ def test_wrong_ready_role_is_stopped_and_reported(tmp_path, monkeypatch):
     assert "router, not the requested direct server" in error
     assert process.stop_calls == 1
     assert manager.status == ServerStatus.ERROR
+
+
+def test_failed_replacement_preflight_preserves_healthy_owned_server(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    missing = tmp_path / "missing.gguf"
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    clients = []
+
+    def client_factory(connection):
+        client = FakeClient(connection, model_path=str(model))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=client_factory,
+    )
+
+    assert manager.start(ServerConfig(str(model)), timeout=2) == (True, None)
+    original_client = manager.client
+
+    success, error = manager.start(ServerConfig(str(missing)), timeout=2)
+
+    assert success is False
+    assert "Model file not found" in error
+    assert process.stop_calls == 0
+    assert process.is_running is True
+    assert manager.status == ServerStatus.RUNNING
+    assert manager.current_config == ServerConfig(str(model))
+    assert manager.client is original_client
+    assert original_client.closed is False

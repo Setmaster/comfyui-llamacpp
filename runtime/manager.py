@@ -271,6 +271,9 @@ class LlamaCppServerManager:
         unload_comfy_models_before_start: bool,
     ) -> tuple[bool, str | None]:
         with self._runtime.serialized_operation(), self._lock:
+            prior_status = self.status
+            had_owned_process = self._process.has_owned_process
+            destructive_start = False
             self._last_error = None
             try:
                 capabilities = self._probe_binary(binary_path)
@@ -285,6 +288,7 @@ class LlamaCppServerManager:
                     return True, None
 
                 if self._process.has_owned_process:
+                    destructive_start = True
                     stopped, stop_error = self._stop_locked()
                     if not stopped:
                         raise RuntimeError(stop_error or "existing owned server did not stop")
@@ -300,6 +304,7 @@ class LlamaCppServerManager:
                         raise RuntimeError(eviction.error or "Comfy model eviction failed")
 
                 self._status = ServerStatus.STARTING
+                destructive_start = True
                 api_key = os.environ.get(api_key_env.strip()) if api_key_env.strip() else None
                 connection = ConnectionConfig(
                     base_url=f"http://{config.host}:{config.port}",
@@ -331,6 +336,12 @@ class LlamaCppServerManager:
                 if snapshot.log_tail:
                     error += "\n\nllama-server log tail:\n" + "\n".join(snapshot.log_tail[-40:])
                 self._last_error = error
+                if had_owned_process and not destructive_start:
+                    # Capability/config preflight must be transactional. A bad
+                    # replacement request is not authority to tear down the
+                    # healthy runtime that was already serving workflows.
+                    self._status = prior_status
+                    return False, self._last_error
                 self._status = ServerStatus.ERROR
                 if self._process.has_owned_process:
                     stop_result = self._process.stop()
