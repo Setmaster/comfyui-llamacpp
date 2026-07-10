@@ -1,0 +1,137 @@
+# Active SOTA Refactor Plan
+
+Status: In progress
+Date: 2026-07-10
+Branch: `dev` (tracking `origin/dev`)
+Change bundle: `changes/2026-07-10-sota-refactor/`
+
+## Objective
+
+Turn `comfyui-llamacpp` into a current, dependable, focused llama-server integration for ComfyUI while preserving existing workflows and the external-process boundary that makes deterministic VRAM release possible.
+
+## Completion Contract
+
+Outcome:
+
+- A reviewable implementation on the remote `dev` branch, with `master` untouched.
+- Safe owned-process lifecycle on POSIX and Windows without global process-name killing.
+- Correct current llama-server single-model and router contracts, including terminal unload barriers.
+- ComfyUI native unload requests release this pack's owned llama-server resources, while all explicit stop and unload nodes remain.
+- Compatibility-preserving prompt, VLM, structured-output, model, token, and lifecycle nodes.
+- Automated unit, contract, process-tree, frontend, packaging, and compatibility tests.
+- Current documentation, examples, versioning, CI, and a user-test handoff.
+
+Success checks:
+
+- Preserve every released node class ID, function, output tuple, socket name, default, and legacy positional widget prefix.
+- Old workflow fixtures load without positional widget reinterpretation.
+- All ten VLM image sockets are backend-visible and survive save/reload for counts 0, 1, and 10.
+- Owned direct servers and router descendants are released with observable completion; unrelated same-name processes survive.
+- Native Comfy `/free` and `/api/free` requests coalesce, defer through active generations, and release only owned resources.
+- Router load and unload nodes wait for terminal state and never call download or cache-delete endpoints.
+- External endpoints are never stopped by implicit lifecycle actions.
+- Static checks, automated tests, package build, fresh Comfy import, live llama-server smoke tests, and available GPU handoff checks pass or are documented with exact remaining constraints.
+- Final diff is reviewed, commits are pushed to `origin/dev`, and no merge to `master` is performed.
+
+Stop condition:
+
+- Stop only after the final completion gate passes and the remote `dev` branch contains the complete reviewed implementation, ready for the user's hands-on validation.
+
+Human gate:
+
+- The user owns final runtime blessing and any later merge to `master`.
+
+## Execution Sequence
+
+The detailed adaptive graph and wave checklist live in the change bundle. The intended sequence is compatibility characterization, shared foundations, lifecycle and protocol replacement, Comfy handoff integration, node and frontend consolidation, release polish, live validation, and independent final review. The sequence may change when evidence requires it, but the objective and compatibility contract do not.
+
+## Decisions
+
+- Keep V1 nodes as the canonical compatibility surface for this refactor. A future V3 migration can add replacements after the current V3 API stabilizes.
+- Keep the external `llama-server` process boundary. Do not add in-process `llama-cpp-python`.
+- Treat SOTA as the best focused llama-server integration, not an all-in-one agent, RAG, provider, or media suite.
+- Preserve legacy startup defaults even where current llama-server defaults differ. New behavior is opt-in and capability-gated.
+- Use one lifecycle coordinator for explicit nodes, native Comfy unload requests, shutdown, router residency, and active-generation leases.
+- Never stop or unload an attached external endpoint through an implicit Comfy lifecycle action.
+
+---
+
+# ComfyUI llama.cpp Frontier Review Plan
+
+Status: Complete
+Date: 2026-07-10
+Mode: Research and analysis only
+
+## Objective
+
+Produce a broad, deep, current, evidence-backed frontier review of this project. Establish what changed in ComfyUI, llama.cpp and llama-server, the surrounding ComfyUI LLM and prompt-enhancement ecosystem, and user expectations since this project was last updated. Convert that evidence into a ranked, bounded roadmap without implementing product changes.
+
+## Completion Contract
+
+Outcome:
+
+- A durable Project Frontier Review at `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`.
+- Project KB updates that preserve the objective, research checkpoints, stable findings, and the final report pointer.
+
+Success checks:
+
+- Reconcile committed code, the existing dirty worktree, README, roadmap, packaging, and KB state.
+- Research current ComfyUI architecture, custom-node APIs, frontend expectations, registry and packaging requirements, and relevant user workflow changes.
+- Research current llama.cpp and llama-server command-line behavior, router support, HTTP endpoints, OpenAI compatibility, multimodal handling, structured outputs, tokenization, embeddings, monitoring, and lifecycle expectations.
+- Compare meaningful alternatives for local and remote LLM use inside ComfyUI, including prompt enhancers, Ollama/API nodes, general LLM suites, VLM captioning, agentic workflows, and non-node alternatives where relevant.
+- Include evidence from official documentation and repositories, active GitHub projects and issues, and Reddit/community discussion.
+- Distinguish observed facts, source-backed inferences, recommendations, and uncertainty.
+- Rank findings as P0/P1/P2/P3, with impact, recommended response, and proof surface.
+- Separate next work, parked frontier, and things not worth copying.
+- Include a proposed next milestone and acceptance gates.
+- Review the final repo diff and verify that no product code was changed.
+
+Evidence:
+
+- Source URLs and retrieval dates in the report.
+- Local git, code, packaging, and static-analysis evidence.
+- GitHub repository metadata and release history where available.
+- Reddit/community evidence treated as sentiment and workflow evidence, not authoritative technical documentation.
+
+Stop condition:
+
+- The report and KB are complete, internally cross-checked, and the active native goal passes its final completion gate.
+
+Human gates:
+
+- None for research. Any later implementation is a separate user-authorized work block.
+
+## Milestones
+
+1. Establish local baseline and stale/current boundaries. Complete.
+2. Research ComfyUI platform evolution. Complete.
+3. Research llama.cpp and llama-server evolution. Complete.
+4. Map current ComfyUI LLM and prompt-enhancement alternatives. Complete.
+5. Audit project gaps against the evidence. Complete.
+6. Rank findings and challenge the proposed sequence. Complete.
+7. Finalize report, KB, and verification. Complete.
+
+## Decision Log
+
+- 2026-07-10: Use the deep Project Frontier Review protocol because the request spans product, platform, runtime, ecosystem, and roadmap analysis.
+- 2026-07-10: Preserve the existing 12-file dirty bundle as user-owned state and evaluate it without editing it.
+- 2026-07-10: Prefer official sources for technical claims; use GitHub projects/issues and Reddit to measure alternatives, adoption patterns, pain points, and sentiment.
+- 2026-07-10: Keep implementation out of scope. Only this plan, the research report, evidence artifacts, and Project KB may change.
+- 2026-07-10: Rank the next implementation phase as compatibility stabilization and release readiness, not broad feature expansion or full V3 migration.
+- 2026-07-10: Treat global llama-server process killing as a P1 release blocker rather than a P0 because it is severe when lifecycle nodes are invoked, but this review found no active outage or irreversible damage.
+- 2026-07-10: Add a local-only end-user companion guide because alternatives occupy different product layers and the developer-oriented comparison was not sufficient for choosing a temporary tool.
+- 2026-07-10: Recommend an external local runtime for generic interim use, with core `Generate Text`, Deno Local LLM Loader, Prompt Assistant, `comfyui-ollama`, or a specialist node selected according to the actual workflow need.
+- 2026-07-10: Add a source-level LLM Party comparison because it is the one reviewed alternative that matches and exceeds the project's broad interaction outcomes while occupying a materially different runtime and application architecture.
+- 2026-07-10: Treat LLM Party as an application-layer superset but not a llama.cpp integration superset. Preserve the focused external server, router, sampling, and dependency-isolation niche instead of competing on agents, RAG, media, social, and tool count.
+- 2026-07-10: Refine the historical VRAM claim after a focused lifecycle audit. Current ComfyUI provides diffusion-style unloading for native `Generate Text` and custom models that explicitly use `ModelPatcher`, but arbitrary Transformers, in-process llama.cpp, and external runtimes remain outside automatic core ownership.
+- 2026-07-10: Define the future product advantage as a confirmed two-sided VRAM handoff for arbitrary GGUF models, not merely an unload button. This requires safe owned-process tracking, Comfy-side eviction before LLM allocation, and process or provider-status confirmation before downstream GPU work.
+
+## Closeout
+
+- Final report: `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`
+- Local-only end-user companion: `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`
+- Deep LLM Party comparison: `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`
+- Focused VRAM unloading audit: `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`
+- Product code implementation: none in this review.
+- Recommended next work: compatibility stabilization and release readiness.
+- Final verification: all four research reports, plan, exact-answer log, and KB passed placeholder, conflict-marker, non-ASCII-dash, table-shape, and whitespace checks; LLM Party source and archive provenance hashes matched; both the deep comparison and focused VRAM audit passed independent fresh-eyes QA; `git diff --check` passed; and the tracked and untracked product-code file sets exactly matched the initial dirty baseline.
