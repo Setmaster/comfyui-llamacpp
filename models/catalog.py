@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 FOLDER_KEY = "llamacpp"
+LEGACY_FOLDER_KEYS = ("LLM", "llm")
 
 
 class ModelCatalogError(ValueError):
@@ -39,6 +40,36 @@ def get_default_models_directory() -> Path:
     return (base / "LLM" / "gguf").resolve()
 
 
+def _gguf_root_from_llm_path(path: str | os.PathLike[str]) -> Path:
+    """Map a configured Comfy LLM root to this pack's GGUF collection.
+
+    Existing Comfy installations commonly register an ``LLM`` root through
+    ``extra_model_paths.yaml`` and keep llama.cpp models in its ``gguf``
+    child. A path that already names ``gguf`` is used directly. If no child
+    exists, the configured root itself remains supported for older layouts.
+    """
+
+    root = Path(path).expanduser().resolve()
+    if root.name.casefold() == "gguf":
+        return root
+    child = (root / "gguf").resolve()
+    return child if child.is_dir() else root
+
+
+def _existing_llm_roots(folder_paths: Any) -> list[Path]:
+    roots: list[Path] = []
+    for folder_key in LEGACY_FOLDER_KEYS:
+        try:
+            configured = folder_paths.get_folder_paths(folder_key)
+        except (KeyError, AttributeError):
+            continue
+        for raw_path in configured:
+            root = _gguf_root_from_llm_path(raw_path)
+            if root not in roots:
+                roots.append(root)
+    return roots
+
+
 def register_model_folder() -> None:
     folder_paths = _folder_paths_module()
     if folder_paths is None:
@@ -48,6 +79,13 @@ def register_model_folder() -> None:
         folder_paths.add_model_folder_path(FOLDER_KEY, default, is_default=True)
     except TypeError:
         folder_paths.add_model_folder_path(FOLDER_KEY, default)
+    for root in _existing_llm_roots(folder_paths):
+        if str(root) == default:
+            continue
+        try:
+            folder_paths.add_model_folder_path(FOLDER_KEY, str(root), is_default=False)
+        except TypeError:
+            folder_paths.add_model_folder_path(FOLDER_KEY, str(root))
 
 
 def _configured_roots() -> list[Path]:

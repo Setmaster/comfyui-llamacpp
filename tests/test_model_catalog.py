@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+import models.catalog as catalog_module
 from models.catalog import ModelCatalog, ModelCatalogError
 from models.identity import RouterIdentityError, resolve_router_model
 
@@ -35,6 +36,45 @@ def test_catalog_rejects_symlink_escape(tmp_path):
         pytest.skip("symlinks unavailable")
     with pytest.raises(ModelCatalogError):
         ModelCatalog([tmp_path]).resolve("linked.gguf")
+
+
+def test_configured_roots_include_existing_comfy_llm_gguf_folder(tmp_path, monkeypatch):
+    default_models = tmp_path / "comfy-models"
+    external_llm = tmp_path / "external" / "LLM"
+    external_gguf = external_llm / "gguf"
+    external_gguf.mkdir(parents=True)
+
+    class FakeFolderPaths:
+        models_dir = str(default_models)
+        base_path = str(tmp_path / "comfy")
+
+        def __init__(self):
+            self.paths = {"LLM": [str(external_llm)]}
+
+        def get_folder_paths(self, key):
+            return list(self.paths[key])
+
+        def add_model_folder_path(self, key, path, is_default=False):
+            values = self.paths.setdefault(key, [])
+            if path in values:
+                values.remove(path)
+            values.insert(0, path) if is_default else values.append(path)
+
+    fake = FakeFolderPaths()
+    monkeypatch.setattr(catalog_module, "_folder_paths_module", lambda: fake)
+
+    roots = catalog_module._configured_roots()
+
+    assert roots == [
+        (default_models / "LLM" / "gguf").resolve(),
+        external_gguf.resolve(),
+    ]
+
+
+def test_llm_path_without_gguf_child_remains_supported(tmp_path):
+    legacy_root = tmp_path / "legacy-llm"
+    legacy_root.mkdir()
+    assert catalog_module._gguf_root_from_llm_path(legacy_root) == legacy_root.resolve()
 
 
 def test_router_identity_resolves_exact_id_alias_and_bundle_name():
