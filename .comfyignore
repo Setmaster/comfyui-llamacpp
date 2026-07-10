@@ -1,0 +1,12 @@
+.git/**
+.github/**
+.pytest_cache/**
+.ruff_cache/**
+.venv/**
+CODEBASE_MAP.md
+PLANS.md
+changes/**
+docs/research/**
+package.json
+tests/**
+uv.lock

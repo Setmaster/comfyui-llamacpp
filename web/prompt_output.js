@@ -1,36 +1,32 @@
 import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 
+function setupOutput(node) {
+    if (node.constructor?.comfyClass !== "LlamaCppPromptOutput") return;
+    if (node.__llamacppOutputWidget) return;
+
+    const widget = ComfyWidgets.STRING(
+        node,
+        "output",
+        ["STRING", { multiline: true, default: "" }],
+        app,
+    ).widget;
+    widget.options ??= {};
+    widget.options.serialize = false;
+    widget.serialize = false;
+    widget.value = widget.value ?? "";
+    node.__llamacppOutputWidget = widget;
+
+    const originalOnExecuted = node.onExecuted;
+    node.onExecuted = function (message) {
+        originalOnExecuted?.call(this, message);
+        const text = message?.text;
+        widget.value = Array.isArray(text) ? (text[0] ?? "") : (text ?? "");
+    };
+}
+
 app.registerExtension({
     name: "llamacpp.PromptOutput",
-    async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "LlamaCppPromptOutput") {
-            const onNodeCreated = nodeType.prototype.onNodeCreated;
-            nodeType.prototype.onNodeCreated = function () {
-                onNodeCreated ? onNodeCreated.apply(this, []) : undefined;
-
-                // Create a multiline text widget to display output
-                this.showValueWidget = ComfyWidgets["STRING"](
-                    this,
-                    "output",
-                    ["STRING", { multiline: true }],
-                    app
-                ).widget;
-                this.showValueWidget.inputEl.readOnly = true;
-                this.showValueWidget.inputEl.style.opacity = 0.8;
-
-                // Serialize the display widget value so it persists across tab switches
-                this.showValueWidget.serializeValue = async () => this.showValueWidget.value || "";
-            };
-
-            // Handle executed result to update the display
-            const onExecuted = nodeType.prototype.onExecuted;
-            nodeType.prototype.onExecuted = function (message) {
-                onExecuted?.apply(this, [message]);
-                if (message.text && message.text[0] !== undefined) {
-                    this.showValueWidget.value = message.text[0];
-                }
-            };
-        }
-    },
+    nodeCreated: setupOutput,
+    loadedGraphNode: setupOutput,
 });

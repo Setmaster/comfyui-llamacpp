@@ -1,19 +1,36 @@
-"""
-Prompt Output Node
-Displays prompt text in the UI with optional plaintext conversion.
-"""
+"""Pass-through prompt preview with conservative plaintext conversion."""
 
-import re
+from __future__ import annotations
+
 import html
+import re
+from html.parser import HTMLParser
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._ignored_depth = 0
+
+    def handle_starttag(self, tag: str, attrs):
+        if tag in {"script", "style"}:
+            self._ignored_depth += 1
+        elif tag in {"br", "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str):
+        if tag in {"script", "style"} and self._ignored_depth:
+            self._ignored_depth -= 1
+        elif tag in {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str):
+        if not self._ignored_depth:
+            self.parts.append(data)
 
 
 class LlamaCppPromptOutput:
-    """
-    ComfyUI node that displays prompt/response text in the UI.
-    Similar to Preview as Text but with optional plaintext conversion.
-    Outputs the text (converted or not) for chaining to other nodes.
-    """
-
     CATEGORY = "LlamaCpp"
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
@@ -24,84 +41,53 @@ class LlamaCppPromptOutput:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": ("STRING", {
-                    "forceInput": True,
-                    "tooltip": "Text to display and optionally convert"
-                }),
+                "text": (
+                    "STRING",
+                    {"forceInput": True, "tooltip": "Text to display and pass through."},
+                )
             },
             "optional": {
-                "plaintext": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "Convert markdown/HTML to plaintext before displaying"
-                }),
-            }
+                "plaintext": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Convert common Markdown and HTML markup to plaintext.",
+                    },
+                )
+            },
         }
 
     def preview_text(self, text: str, plaintext: bool = False):
-        """Display text in the UI and pass through"""
-
-        if not text:
-            return {"ui": {"text": ("",)}, "result": ("",)}
-
-        output_text = text
-
-        if plaintext:
-            output_text = self._convert_to_plaintext(text)
-
-        # Return both UI display and output value
+        output_text = self._convert_to_plaintext(text) if plaintext and text else (text or "")
         return {"ui": {"text": (output_text,)}, "result": (output_text,)}
 
     def _convert_to_plaintext(self, text: str) -> str:
-        """Convert markdown/HTML to plaintext"""
+        # Images must be handled before links because image syntax contains link syntax.
+        result = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", text)
+        result = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", result)
+        result = re.sub(r"```[^\n]*\n?", "", result)
+        result = re.sub(r"`([^`]+)`", r"\1", result)
+        result = re.sub(r"^#{1,6}\s+", "", result, flags=re.MULTILINE)
+        result = re.sub(
+            r"\*\*(.+?)\*\*|__(.+?)__", lambda match: match.group(1) or match.group(2), result
+        )
+        result = re.sub(
+            r"(?<!\*)\*([^*]+)\*|(?<!_)_([^_]+)_",
+            lambda match: match.group(1) or match.group(2),
+            result,
+        )
+        result = re.sub(r"^>\s?", "", result, flags=re.MULTILINE)
+        result = re.sub(r"^\s*(?:[-*+]\s+|\d+\.\s+)", "", result, flags=re.MULTILINE)
+        result = re.sub(r"^\s*[-*_]{3,}\s*$", "", result, flags=re.MULTILINE)
 
-        result = text
-
-        # Decode HTML entities
-        result = html.unescape(result)
-
-        # Remove HTML tags
-        result = re.sub(r'<[^>]+>', '', result)
-
-        # Convert markdown headers to plain text
-        result = re.sub(r'^#{1,6}\s+', '', result, flags=re.MULTILINE)
-
-        # Remove markdown bold/italic
-        result = re.sub(r'\*\*(.+?)\*\*', r'\1', result)  # Bold
-        result = re.sub(r'\*(.+?)\*', r'\1', result)  # Italic
-        result = re.sub(r'__(.+?)__', r'\1', result)  # Bold
-        result = re.sub(r'_(.+?)_', r'\1', result)  # Italic
-
-        # Remove markdown links, keep text
-        result = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', result)
-
-        # Remove markdown images
-        result = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', result)
-
-        # Remove markdown code blocks (keep content)
-        result = re.sub(r'```[\w]*\n?', '', result)
-        result = re.sub(r'`([^`]+)`', r'\1', result)
-
-        # Remove markdown blockquotes
-        result = re.sub(r'^>\s+', '', result, flags=re.MULTILINE)
-
-        # Remove markdown horizontal rules
-        result = re.sub(r'^[-*_]{3,}\s*$', '', result, flags=re.MULTILINE)
-
-        # Remove markdown list markers
-        result = re.sub(r'^[\s]*[-*+]\s+', '', result, flags=re.MULTILINE)
-        result = re.sub(r'^[\s]*\d+\.\s+', '', result, flags=re.MULTILINE)
-
-        # Clean up extra whitespace
-        result = re.sub(r'\n{3,}', '\n\n', result)
-        result = result.strip()
-
-        return result
+        parser = _HTMLTextExtractor()
+        parser.feed(html.unescape(result))
+        parser.close()
+        result = "".join(parser.parts)
+        result = re.sub(r"[ \t]+\n", "\n", result)
+        result = re.sub(r"\n{3,}", "\n\n", result)
+        return result.strip()
 
 
-NODE_CLASS_MAPPINGS = {
-    "LlamaCppPromptOutput": LlamaCppPromptOutput
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LlamaCppPromptOutput": "llama.cpp Prompt Output"
-}
+NODE_CLASS_MAPPINGS = {"LlamaCppPromptOutput": LlamaCppPromptOutput}
+NODE_DISPLAY_NAME_MAPPINGS = {"LlamaCppPromptOutput": "llama.cpp Prompt Output"}

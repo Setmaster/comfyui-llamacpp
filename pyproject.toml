@@ -1,13 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "comfyui-llamacpp"
-description = "A modular llama.cpp integration for ComfyUI - local LLM inference nodes"
-version = "0.2.1"
-license = {text = "MIT"}
+description = "Focused local llama-server lifecycle, text, vision, and structured generation nodes for ComfyUI"
+dynamic = ["version"]
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "Setmaster" }]
+keywords = ["comfyui", "gguf", "llama.cpp", "llm", "local-ai", "vlm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: GPU",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
-    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+    "numpy>=1.24.0",
+    "pillow>=10.0.0",
     "psutil>=5.9.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.9.0",
 ]
 
 [project.urls]
@@ -19,3 +49,45 @@ Documentation = "https://github.com/Setmaster/comfyui-llamacpp#readme"
 PublisherId = "setmaster"
 DisplayName = "ComfyUI llama.cpp Suite"
 Icon = ""
+
+[tool.setuptools]
+include-package-data = true
+packages = [
+    "comfyui_llamacpp",
+    "comfyui_llamacpp.generation",
+    "comfyui_llamacpp.models",
+    "comfyui_llamacpp.nodes",
+    "comfyui_llamacpp.runtime",
+    "comfyui_llamacpp.web",
+]
+
+[tool.setuptools.package-dir]
+comfyui_llamacpp = "."
+"comfyui_llamacpp.generation" = "generation"
+"comfyui_llamacpp.models" = "models"
+"comfyui_llamacpp.nodes" = "nodes"
+"comfyui_llamacpp.runtime" = "runtime"
+"comfyui_llamacpp.web" = "web"
+
+[tool.setuptools.package-data]
+"comfyui_llamacpp.web" = ["*.js", "*.json"]
+
+[tool.setuptools.dynamic]
+version = { attr = "comfyui_llamacpp._version.__version__" }
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["docs/research"]
+
+[tool.ruff.lint]
+select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
+ignore = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
