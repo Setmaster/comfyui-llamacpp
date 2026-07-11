@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-07-10 23:44:55Z
-Commit: 1f01fc1d7cfc4ff5d12d3d256ddd5d14a4d313d0
+Generated: 2026-07-11 02:06:37Z
+Commit: fc3e25220cf53f5f86ff458afcdeb94659d35ca3
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -44,26 +44,26 @@ Source: git ls-files (tracked files)
 
 ## Hotspots (largest text files)
 - `uv.lock`: 367.3 KiB
+- `runtime/process.py`: 112.4 KiB
+- `tests/test_process.py`: 89.0 KiB
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
-- `runtime/process.py`: 57.0 KiB
 - `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 49.3 KiB
 - `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 47.2 KiB
 - `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 43.6 KiB
 - `runtime/manager.py`: 30.2 KiB
 - `runtime/client.py`: 28.9 KiB
 - `runtime/service.py`: 28.7 KiB
-- `tests/test_manager.py`: 23.7 KiB
 
 ## Hotspots (most lines, sampled from large files)
+- `runtime/process.py`: 2838 lines
+- `tests/test_process.py`: 2710 lines
 - `uv.lock`: 1501 lines
-- `runtime/process.py`: 1481 lines
 - `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 1061 lines
 - `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 976 lines
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines
 - `runtime/client.py`: 849 lines
 - `runtime/manager.py`: 818 lines
 - `runtime/service.py`: 795 lines
-- `tests/test_manager.py`: 667 lines
 - `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 501 lines
 
 <!-- agent-evolve:END AUTO -->

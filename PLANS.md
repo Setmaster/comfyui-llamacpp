@@ -56,21 +56,30 @@ The detailed adaptive graph and wave checklist live in the change bundle. The in
 
 ## Closeout
 
-- Final reviewed code revision: `1f01fc1d7cfc4ff5d12d3d256ddd5d14a4d313d0`.
+- Final reviewed runtime revision:
+  `9f83be46dbe2986600aa46d3890590931dffe26b`.
+- Cross-platform test and closeout revision:
+  `fc3e25220cf53f5f86ff458afcdeb94659d35ca3`.
 - Full evidence and known boundaries: `docs/validation-0.3.md`.
 - Maintainer acceptance gate: `docs/user-acceptance.md`.
-- Local verification: 248 tests and 36 subtests, 10 frontend tests, Ruff,
+- Local verification: 382 tests and 36 subtests, 10 frontend tests, Ruff,
   formatting, JavaScript syntax, package build, fresh-wheel import, and current
   Comfy Registry validation passed.
-- Native Windows verification: 238 tests and 36 subtests passed, with ten
-  POSIX-only tests skipped.
-- GitHub Actions run `29130919137` passed all seven Linux, Windows, and quality
-  jobs for the exact code revision.
+- Native Windows verification: 338 tests and 36 subtests passed, with 44 POSIX
+  or Linux-only tests skipped.
+- The 150-case process suite passed 20 consecutive repetitions, for 3,000
+  executions. Exhaustive and randomized streaming-redaction tests covered byte,
+  UTF-8, line, size, credential, Authorization, and launch-generation
+  boundaries. Warmed real process cycles returned to the exact descriptor
+  baseline.
+- GitHub Actions run `29135583640` passed all seven Linux, Windows, and quality
+  jobs for `fc3e252`.
 - Real ComfyUI 0.27.0 and llama.cpp b9957 passed direct, router, VLM,
   structured-output, attached-endpoint, deferred-release, native-release,
   Windows Job, responsive-status, abrupt-owner, and RTX 5090 two-sided GPU
-  handoff validation. A final direct/native-free smoke also passed on the exact
-  code revision.
+  handoff validation. A final direct/native-free smoke on `9f83be4` generated
+  the exact requested text through an assigned Windows Job, then native free
+  removed the PID and returned the runtime to idle without escalation.
 - Independent lifecycle, compatibility, and release audits found and closed
   every P0/P1 issue. No known P0/P1 remains.
 - `master` and `origin/master` remained at
