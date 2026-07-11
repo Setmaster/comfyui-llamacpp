@@ -29,9 +29,12 @@ setting.
 `llama-server`. Version 0.3 never does that. It controls only the exact process
 tree it started and identified.
 
-- Linux uses a unique owned process group plus kernel-backed abrupt-owner
-  protection. Other POSIX systems retain exact process-group cleanup for normal
-  stop and exit, without the Linux abrupt-owner guarantee.
+- Linux uses a unique owned process group, a stable pidfd generation handle,
+  and kernel-backed abrupt-owner protection. It requires functional
+  `pidfd_open` and `waitid(P_PIDFD)` support, normally Linux 5.4 or newer.
+  Unsupported Linux hosts are rejected before a server is spawned. Other POSIX
+  systems retain exact process-group cleanup for normal stop and exit, without
+  the Linux abrupt-owner guarantee.
 - Windows uses a fresh Job Object with kill-on-close when assignment succeeds.
 - A validated Windows descendant fallback is used only when Job assignment is
   unavailable, and status reports that degraded mode.

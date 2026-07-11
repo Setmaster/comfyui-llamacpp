@@ -8,6 +8,9 @@ OS, GPU, driver, and model names.
 
 - [ ] Switch the installed custom node checkout to final `origin/dev`.
 - [ ] Install requirements with ComfyUI's Python and restart ComfyUI.
+- [ ] On Linux, confirm the host provides `pidfd_open` and
+      `waitid(P_PIDFD)` (normally Linux 5.4 or newer), or confirm startup fails
+      before spawning a server with the documented capability error.
 - [ ] Startup reports version 0.3.0 and 17 nodes.
 - [ ] Open representative 0.2.1 workflows without missing legacy nodes.
 - [ ] Verify old model, prompt, sampling, and Boolean widget values retained

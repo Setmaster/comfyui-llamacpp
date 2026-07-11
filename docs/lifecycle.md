@@ -116,12 +116,44 @@ process, so a hard owner exit does not leave llama.cpp workers behind. The PID
 reported by Server Status is therefore the supervisor/group leader on Linux;
 `llama-server` is its child.
 
-If a POSIX leader exits unexpectedly, the controller observes it without
-reaping it. That held leader keeps the original process-group generation from
-being reused while surviving members are cleaned up. The group authority is
-retired before the leader is finally reaped. If another component has already
-reaped the leader, cleanup fails closed and never signals the stale numeric
-group ID.
+Linux requires functional `pidfd_open` and `waitid(P_PIDFD)` support, normally
+provided by Linux 5.4 or newer. A pre-spawn probe checks both interfaces and
+refuses the launch before creating a child when they are unavailable. After
+`Popen` succeeds, the controller immediately opens a non-inheritable pidfd for
+the supervisor. The controller and its monitor keep separate descriptor
+references to that exact process generation.
+
+Linux exit observation and status consumption use `waitid(P_PIDFD)`. They never
+fall back to `P_PID`, `Popen.wait()`, or `Popen.kill()` after stable generation
+authority is lost. `ECHILD` means another waiter consumed the exact child and
+retires broad authority. `EBADF` indicates a lost descriptor or lifecycle bug.
+Both cases fail closed without targeting the numeric PID or PGID.
+
+Immediately before a group signal, the controller combines the stable pidfd
+with current process identity and PGID checks. It repeats the pidfd child proof
+after those supporting inspections. Temporary access denial or incomplete
+process-group enumeration is indeterminate: no signal is sent, and ownership is
+retained for an explicit retry. WSL can rebase the wall-clock value used by
+`psutil.create_time()` while the same child remains alive. The stable pidfd and
+matching current PGID are authoritative over that supporting timestamp drift.
+
+Linux 6.9 and newer can signal the entire process group atomically through
+`pidfd_send_signal` with `PIDFD_SIGNAL_PROCESS_GROUP`. Older kernels return
+`EINVAL`; the controller then performs a fresh complete authority proof before
+the checked `killpg` fallback. That older-kernel fallback still has a narrow
+proof-to-signal race if unrelated code reaps children owned by this controller.
+
+There is also a small acquisition boundary between `Popen` returning and
+`pidfd_open` acquiring the generation handle. Eliminating it completely would
+require an atomic `clone3(CLONE_PIDFD)` or equivalent spawn primitive. Code in
+the owning Comfy process must not reap children it did not launch. A transient
+post-spawn pidfd acquisition failure remains visible as incomplete ownership
+and the Linux parent-death supervisor provides the final owner-exit safety net.
+
+Configured secrets and credential-shaped log fields are sanitized by a bounded
+streaming parser before log entries are split. Its state follows the owned
+launch and survives arbitrary byte, UTF-8, line, and size boundaries, so a late
+drain from one launch cannot write into the next launch's diagnostics.
 
 Other POSIX systems retain exact process-group cleanup for explicit stop and
 normal Comfy exit, but they do not currently provide the same abrupt-owner

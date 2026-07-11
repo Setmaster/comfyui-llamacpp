@@ -41,6 +41,10 @@ database suite. It is a small local llama.cpp runtime and generation surface.
 - A current `llama-server` build. Optional controls are capability-checked
   before launch. Router mode requires a build that exposes `--models-dir` and
   `--models-max`.
+- Linux requires working `pidfd_open` and `waitid(P_PIDFD)` support, normally a
+  Linux 5.4 or newer kernel unless those interfaces were backported. The pack
+  checks both capabilities before spawning `llama-server` and fails with an
+  actionable error on an unsupported host.
 - One or more GGUF models.
 - For GPU inference, a llama.cpp build for the installed CUDA, Vulkan, ROCm,
   Metal, or other supported backend.
@@ -269,6 +273,13 @@ Connection and prompt nodes also expose `verify_tls` and an overall request
 deadline. Commands, status payloads, and bounded server logs redact configured
 secret values and common credential-shaped fields.
 
+The namespaced runtime status and release routes use the same network trust
+boundary as the rest of ComfyUI. They do not add separate authentication.
+Status can include local executable, model, and working-directory paths plus a
+redacted log tail, and release can stop this pack's owned runtime. Keep ComfyUI
+on loopback or behind authentication that you control when the host is not a
+trusted network.
+
 ## Templates
 
 Built-in ADV++ templates live in [`web/templates.json`](web/templates.json).
@@ -292,7 +303,8 @@ Importable workflow examples live in [`examples/`](examples/). The
 [user acceptance checklist](docs/user-acceptance.md) covers upgrade
 compatibility, direct and router release, Windows ownership, VLMs, structured
 output, attached endpoints, and the final diffusion-to-LLM-to-diffusion GPU
-handoff.
+handoff. The completed pre-handoff evidence is recorded in the
+[0.3 validation report](docs/validation-0.3.md).
 
 For failures, start with **llama.cpp Server Status** and
 [Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
@@ -324,6 +336,7 @@ release validation.
 - [0.3 migration guide](docs/migration-0.3.md)
 - [Lifecycle and VRAM ownership](docs/lifecycle.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [0.3 validation report](docs/validation-0.3.md)
 - [User acceptance checklist](docs/user-acceptance.md)
 - [0.3 changelog](CHANGELOG.md)
 - [Research and ecosystem analysis](docs/research/)

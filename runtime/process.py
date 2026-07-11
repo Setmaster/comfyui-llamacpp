@@ -7,6 +7,7 @@ adoption or termination.
 
 from __future__ import annotations
 
+import codecs
 import collections
 import errno
 import logging
@@ -44,12 +45,38 @@ class ProcessAlreadyRunning(RuntimeError):
     """Raised when a second launch is attempted for an active controller."""
 
 
+class _PosixPidfdInvalid(RuntimeError):
+    """Raised when a retained pidfd descriptor itself is no longer usable."""
+
+
+class _PosixAuthorityState(str, Enum):
+    """Confidence that the saved PGID still belongs to this launch."""
+
+    VALID = "valid"
+    INVALID = "invalid"
+    INDETERMINATE = "indeterminate"
+
+
 @dataclass(frozen=True)
 class ProcessIdentity:
     """PID plus creation time, sufficient to reject ordinary PID reuse."""
 
     pid: int
     create_time: float
+
+
+@dataclass(frozen=True)
+class _PosixAuthorityProof:
+    state: _PosixAuthorityState
+    reason: str
+    pgid: int | None = None
+
+
+@dataclass(frozen=True)
+class _PosixGroupInspection:
+    state: _PosixAuthorityState
+    members: tuple[int, ...]
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -126,6 +153,7 @@ _SENSITIVE_OPTION_NAMES = frozenset(
 class SecretRedactor:
     """Redact configured values and common credential-shaped log fragments."""
 
+    _authorization_pattern = re.compile(r"(?i)\b(authorization)(\s*[:=]\s*|\s+)([^\r\n]+)")
     _credential_pattern = re.compile(
         r"(?i)\b(authorization|api[-_ ]?key|bearer|password|token)"
         r"(\s*[:=]\s*|\s+)([^\s,;]+)"
@@ -141,11 +169,50 @@ class SecretRedactor:
         )
         self.max_secret_length = max((len(value) for value in self._secrets), default=0)
 
-    def redact(self, value: str) -> str:
+    def redact_literals(self, value: str) -> str:
         text = str(value)
         for secret in self._secrets:
             text = text.replace(secret, "<redacted>")
+        return text
+
+    def redact(self, value: str) -> str:
+        text = self.redact_literals(value)
+        text = self._authorization_pattern.sub(r"\1\2<redacted>", text)
         return self._credential_pattern.sub(r"\1\2<redacted>", text)
+
+    def literal_safe_flush_boundary(self, text: str, proposed: int) -> int:
+        """Move a raw flush boundary before any configured secret it would split."""
+
+        boundary = max(0, min(int(proposed), len(text)))
+        while boundary:
+            adjusted = boundary
+            for secret in self._secrets:
+                start = text.find(secret)
+                while start >= 0 and start < boundary:
+                    if start + len(secret) > boundary:
+                        adjusted = min(adjusted, start)
+                    start = text.find(secret, start + 1)
+            if adjusted == boundary:
+                return boundary
+            boundary = adjusted
+
+        # A very large configured secret can begin at offset zero and cross a
+        # positive proposed boundary.  Flush through the transitive closure of
+        # complete overlapping secrets so the operation still makes progress
+        # without ever splitting one.
+        end = max((len(secret) for secret in self._secrets if text.startswith(secret)), default=0)
+        while end:
+            extended = end
+            for secret in self._secrets:
+                start = text.find(secret)
+                while start >= 0 and start < end:
+                    if start + len(secret) > end:
+                        extended = max(extended, start + len(secret))
+                    start = text.find(secret, start + 1)
+            if extended == end:
+                return min(end, len(text))
+            end = extended
+        return boundary
 
     def redact_argv(self, argv: Sequence[str]) -> tuple[str, ...]:
         redacted: list[str] = []
@@ -167,6 +234,96 @@ class SecretRedactor:
                 continue
             redacted.append(self.redact(arg))
         return tuple(redacted)
+
+
+class _StreamingCredentialRedactor:
+    """Bounded credential parser whose state survives arbitrary chunk boundaries."""
+
+    _key_pattern = re.compile(r"(?i)\b(authorization|api[-_ ]?key|bearer|password|token)")
+    _NORMAL_BUFFER_LIMIT = 32
+
+    def __init__(self) -> None:
+        self._buffer = ""
+        self._state = "normal"
+        self._authorization = False
+
+    def feed(self, value: str, *, final: bool = False) -> str:
+        self._buffer += str(value)
+        output: list[str] = []
+
+        while self._buffer:
+            if self._state == "normal":
+                match = self._key_pattern.search(self._buffer)
+                if match is None:
+                    if final:
+                        output.append(self._buffer)
+                        self._buffer = ""
+                    elif len(self._buffer) > self._NORMAL_BUFFER_LIMIT:
+                        output.append(self._buffer[: -self._NORMAL_BUFFER_LIMIT])
+                        self._buffer = self._buffer[-self._NORMAL_BUFFER_LIMIT :]
+                    break
+                if match.start() > 0:
+                    output.append(self._buffer[: match.start()])
+                    self._buffer = self._buffer[match.start() :]
+                    continue
+
+                key_end = match.end()
+                if len(self._buffer) == key_end:
+                    if final:
+                        output.append(self._buffer)
+                        self._buffer = ""
+                    break
+                separator = self._buffer[key_end]
+                if not separator.isspace() and separator not in ":=":
+                    output.append(self._buffer[0])
+                    self._buffer = self._buffer[1:]
+                    continue
+
+                output.append(self._buffer[: key_end + 1])
+                output.append("<redacted>")
+                self._authorization = match.group(1).casefold() == "authorization"
+                self._buffer = self._buffer[key_end + 1 :]
+                self._state = "await_value"
+                continue
+
+            if self._state == "await_value":
+                character = self._buffer[0]
+                self._buffer = self._buffer[1:]
+                if character.isspace() or character in ":=":
+                    continue
+                if character in ",;":
+                    output.append(character)
+                    self._state = "normal"
+                    self._authorization = False
+                    continue
+                self._state = "authorization_value" if self._authorization else "value"
+                continue
+
+            if self._state == "value":
+                character = self._buffer[0]
+                self._buffer = self._buffer[1:]
+                if character.isspace() or character in ",;":
+                    output.append(character)
+                    self._state = "normal"
+                    self._authorization = False
+                continue
+
+            # Authorization schemes and their credentials can contain spaces.
+            # Suppress the complete header value through its record delimiter.
+            character = self._buffer[0]
+            self._buffer = self._buffer[1:]
+            if character in "\r\n":
+                output.append(character)
+                self._state = "normal"
+                self._authorization = False
+
+        if final and self._state != "normal":
+            # A committed credential prefix already emitted one placeholder;
+            # incomplete separator/value bytes remain intentionally suppressed.
+            self._buffer = ""
+            self._state = "normal"
+            self._authorization = False
+        return "".join(output)
 
 
 class BoundedLogTail:
@@ -353,6 +510,7 @@ class OwnedProcessController:
         self._process: subprocess.Popen[bytes] | None = None
         self._identity: ProcessIdentity | None = None
         self._process_group_id: int | None = None
+        self._posix_pidfd: int | None = None
         self._windows_job: Any | None = None
         self._windows_job_assigned = False
         self._descendant_fallback = False
@@ -394,7 +552,13 @@ class OwnedProcessController:
     @property
     def has_owned_process(self) -> bool:
         with self._lock:
-            return self._identity is not None
+            # A post-spawn identity-capture failure can retain the exact Popen
+            # and provisional session authority as visible incomplete ownership.
+            return (
+                self._process is not None
+                or self._identity is not None
+                or self._posix_pidfd is not None
+            )
 
     @property
     def state(self) -> ProcessLifecycle:
@@ -418,7 +582,11 @@ class OwnedProcessController:
 
         redactor = SecretRedactor(secret_values)
         with self._lock:
-            if self._process is not None or self._identity is not None:
+            if (
+                self._process is not None
+                or self._identity is not None
+                or self._posix_pidfd is not None
+            ):
                 raise ProcessAlreadyRunning(
                     "the previous owned process tree must be released before a new launch"
                 )
@@ -450,11 +618,18 @@ class OwnedProcessController:
                 kwargs["start_new_session"] = True
 
             try:
+                if sys.platform.startswith("linux"):
+                    self._require_linux_pidfd_support()
                 launch_command = self._platform_launch_command(command)
                 process = self._popen_factory(list(launch_command), **kwargs)
                 # Keep a handle before identity capture so every post-spawn failure
                 # can still terminate and reap the exact process we just created.
                 self._process = process
+                if os.name != "nt":
+                    # Open the stable generation token before any diagnostic
+                    # lookup can fail.  A pidfd acquired later could bind a
+                    # different same-parent child after numeric PID reuse.
+                    self._posix_pidfd = self._open_linux_pidfd(process.pid)
 
                 if os.name == "nt":
                     self._setup_windows_ownership(process)
@@ -476,9 +651,29 @@ class OwnedProcessController:
                         self._process_group_id = None
                         self._posix_authority_valid = False
                         self._posix_cleanup_uncertain = True
-                        process.kill()
-                        self._returncode = process.wait(timeout=5)
-                        self._posix_root_reaped = True
+                        signal_error: Exception | None = None
+                        try:
+                            if sys.platform.startswith("linux"):
+                                pidfd = self._posix_pidfd
+                                if pidfd is None:
+                                    raise RuntimeError(
+                                        "launch-time pidfd is unavailable for exact cleanup"
+                                    )
+                                self._signal_linux_pidfd_process(pidfd, signal.SIGKILL)
+                            else:
+                                process.kill()
+                        except ProcessLookupError:
+                            # The exact pidfd generation has already exited.
+                            # Stable consumption below distinguishes ECHILD
+                            # without ever targeting a recycled numeric PID.
+                            pass
+                        except Exception as exc:
+                            signal_error = exc
+                        self._returncode = self._consume_posix_exit(process, identity, 5.0)
+                        if signal_error is not None:
+                            raise RuntimeError(
+                                "failed to signal the exact mismatched launch generation"
+                            ) from signal_error
                         raise RuntimeError("failed to establish a unique owned process group")
                     self._process_group_id = pgid
                     self._posix_authority_valid = True
@@ -514,11 +709,25 @@ class OwnedProcessController:
         if grace_timeout < 0 or kill_timeout < 0:
             raise ValueError("timeouts must not be negative")
         started = time.monotonic()
+        provisional_process: subprocess.Popen[bytes] | None = None
 
         with self._lock:
             process = self._process
             identity = self._identity
             if process is None and identity is None:
+                if self._posix_pidfd is not None:
+                    self._state = ProcessLifecycle.INCOMPLETE_STOP
+                    self._last_error = (
+                        "stable POSIX pidfd authority remains without its process record; "
+                        "refusing silent release"
+                    )
+                    return StopResult(
+                        False,
+                        False,
+                        self._returncode,
+                        time.monotonic() - started,
+                        error=self._last_error,
+                    )
                 error: str | None = None
                 try:
                     self._close_windows_job()
@@ -536,7 +745,12 @@ class OwnedProcessController:
                     time.monotonic() - started,
                     error=error,
                 )
-            if process is None or identity is None:
+            if process is not None and identity is None and os.name != "nt":
+                self._stopping = True
+                self._stop_requested = True
+                self._state = ProcessLifecycle.STOPPING
+                provisional_process = process
+            elif process is None or identity is None:
                 self._state = ProcessLifecycle.INCOMPLETE_STOP
                 self._last_error = "owned process identity is incomplete; refusing broad cleanup"
                 return StopResult(
@@ -551,9 +765,17 @@ class OwnedProcessController:
                     remaining_pids=(process.pid,) if process is not None else (),
                     error=self._last_error,
                 )
-            self._stopping = True
-            self._stop_requested = True
-            self._state = ProcessLifecycle.STOPPING
+            else:
+                self._stopping = True
+                self._stop_requested = True
+                self._state = ProcessLifecycle.STOPPING
+
+        if provisional_process is not None:
+            return self._retry_provisional_posix_stop(
+                provisional_process,
+                started=started,
+                timeout=max(grace_timeout + kill_timeout, kill_timeout),
+            )
 
         errors: list[str] = []
         escalated = False
@@ -576,7 +798,14 @@ class OwnedProcessController:
             errors.extend(platform_errors)
         except Exception as exc:  # defensive: lifecycle cleanup must report, not hide
             errors.append(f"{type(exc).__name__}: {exc}")
-            remaining = self._remaining_owned_pids(identity)
+            try:
+                remaining = self._remaining_owned_pids(identity)
+            except Exception as remaining_exc:
+                remaining = (identity.pid,)
+                errors.append(
+                    "remaining-process inspection failed "
+                    f"({type(remaining_exc).__name__}: {remaining_exc})"
+                )
 
         if os.name == "nt" and not remaining and process.poll() is not None:
             try:
@@ -615,6 +844,7 @@ class OwnedProcessController:
             self._stopping = False
             if complete:
                 self._state = ProcessLifecycle.STOPPED
+                self._close_posix_pidfd()
                 self._process = None
                 self._identity = None
                 self._process_group_id = None
@@ -651,6 +881,8 @@ class OwnedProcessController:
             )
 
     def _reset_for_launch(self, redactor: SecretRedactor) -> None:
+        if self._posix_pidfd is not None:
+            raise RuntimeError("cannot reset while stable POSIX pidfd authority is retained")
         self._process = None
         self._identity = None
         self._process_group_id = None
@@ -710,13 +942,10 @@ class OwnedProcessController:
                 )
                 errors.extend(platform_errors)
             elif os.name != "nt":
-                # Identity capture did not complete, so only the exact Popen is
-                # signalable.  Retire any provisional PGID before reaping it.
-                self._process_group_id = None
-                self._posix_authority_valid = False
-                process.kill()
-                self._returncode = process.wait(timeout=5)
-                self._posix_root_reaped = True
+                # Exact identity capture failed after Popen established the new
+                # session.  That launch contract remains sufficient to clean the
+                # provisional group, but it is not sufficient to enter RUNNING.
+                errors.extend(self._cleanup_provisional_posix_launch(process, 5.0))
 
             if os.name == "nt":
                 if process.poll() is None:
@@ -743,6 +972,7 @@ class OwnedProcessController:
         )
         self._stopping = False
         if complete:
+            self._close_posix_pidfd()
             self._process = None
             self._identity = None
             self._process_group_id = None
@@ -751,16 +981,292 @@ class OwnedProcessController:
             self._stopped_at = time.time()
         return complete, errors
 
+    def _cleanup_provisional_posix_launch(
+        self,
+        process: subprocess.Popen[bytes],
+        timeout: float,
+    ) -> list[str]:
+        """Clean a start-new-session launch whose exact identity capture failed."""
+
+        errors: list[str] = []
+        with self._posix_cleanup_lock:
+            with self._lock:
+                pgid = self._process_group_id
+                provisional = bool(
+                    self._process is process
+                    and self._identity is None
+                    and self._posix_authority_valid
+                    and pgid == process.pid
+                    and pgid != os.getpgrp()
+                )
+
+            if not provisional or pgid is None:
+                errors.append("provisional POSIX launch authority is unavailable")
+                return errors
+
+            proof = self._prove_provisional_posix_authority(process, pgid)
+            if proof.state is not _PosixAuthorityState.VALID:
+                errors.append(
+                    f"provisional POSIX launch authority is {proof.state.value} ({proof.reason})"
+                )
+                return errors
+
+            try:
+                with self._lock:
+                    pidfd = self._posix_pidfd
+                atomic_signaled = False
+                if pidfd is not None and sys.platform.startswith("linux"):
+                    if self._signal_linux_pidfd_group(pidfd, signal.SIGKILL):
+                        atomic_signaled = True
+                    else:
+                        fallback_proof = self._prove_provisional_posix_authority(process, pgid)
+                        with self._lock:
+                            current_pidfd = self._posix_pidfd
+                        if (
+                            fallback_proof.state is not _PosixAuthorityState.VALID
+                            or fallback_proof.pgid != pgid
+                            or current_pidfd != pidfd
+                        ):
+                            raise RuntimeError(
+                                "provisional authority changed after pidfd signal fallback"
+                            )
+                if not atomic_signaled:
+                    os.killpg(pgid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except Exception as exc:
+                errors.append(f"provisional group cleanup failed ({type(exc).__name__}: {exc})")
+                return errors
+
+            group_inspection = self._wait_for_posix_pgid_empty(pgid, timeout)
+            if group_inspection.state is _PosixAuthorityState.INDETERMINATE:
+                errors.append(
+                    "provisional group cleanup inspection is indeterminate "
+                    f"({group_inspection.reason})"
+                )
+                return errors
+            remaining = group_inspection.members
+            if remaining:
+                errors.append(
+                    "provisional group cleanup incomplete; live PIDs: "
+                    + ", ".join(map(str, remaining))
+                )
+                return errors
+
+            with self._lock:
+                if self._process is process and self._identity is None:
+                    self._process_group_id = None
+                    self._posix_authority_valid = False
+            try:
+                self._returncode = self._consume_posix_exit(process, None, timeout)
+            except subprocess.TimeoutExpired as exc:
+                # A missed live root means the provisional group remains the
+                # only safe broad authority.  Restore it for a later retry.
+                with self._lock:
+                    if self._process is process and self._identity is None:
+                        self._process_group_id = pgid
+                        self._posix_authority_valid = True
+                errors.append(f"provisional root reap timed out ({type(exc).__name__}: {exc})")
+            except Exception as exc:
+                with self._lock:
+                    if self._process is process and self._identity is None:
+                        self._process_group_id = pgid
+                        self._posix_authority_valid = True
+                errors.append(f"provisional root reap failed ({type(exc).__name__}: {exc})")
+        return errors
+
+    def _retry_provisional_posix_stop(
+        self,
+        process: subprocess.Popen[bytes],
+        *,
+        started: float,
+        timeout: float,
+    ) -> StopResult:
+        errors = self._cleanup_provisional_posix_launch(process, timeout)
+        with self._lock:
+            complete = bool(
+                self._process is process
+                and self._identity is None
+                and self._posix_root_reaped
+                and self._process_group_id is None
+                and not self._posix_cleanup_uncertain
+            )
+            self._stopping = False
+            self._stopped_at = time.time() if complete else None
+            if complete:
+                self._state = ProcessLifecycle.STOPPED
+                self._close_posix_pidfd()
+                self._process = None
+                self._last_error = "; ".join(errors) or None
+            else:
+                self._state = ProcessLifecycle.INCOMPLETE_STOP
+                self._last_error = "; ".join(errors) or (
+                    "provisional POSIX cleanup remains incomplete"
+                )
+            return StopResult(
+                complete=complete,
+                escalated=True,
+                returncode=self._returncode,
+                duration_seconds=time.monotonic() - started,
+                remaining_pids=() if complete else (process.pid,),
+                error=self._last_error,
+            )
+
     def _capture_identity(self, pid: int) -> ProcessIdentity:
         try:
             created = float(self._psutil.Process(pid).create_time())
         except Exception as exc:
-            if os.name == "nt":
-                raise RuntimeError("failed to capture Windows process identity") from exc
-            # The child can exec and exit very quickly.  The launch time still lets
-            # us reject older unrelated descendants in fallback scans.
-            created = time.time()
+            raise RuntimeError("failed to capture exact process creation identity") from exc
         return ProcessIdentity(pid=pid, create_time=created)
+
+    @staticmethod
+    def _open_linux_pidfd(pid: int) -> int | None:
+        """Open a stable Linux process-generation handle, including old Python builds."""
+
+        if not sys.platform.startswith("linux"):
+            return None
+
+        fd: int | None = None
+        try:
+            opener = getattr(os, "pidfd_open", None)
+            if opener is not None:
+                fd = int(opener(pid, 0))
+            else:
+                import ctypes
+
+                libc = ctypes.CDLL(None, use_errno=True)
+                try:
+                    pidfd_open = libc.pidfd_open
+                except AttributeError:
+                    # Linux assigned pidfd_open syscall 434 consistently on the
+                    # mainstream architectures below.  Do not guess on an
+                    # unknown ABI: losing the generation handle must fail closed.
+                    supported_machines = {
+                        "aarch64",
+                        "amd64",
+                        "arm64",
+                        "armv7l",
+                        "armv8l",
+                        "i386",
+                        "i486",
+                        "i586",
+                        "i686",
+                        "ppc64",
+                        "ppc64le",
+                        "riscv64",
+                        "s390x",
+                        "x86_64",
+                    }
+                    if os.uname().machine.lower() not in supported_machines:
+                        raise OSError(
+                            errno.ENOSYS,
+                            "unknown pidfd_open syscall ABI",
+                        ) from None
+                    syscall = libc.syscall
+                    syscall.restype = ctypes.c_long
+                    ctypes.set_errno(0)
+                    fd = int(
+                        syscall(
+                            ctypes.c_long(434),
+                            ctypes.c_int(int(pid)),
+                            ctypes.c_uint(0),
+                        )
+                    )
+                else:
+                    pidfd_open.argtypes = [ctypes.c_int, ctypes.c_uint]
+                    pidfd_open.restype = ctypes.c_int
+                    ctypes.set_errno(0)
+                    fd = int(pidfd_open(int(pid), 0))
+                if fd < 0:
+                    error = ctypes.get_errno() or errno.EIO
+                    raise OSError(error, os.strerror(error))
+            if fd < 0:
+                raise OSError(errno.EBADF, "pidfd_open returned a negative descriptor")
+            os.set_inheritable(fd, False)
+            os.fstat(fd)
+            return fd
+        except (AttributeError, OSError) as exc:
+            if fd is not None and fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            LOGGER.warning("stable Linux pidfd unavailable (%s)", type(exc).__name__)
+            return None
+
+    def _close_posix_pidfd(self, expected_fd: int | None = None) -> None:
+        with self._lock:
+            if expected_fd is not None and self._posix_pidfd != expected_fd:
+                return
+            fd, self._posix_pidfd = self._posix_pidfd, None
+        if fd is None:
+            return
+        try:
+            os.close(fd)
+        except OSError as exc:
+            if exc.errno != errno.EBADF:
+                raise
+
+    def _duplicate_linux_pidfd(self, expected_fd: int | None = None) -> int | None:
+        """Duplicate the current pidfd while its controller slot is locked."""
+
+        if not sys.platform.startswith("linux"):
+            return None
+        with self._lock:
+            fd = self._posix_pidfd
+            if fd is None or (expected_fd is not None and fd != expected_fd):
+                return None
+            duplicate = os.dup(fd)
+        try:
+            os.set_inheritable(duplicate, False)
+        except Exception:
+            os.close(duplicate)
+            raise
+        return duplicate
+
+    def _require_linux_pidfd_support(self) -> None:
+        """Fail before spawn unless Linux can open and inspect pidfds."""
+
+        if not sys.platform.startswith("linux"):
+            return
+        waitid = getattr(os, "waitid", None)
+        required = ("WEXITED", "WNOWAIT", "WNOHANG")
+        if waitid is None or not all(hasattr(os, name) for name in required):
+            raise RuntimeError(
+                "Linux process ownership requires waitid(P_PIDFD); "
+                "upgrade the kernel and Python runtime"
+            )
+
+        probe_pidfd = self._open_linux_pidfd(os.getpid())
+        if probe_pidfd is None:
+            raise RuntimeError(
+                "Linux process ownership requires pidfd_open; "
+                "upgrade the kernel or libc/Python runtime"
+            )
+        try:
+            try:
+                waitid(
+                    getattr(os, "P_PIDFD", 3),
+                    probe_pidfd,
+                    os.WEXITED | os.WNOWAIT | os.WNOHANG,
+                )
+            except ChildProcessError:
+                # A pidfd for this process is intentionally not our child.
+                # ECHILD proves that the kernel recognized P_PIDFD semantics.
+                return
+            except OSError as exc:
+                if exc.errno == errno.ECHILD:
+                    return
+                if exc.errno in {errno.EINVAL, errno.ENOSYS, errno.EBADF}:
+                    raise RuntimeError(
+                        "Linux process ownership requires functional waitid(P_PIDFD); "
+                        "upgrade the kernel and Python runtime"
+                    ) from exc
+                raise RuntimeError(
+                    f"Linux pidfd capability probe failed ({type(exc).__name__}: {exc})"
+                ) from exc
+        finally:
+            os.close(probe_pidfd)
 
     @staticmethod
     def _platform_launch_command(command: Sequence[str]) -> tuple[str, ...]:
@@ -804,43 +1310,94 @@ class OwnedProcessController:
         process: subprocess.Popen[bytes],
         redactor: SecretRedactor,
     ) -> None:
+        # Bind every drain to this launch's immutable tail reference.  A late
+        # buffered read from an older process must never append through the
+        # controller's mutable next-generation ``self._log_tail`` slot.
+        log_tail = self._log_tail
         for channel, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
             if stream is None:
                 continue
             thread = threading.Thread(
                 target=self._drain_stream,
-                args=(channel, stream, redactor),
+                args=(channel, stream, redactor, log_tail),
                 name=f"llamacpp-{channel}-{process.pid}",
                 daemon=True,
             )
             self._drain_threads.append(thread)
             thread.start()
 
-    def _drain_stream(self, channel: str, stream: Any, redactor: SecretRedactor) -> None:
-        pending = ""
-        overlap = max(128, redactor.max_secret_length)
+    def _drain_stream(
+        self,
+        channel: str,
+        stream: Any,
+        redactor: SecretRedactor,
+        log_tail: BoundedLogTail,
+    ) -> None:
+        raw_pending = ""
+        output_pending = ""
+        literal_overlap = max(1, redactor.max_secret_length)
+        credential_redactor = _StreamingCredentialRedactor()
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+
+        def store_sanitized(text: str) -> None:
+            nonlocal output_pending
+            output_pending += text
+            while "\n" in output_pending:
+                line, output_pending = output_pending.split("\n", 1)
+                log_tail.append(channel, line)
+            while len(output_pending) > 32 * 1024:
+                log_tail.append(channel, output_pending[: 32 * 1024])
+                output_pending = output_pending[32 * 1024 :]
+
+        def sanitize_raw_prefix(text: str) -> None:
+            literal_clean = redactor.redact_literals(text)
+            store_sanitized(credential_redactor.feed(literal_clean))
+
+        def flush_ready_raw() -> None:
+            nonlocal raw_pending
+            while True:
+                proposed = max(0, len(raw_pending) - literal_overlap)
+                newline = raw_pending.rfind("\n", 0, proposed)
+                size_flush_required = len(raw_pending) > 32 * 1024 + literal_overlap
+                if newline >= 0:
+                    candidate = newline + 1
+                elif size_flush_required:
+                    candidate = proposed
+                else:
+                    return
+
+                flush_at = redactor.literal_safe_flush_boundary(raw_pending, candidate)
+                if flush_at <= 0:
+                    if size_flush_required:
+                        raise RuntimeError("unable to make progress at a safe log flush boundary")
+                    return
+                sanitize_raw_prefix(raw_pending[:flush_at])
+                raw_pending = raw_pending[flush_at:]
+
         try:
             while True:
                 reader = getattr(stream, "read1", stream.read)
                 chunk = reader(4096)
                 if not chunk:
+                    raw_pending += decoder.decode(b"", final=True)
                     break
                 if isinstance(chunk, bytes):
-                    pending += chunk.decode("utf-8", errors="replace")
+                    raw_pending += decoder.decode(chunk, final=False)
                 else:
-                    pending += str(chunk)
+                    # A text-producing stream is already decoded.  Finalize any
+                    # preceding byte sequence before switching representations,
+                    # then reset so later byte chunks remain deterministic.
+                    raw_pending += decoder.decode(b"", final=True)
+                    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+                    raw_pending += str(chunk)
+                flush_ready_raw()
 
-                while "\n" in pending:
-                    line, pending = pending.split("\n", 1)
-                    self._log_tail.append(channel, line)
-                if len(pending) > 32 * 1024 + overlap:
-                    flush_at = len(pending) - overlap
-                    self._log_tail.append(channel, pending[:flush_at])
-                    pending = pending[flush_at:]
-            if pending:
-                self._log_tail.append(channel, pending)
+            sanitize_raw_prefix(raw_pending)
+            store_sanitized(credential_redactor.feed("", final=True))
+            if output_pending:
+                log_tail.append(channel, output_pending)
         except Exception as exc:
-            self._log_tail.append(channel, f"<log drain failed: {type(exc).__name__}>")
+            log_tail.append(channel, f"<log drain failed: {type(exc).__name__}>")
         finally:
             try:
                 stream.close()
@@ -852,14 +1409,24 @@ class OwnedProcessController:
         process: subprocess.Popen[bytes],
         identity: ProcessIdentity,
     ) -> None:
-        thread = threading.Thread(
-            target=self._monitor,
-            args=(process, identity),
-            name=f"llamacpp-monitor-{identity.pid}",
-            daemon=True,
-        )
-        self._monitor_thread = thread
-        thread.start()
+        monitor_pidfd: int | None = None
+        if sys.platform.startswith("linux"):
+            monitor_pidfd = self._duplicate_linux_pidfd()
+            if monitor_pidfd is None:
+                raise RuntimeError("launch-time pidfd is unavailable for the process monitor")
+        try:
+            thread = threading.Thread(
+                target=self._monitor,
+                args=(process, identity, monitor_pidfd),
+                name=f"llamacpp-monitor-{identity.pid}",
+                daemon=True,
+            )
+            self._monitor_thread = thread
+            thread.start()
+        except Exception:
+            if monitor_pidfd is not None:
+                os.close(monitor_pidfd)
+            raise
 
     def _start_descendant_tracker(
         self,
@@ -884,7 +1451,7 @@ class OwnedProcessController:
     ) -> None:
         while True:
             with self._lock:
-                if self._identity != identity:
+                if self._process is not process or self._identity != identity:
                     return
             self._collect_windows_descendants(identity)
             exited = process.poll() is not None
@@ -892,21 +1459,30 @@ class OwnedProcessController:
                 return
             time.sleep(0.05)
 
-    def _monitor(self, process: subprocess.Popen[bytes], identity: ProcessIdentity) -> None:
+    def _monitor(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity,
+        monitor_pidfd: int | None = None,
+    ) -> None:
         if os.name != "nt":
-            self._monitor_posix(process, identity)
+            try:
+                self._monitor_posix(process, identity, monitor_pidfd)
+            finally:
+                if monitor_pidfd is not None:
+                    os.close(monitor_pidfd)
             return
 
         try:
             returncode = process.wait()
         except Exception as exc:
             with self._lock:
-                if self._identity == identity:
+                if self._process is process and self._identity == identity:
                     self._last_error = f"process monitor failed: {type(exc).__name__}"
             return
 
         with self._lock:
-            if self._identity != identity:
+            if self._process is not process or self._identity != identity:
                 return
             self._returncode = returncode
             if self._stopping:
@@ -925,17 +1501,19 @@ class OwnedProcessController:
                 self._kill_validated_descendants(identity)
         except Exception as exc:
             with self._lock:
-                self._last_error += f"; descendant cleanup failed ({type(exc).__name__})"
+                if self._process is process and self._identity == identity:
+                    self._last_error += f"; descendant cleanup failed ({type(exc).__name__})"
 
     def _monitor_posix(
         self,
         process: subprocess.Popen[bytes],
         identity: ProcessIdentity,
+        monitor_pidfd: int | None = None,
     ) -> None:
         """Observe exit without reaping, clean the anchored group, then reap."""
 
         try:
-            wait_result, already_reaped = self._wait_for_posix_exit(identity)
+            wait_result, already_reaped = self._wait_for_posix_exit(identity, monitor_pidfd)
             observed_returncode = self._waitid_returncode(wait_result)
         except Exception as exc:
             with self._lock:
@@ -965,14 +1543,29 @@ class OwnedProcessController:
 
             errors: list[str] = []
             remaining: tuple[int, ...] = ()
-            if already_reaped or not self._posix_group_authority_matches(identity):
+            proof = self._prove_posix_group_authority(identity)
+            if already_reaped or proof.state is _PosixAuthorityState.INVALID:
                 # An external waiter or SIGCHLD policy has already destroyed the
                 # group-generation anchor.  Retire the PGID and fail closed.  A
                 # cached numeric PID/PGID is not authority to signal anything.
-                self._retire_reaped_posix_authority(process, identity)
+                self._retire_reaped_posix_authority(
+                    process,
+                    identity,
+                    externally_reaped=already_reaped or "ECHILD" in proof.reason,
+                    stable_pidfd=monitor_pidfd,
+                )
                 remaining = (identity.pid,)
                 errors.append(
-                    "POSIX group authority was externally reaped; refusing descendant cleanup"
+                    "POSIX group authority is invalid; refusing descendant cleanup "
+                    f"({proof.reason})"
+                )
+            elif proof.state is _PosixAuthorityState.INDETERMINATE:
+                # Preserve the unreaped anchor and cached authority so a later
+                # explicit stop can retry after a transient inspection failure.
+                remaining = (identity.pid,)
+                errors.append(
+                    "POSIX group authority is indeterminate; retaining it for retry "
+                    f"({proof.reason})"
                 )
             else:
                 signal_failed = False
@@ -1002,17 +1595,32 @@ class OwnedProcessController:
                 if errors:
                     self._last_error += "; descendant cleanup incomplete: " + "; ".join(errors)
 
-    def _wait_for_posix_exit(self, identity: ProcessIdentity) -> tuple[Any | None, bool]:
+    def _wait_for_posix_exit(
+        self,
+        identity: ProcessIdentity,
+        monitor_pidfd: int | None = None,
+    ) -> tuple[Any | None, bool]:
         """Observe child exit without consuming the zombie group leader."""
 
         waitid = getattr(os, "waitid", None)
-        required = ("P_PID", "WEXITED", "WNOWAIT")
-        if waitid is not None and all(hasattr(os, name) for name in required):
+        if sys.platform.startswith("linux") and monitor_pidfd is None:
+            raise RuntimeError("launch-time monitor pidfd is unavailable")
+        wait_pidfd = monitor_pidfd
+
+        required = ("WEXITED", "WNOWAIT")
+        can_wait = bool(
+            waitid is not None
+            and all(hasattr(os, name) for name in required)
+            and (wait_pidfd is not None or hasattr(os, "P_PID"))
+        )
+        if sys.platform.startswith("linux") and not can_wait:
+            raise RuntimeError("pidfd monitor waitid is unavailable; refusing numeric fallback")
+        if can_wait and (wait_pidfd is not None or not sys.platform.startswith("linux")):
             while True:
                 try:
                     result = waitid(
-                        os.P_PID,
-                        identity.pid,
+                        (getattr(os, "P_PIDFD", 3) if wait_pidfd is not None else os.P_PID),
+                        wait_pidfd if wait_pidfd is not None else identity.pid,
                         os.WEXITED | os.WNOWAIT,
                     )
                     if result is None or int(getattr(result, "si_pid", -1)) != identity.pid:
@@ -1021,13 +1629,19 @@ class OwnedProcessController:
                 except InterruptedError:
                     continue
                 except ChildProcessError:
-                    # A third-party SIGCHLD policy or waiter consumed it.  From
-                    # this point onward the numeric PGID is not signal authority.
+                    # A third-party SIGCHLD policy or waiter consumed the
+                    # exact launch generation.
                     return None, True
                 except OSError as exc:
                     if exc.errno == errno.ECHILD:
                         return None, True
+                    if exc.errno == errno.EBADF:
+                        raise _PosixPidfdInvalid("monitor pidfd became invalid (EBADF)") from exc
                     if exc.errno in {errno.ENOSYS, errno.EINVAL}:
+                        if sys.platform.startswith("linux"):
+                            raise RuntimeError(
+                                "pidfd monitor waitid is unsupported; refusing numeric fallback"
+                            ) from exc
                         break
                     raise
 
@@ -1064,6 +1678,118 @@ class OwnedProcessController:
             return -int(status)
         raise RuntimeError(f"waitid returned unsupported exit code {code!r}")
 
+    def _consume_posix_exit(
+        self,
+        process: subprocess.Popen[bytes],
+        identity: ProcessIdentity | None,
+        timeout: float,
+        *,
+        stable_pidfd: int | None = None,
+    ) -> int | None:
+        """Consume only the exact launch generation and retire its pidfd."""
+
+        if not sys.platform.startswith("linux"):
+            returncode = process.wait(timeout=timeout)
+            with self._lock:
+                if self._process is process and self._identity == identity:
+                    self._returncode = returncode
+                    self._posix_root_reaped = True
+            return returncode
+
+        with self._lock:
+            if self._process is not process or self._identity != identity:
+                raise RuntimeError("POSIX process ownership changed before reap")
+            pidfd = self._posix_pidfd
+        if pidfd is None and stable_pidfd is None:
+            raise RuntimeError("launch-time pidfd is unavailable for stable reap")
+
+        waitid = getattr(os, "waitid", None)
+        if waitid is None or not all(hasattr(os, name) for name in ("WEXITED", "WNOHANG")):
+            raise RuntimeError("pidfd waitid consumption is unavailable")
+
+        close_wait_pidfd = False
+        if stable_pidfd is not None:
+            wait_pidfd = stable_pidfd
+            try:
+                os.fstat(wait_pidfd)
+            except OSError as exc:
+                if exc.errno == errno.EBADF:
+                    raise _PosixPidfdInvalid("stable reap pidfd became invalid (EBADF)") from exc
+                raise
+        else:
+            try:
+                wait_pidfd = self._duplicate_linux_pidfd(pidfd)
+            except OSError as exc:
+                raise RuntimeError("failed to duplicate reap pidfd") from exc
+            if wait_pidfd is None:
+                raise RuntimeError("pidfd authority changed before stable reap")
+            close_wait_pidfd = True
+
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                try:
+                    result = waitid(
+                        getattr(os, "P_PIDFD", 3),
+                        wait_pidfd,
+                        os.WEXITED | os.WNOHANG,
+                    )
+                except InterruptedError:
+                    continue
+                except ChildProcessError:
+                    result = None
+                    externally_reaped = True
+                    break
+                except OSError as exc:
+                    if exc.errno == errno.ECHILD:
+                        result = None
+                        externally_reaped = True
+                        break
+                    if exc.errno == errno.EBADF:
+                        raise _PosixPidfdInvalid("reap pidfd became invalid (EBADF)") from exc
+                    raise RuntimeError(
+                        f"pidfd waitid consumption failed ({type(exc).__name__})"
+                    ) from exc
+
+                externally_reaped = False
+                observed_pid = int(getattr(result, "si_pid", 0)) if result is not None else 0
+                if observed_pid:
+                    if observed_pid != process.pid:
+                        raise RuntimeError("pidfd waitid returned an unexpected child identity")
+                    break
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(getattr(process, "args", process.pid), timeout)
+                time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+        finally:
+            if close_wait_pidfd:
+                os.close(wait_pidfd)
+
+        if externally_reaped:
+            # Mirror subprocess' ECHILD convention only to prevent a later
+            # Popen destructor from issuing waitpid against a recycled PID.
+            returncode = self._returncode
+            if getattr(process, "returncode", None) is None:
+                process.returncode = returncode if returncode is not None else 0
+        else:
+            returncode = self._waitid_returncode(result)
+            process.returncode = returncode
+
+        with self._lock:
+            if self._process is process and self._identity == identity:
+                if returncode is not None:
+                    self._returncode = returncode
+                self._posix_root_reaped = True
+                if externally_reaped:
+                    self._posix_cleanup_uncertain = True
+                    diagnostic = "exact pidfd exit status was consumed externally (ECHILD)"
+                    if not self._last_error:
+                        self._last_error = diagnostic
+                    elif diagnostic not in self._last_error:
+                        self._last_error += f"; {diagnostic}"
+        if pidfd is not None:
+            self._close_posix_pidfd(pidfd)
+        return returncode
+
     def _posix_exit_observed_nowait(
         self,
         process: subprocess.Popen[bytes],
@@ -1072,47 +1798,91 @@ class OwnedProcessController:
         """Check root exit without reaping; fail closed if another waiter reaped it."""
 
         waitid = getattr(os, "waitid", None)
-        required = ("P_PID", "WEXITED", "WNOWAIT", "WNOHANG")
-        if waitid is not None and all(hasattr(os, name) for name in required):
-            while True:
-                try:
-                    result = waitid(
-                        os.P_PID,
-                        identity.pid,
-                        os.WEXITED | os.WNOWAIT | os.WNOHANG,
-                    )
-                    if result is None or int(getattr(result, "si_pid", 0)) == 0:
+        wait_pidfd: int | None = None
+        if sys.platform.startswith("linux"):
+            try:
+                wait_pidfd = self._duplicate_linux_pidfd()
+            except OSError as exc:
+                raise RuntimeError("failed to duplicate observation pidfd") from exc
+        try:
+            required = ("WEXITED", "WNOWAIT", "WNOHANG")
+            can_wait = bool(
+                waitid is not None
+                and all(hasattr(os, name) for name in required)
+                and (wait_pidfd is not None or hasattr(os, "P_PID"))
+            )
+            if sys.platform.startswith("linux") and (wait_pidfd is None or not can_wait):
+                raise RuntimeError(
+                    "pidfd observation waitid is unavailable; refusing numeric fallback"
+                )
+            if can_wait and (wait_pidfd is not None or not sys.platform.startswith("linux")):
+                while True:
+                    try:
+                        result = waitid(
+                            (getattr(os, "P_PIDFD", 3) if wait_pidfd is not None else os.P_PID),
+                            wait_pidfd if wait_pidfd is not None else identity.pid,
+                            os.WEXITED | os.WNOWAIT | os.WNOHANG,
+                        )
+                        if result is None or int(getattr(result, "si_pid", 0)) == 0:
+                            return False
+                        if int(getattr(result, "si_pid", -1)) != identity.pid:
+                            raise RuntimeError("waitid returned an unexpected child identity")
+                        returncode = self._waitid_returncode(result)
+                        with self._lock:
+                            if self._process is process and self._identity == identity:
+                                self._returncode = returncode
+                        return True
+                    except InterruptedError:
+                        continue
+                    except ChildProcessError:
+                        self._retire_reaped_posix_authority(
+                            process,
+                            identity,
+                            externally_reaped=True,
+                        )
                         return False
-                    if int(getattr(result, "si_pid", -1)) != identity.pid:
-                        raise RuntimeError("waitid returned an unexpected child identity")
-                    returncode = self._waitid_returncode(result)
-                    with self._lock:
-                        if self._process is process and self._identity == identity:
-                            self._returncode = returncode
-                    return True
-                except InterruptedError:
-                    continue
-                except ChildProcessError:
-                    self._retire_reaped_posix_authority(process, identity)
-                    return False
-                except OSError as exc:
-                    if exc.errno == errno.ECHILD:
-                        self._retire_reaped_posix_authority(process, identity)
-                        return False
-                    if exc.errno in {errno.ENOSYS, errno.EINVAL}:
-                        break
-                    raise
+                    except OSError as exc:
+                        if exc.errno == errno.ECHILD:
+                            self._retire_reaped_posix_authority(
+                                process,
+                                identity,
+                                externally_reaped=True,
+                            )
+                            return False
+                        if exc.errno == errno.EBADF:
+                            raise _PosixPidfdInvalid(
+                                "observation pidfd became invalid (EBADF)"
+                            ) from exc
+                        if exc.errno in {errno.ENOSYS, errno.EINVAL}:
+                            if sys.platform.startswith("linux"):
+                                raise RuntimeError(
+                                    "pidfd observation waitid is unsupported; "
+                                    "refusing numeric fallback"
+                                ) from exc
+                            break
+                        raise
+        finally:
+            if wait_pidfd is not None:
+                os.close(wait_pidfd)
 
         try:
             root = self._psutil.Process(identity.pid)
             if not self._identity_matches(root, identity):
-                self._retire_reaped_posix_authority(process, identity)
+                self._retire_reaped_posix_authority(
+                    process,
+                    identity,
+                    externally_reaped=True,
+                )
                 return False
             return root.status() == getattr(self._psutil, "STATUS_ZOMBIE", "zombie")
         except self._psutil.AccessDenied:
             return False
         except (ProcessLookupError, self._psutil.NoSuchProcess):
-            self._retire_reaped_posix_authority(process, identity)
+            self._retire_reaped_posix_authority(
+                process,
+                identity,
+                externally_reaped=True,
+            )
             return False
 
     def _stop_posix_group(
@@ -1125,7 +1895,8 @@ class OwnedProcessController:
         with self._posix_cleanup_lock:
             errors: list[str] = []
             escalated = False
-            if not self._posix_group_authority_matches(identity):
+            proof = self._prove_posix_group_authority(identity)
+            if proof.state is not _PosixAuthorityState.VALID:
                 if (
                     self._posix_root_reaped
                     and self._process_group_id is None
@@ -1133,7 +1904,8 @@ class OwnedProcessController:
                 ):
                     return False, (), errors
                 errors.append(
-                    "POSIX group authority is unavailable; refusing to signal a numeric PGID"
+                    "POSIX group authority is unavailable; refusing to signal a numeric PGID "
+                    f"({proof.state.value}: {proof.reason})"
                 )
                 remaining = () if self._posix_root_reaped else (identity.pid,)
                 return False, remaining, errors
@@ -1156,10 +1928,14 @@ class OwnedProcessController:
                 escalated = True
                 kill_failed = False
                 try:
-                    if self._posix_group_authority_matches(identity):
+                    proof = self._prove_posix_group_authority(identity)
+                    if proof.state is _PosixAuthorityState.VALID:
                         self._signal_posix_group(signal.SIGKILL, identity)
                     else:
-                        raise RuntimeError("POSIX group authority expired before escalation")
+                        raise RuntimeError(
+                            "POSIX group authority is unavailable before escalation "
+                            f"({proof.state.value}: {proof.reason})"
+                        )
                 except ProcessLookupError:
                     pass
                 except Exception as exc:
@@ -1182,44 +1958,552 @@ class OwnedProcessController:
             return escalated, remaining, errors
 
     def _signal_posix_group(self, sig: int, identity: ProcessIdentity) -> None:
-        pgid = self._process_group_id
-        if pgid is None or pgid == os.getpgrp():
-            raise RuntimeError("refusing to signal an unowned process group")
-        if not self._posix_group_authority_matches(identity):
-            raise RuntimeError("refusing to signal a process group after leader authority expired")
-        # The original setsid leader is still our live or unreaped-zombie child.
-        # POSIX therefore prevents this numeric PGID from being recycled.
-        os.killpg(pgid, sig)
+        with self._posix_cleanup_lock:
+            proof = self._prove_posix_group_authority(identity)
+            if proof.state is not _PosixAuthorityState.VALID or proof.pgid is None:
+                raise RuntimeError(
+                    "refusing to signal a process group with "
+                    f"{proof.state.value} authority ({proof.reason})"
+                )
+            with self._lock:
+                pidfd = self._posix_pidfd
+            if pidfd is not None and sys.platform.startswith("linux"):
+                # Linux 6.9 added an atomic process-group signal flag for
+                # pidfd_send_signal.  Older kernels return EINVAL, in which
+                # case the already-validated killpg fallback remains necessary.
+                if self._signal_linux_pidfd_group(pidfd, sig):
+                    return
 
-    def _posix_group_authority_matches(self, identity: ProcessIdentity) -> bool:
+                fallback_proof = self._prove_posix_group_authority(identity)
+                with self._lock:
+                    current_pidfd = self._posix_pidfd
+                if (
+                    fallback_proof.state is not _PosixAuthorityState.VALID
+                    or fallback_proof.pgid != proof.pgid
+                    or current_pidfd != pidfd
+                ):
+                    raise RuntimeError("POSIX group authority changed after pidfd signal fallback")
+
+            # On older kernels the exact child relationship, creation identity,
+            # and current PGID were checked immediately before this call.
+            os.killpg(proof.pgid, sig)
+
+    @staticmethod
+    def _signal_linux_pidfd_group(pidfd: int, sig: int) -> bool:
+        """Atomically signal a pidfd's process group when the kernel supports it."""
+
+        try:
+            OwnedProcessController._send_linux_pidfd_signal(pidfd, sig, 1 << 2)
+        except OSError as exc:
+            if exc.errno in {errno.EINVAL, errno.ENOSYS}:
+                return False
+            raise
+        return True
+
+    @staticmethod
+    def _signal_linux_pidfd_process(pidfd: int, sig: int) -> None:
+        """Signal only the exact process generation represented by a pidfd."""
+
+        OwnedProcessController._send_linux_pidfd_signal(pidfd, sig, 0)
+
+    @staticmethod
+    def _send_linux_pidfd_signal(pidfd: int, sig: int, flags: int) -> None:
+        """Invoke pidfd_send_signal through libc or an architecture-checked syscall."""
+
+        import ctypes
+
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            sender = libc.pidfd_send_signal
+        except AttributeError:
+            supported_machines = {
+                "aarch64",
+                "amd64",
+                "arm64",
+                "armv7l",
+                "armv8l",
+                "i386",
+                "i486",
+                "i586",
+                "i686",
+                "ppc64",
+                "ppc64le",
+                "riscv64",
+                "s390x",
+                "x86_64",
+            }
+            if os.uname().machine.lower() not in supported_machines:
+                raise OSError(errno.ENOSYS, "unknown pidfd_send_signal syscall ABI") from None
+            syscall = libc.syscall
+            syscall.restype = ctypes.c_long
+            ctypes.set_errno(0)
+            result = int(
+                syscall(
+                    ctypes.c_long(424),
+                    ctypes.c_int(pidfd),
+                    ctypes.c_int(sig),
+                    ctypes.c_void_p(),
+                    ctypes.c_uint(flags),
+                )
+            )
+        else:
+            sender.argtypes = [
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                ctypes.c_uint,
+            ]
+            sender.restype = ctypes.c_int
+            ctypes.set_errno(0)
+            result = int(sender(pidfd, sig, None, flags))
+
+        if result == 0:
+            return
+        error = ctypes.get_errno() or errno.EIO
+        if error == errno.ESRCH:
+            raise ProcessLookupError(error, os.strerror(error))
+        raise OSError(error, os.strerror(error))
+
+    def _prove_posix_group_authority(
+        self,
+        identity: ProcessIdentity,
+    ) -> _PosixAuthorityProof:
         with self._lock:
+            process = self._process
             pgid = self._process_group_id
-            return bool(
+            pidfd = self._posix_pidfd
+            cached_authority = bool(
                 self._posix_authority_valid
+                and process is not None
+                and process.pid == identity.pid
                 and pgid is not None
                 and pgid != os.getpgrp()
                 and self._identity == identity
             )
+        if not cached_authority:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "cached launch authority is unavailable",
+            )
+        if sys.platform.startswith("linux") and pidfd is None:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                "launch-time pidfd generation is unavailable",
+            )
 
-    def _owned_posix_group_members(self, identity: ProcessIdentity) -> tuple[int, ...]:
-        if not self._posix_group_authority_matches(identity):
-            return ()
+        # This is a kernel-level child relationship check, not a timestamp
+        # heuristic.  A recycled PID is not our child and produces ECHILD.
+        child_proof = self._probe_posix_child_anchor(identity.pid, pidfd)
+        if child_proof.state is not _PosixAuthorityState.VALID:
+            return self._finish_posix_authority_proof(identity, pgid, child_proof)
+
+        identity_proof = self._probe_posix_leader_identity(identity, pgid)
+        create_time_drift = bool(
+            identity_proof.state is _PosixAuthorityState.INVALID
+            and identity_proof.reason == "leader creation identity changed"
+            and identity_proof.pgid == pgid
+        )
+        if identity_proof.state is not _PosixAuthorityState.VALID and not create_time_drift:
+            return self._finish_posix_authority_proof(identity, pgid, identity_proof)
+
+        # Narrow the unavoidable check-to-kill interval by proving the kernel
+        # child relationship again after psutil and getpgid inspection.
+        final_child_proof = self._probe_posix_child_anchor(identity.pid, pidfd)
+        if final_child_proof.state is not _PosixAuthorityState.VALID:
+            return self._finish_posix_authority_proof(identity, pgid, final_child_proof)
+
         with self._lock:
-            pgid = self._process_group_id
-        if pgid is None:
-            return ()
-        members: list[int] = []
-        for proc in self._psutil.process_iter(["pid", "status"]):
+            if (
+                self._identity != identity
+                or self._process_group_id != pgid
+                or self._posix_pidfd != pidfd
+            ):
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    "launch authority changed during validation",
+                )
+
+        if create_time_drift:
+            # psutil derives wall-clock create_time from platform boot-time
+            # data.  WSL can rebase that value while the process remains the
+            # same unreaped kernel child.  Two waitid proofs plus current PGID
+            # safely override only this wall-clock drift.
+            if pidfd is None:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    "create-time drift requires the launch-time pidfd generation",
+                )
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.VALID,
+                "stable pidfd generation and process group override create-time drift",
+                pgid,
+            )
+
+        return _PosixAuthorityProof(
+            _PosixAuthorityState.VALID,
+            "exact child identity and process group match",
+            pgid,
+        )
+
+    def _prove_provisional_posix_authority(
+        self,
+        process: subprocess.Popen[bytes],
+        pgid: int,
+    ) -> _PosixAuthorityProof:
+        with self._lock:
+            pidfd = self._posix_pidfd
+            cached = bool(
+                self._process is process
+                and self._identity is None
+                and self._posix_authority_valid
+                and self._process_group_id == pgid
+                and pgid == process.pid
+                and pgid != os.getpgrp()
+            )
+        if not cached:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "cached provisional authority is unavailable",
+            )
+        if sys.platform.startswith("linux") and pidfd is None:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                "launch-time pidfd is unavailable",
+            )
+
+        first = self._probe_posix_child_anchor(process.pid, pidfd)
+        if first.state is not _PosixAuthorityState.VALID:
+            return self._finish_provisional_posix_authority(process, pgid, first)
+
+        try:
+            current_pgid = os.getpgid(process.pid)
+        except ProcessLookupError:
+            proof = _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "provisional leader disappeared",
+            )
+            return self._finish_provisional_posix_authority(process, pgid, proof)
+        except PermissionError as exc:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                f"provisional PGID access was denied ({type(exc).__name__})",
+            )
+        except OSError as exc:
+            if exc.errno == errno.ESRCH:
+                proof = _PosixAuthorityProof(
+                    _PosixAuthorityState.INVALID,
+                    "provisional leader disappeared",
+                )
+                return self._finish_provisional_posix_authority(process, pgid, proof)
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                f"provisional PGID inspection failed ({type(exc).__name__})",
+            )
+        if current_pgid != pgid:
+            proof = _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "provisional leader process group changed",
+            )
+            return self._finish_provisional_posix_authority(process, pgid, proof)
+
+        final = self._probe_posix_child_anchor(process.pid, pidfd)
+        if final.state is not _PosixAuthorityState.VALID:
+            return self._finish_provisional_posix_authority(process, pgid, final)
+        with self._lock:
+            if (
+                self._process is not process
+                or self._identity is not None
+                or self._process_group_id != pgid
+                or self._posix_pidfd != pidfd
+            ):
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    "provisional authority changed during validation",
+                )
+        return _PosixAuthorityProof(
+            _PosixAuthorityState.VALID,
+            "launch-time pidfd and process group match",
+            pgid,
+        )
+
+    def _finish_provisional_posix_authority(
+        self,
+        process: subprocess.Popen[bytes],
+        pgid: int,
+        proof: _PosixAuthorityProof,
+    ) -> _PosixAuthorityProof:
+        if proof.state is not _PosixAuthorityState.INVALID:
+            return proof
+        retired = False
+        with self._lock:
+            if (
+                self._process is process
+                and self._identity is None
+                and self._process_group_id == pgid
+            ):
+                self._process_group_id = None
+                self._posix_authority_valid = False
+                self._posix_cleanup_uncertain = True
+                retired = True
+        if retired:
+            self._close_posix_pidfd()
+        return proof
+
+    def _probe_posix_leader_identity(
+        self,
+        identity: ProcessIdentity,
+        pgid: int,
+    ) -> _PosixAuthorityProof:
+        def read_identity() -> tuple[float, str] | _PosixAuthorityProof:
             try:
+                leader = self._psutil.Process(identity.pid)
+                if leader.pid != identity.pid:
+                    return _PosixAuthorityProof(
+                        _PosixAuthorityState.INVALID,
+                        "leader PID no longer matches",
+                    )
+                created = float(leader.create_time())
+                status = str(leader.status())
+            except (ProcessLookupError, self._psutil.NoSuchProcess):
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INVALID,
+                    "leader process is missing",
+                )
+            except (PermissionError, self._psutil.AccessDenied) as exc:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    f"leader identity access was denied ({type(exc).__name__})",
+                )
+            except Exception as exc:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    f"leader identity inspection failed ({type(exc).__name__})",
+                )
+
+            # Some Linux exits transiently report STATUS_DEAD before becoming a
+            # normal waitable zombie.  Status alone is not generation identity;
+            # the non-reaping waitid child proof below decides whether this PID
+            # still anchors our launch.
+            return created, status
+
+        first = read_identity()
+        if isinstance(first, _PosixAuthorityProof):
+            return first
+        first_created, _ = first
+
+        try:
+            current_pgid = os.getpgid(identity.pid)
+        except ProcessLookupError:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "leader disappeared while checking its process group",
+            )
+        except PermissionError as exc:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                f"leader process-group access was denied ({type(exc).__name__})",
+            )
+        except OSError as exc:
+            if exc.errno == errno.ESRCH:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INVALID,
+                    "leader disappeared while checking its process group",
+                )
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                f"leader process-group inspection failed ({type(exc).__name__})",
+            )
+        if current_pgid != pgid:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "leader process group changed",
+            )
+
+        # Re-read after getpgid so a PID replacement cannot satisfy one half of
+        # the proof with the old generation and the other half with the new one.
+        second = read_identity()
+        if isinstance(second, _PosixAuthorityProof):
+            return second
+        second_created, _ = second
+        if (
+            abs(first_created - identity.create_time) >= 0.01
+            or abs(second_created - identity.create_time) >= 0.01
+        ):
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "leader creation identity changed",
+                pgid,
+            )
+        return _PosixAuthorityProof(
+            _PosixAuthorityState.VALID,
+            "leader creation identity and process group match",
+            pgid,
+        )
+
+    def _probe_posix_child_anchor(
+        self,
+        pid: int,
+        pidfd: int | None,
+    ) -> _PosixAuthorityProof:
+        waitid = getattr(os, "waitid", None)
+        required = ("P_PID", "WEXITED", "WNOWAIT", "WNOHANG")
+        if waitid is None or not all(hasattr(os, name) for name in required):
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                "non-reaping waitid child inspection is unavailable",
+            )
+
+        wait_pidfd: int | None = None
+        if sys.platform.startswith("linux"):
+            if pidfd is None:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    "launch-time pidfd generation is unavailable",
+                )
+            try:
+                wait_pidfd = self._duplicate_linux_pidfd(pidfd)
+            except OSError as exc:
+                if exc.errno == errno.EBADF:
+                    return _PosixAuthorityProof(
+                        _PosixAuthorityState.INVALID,
+                        "stable leader pidfd descriptor is invalid (EBADF)",
+                    )
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    f"pidfd duplication failed ({type(exc).__name__})",
+                )
+            if wait_pidfd is None:
+                return _PosixAuthorityProof(
+                    _PosixAuthorityState.INDETERMINATE,
+                    "pidfd authority changed before child inspection",
+                )
+
+        try:
+            while True:
+                try:
+                    idtype = getattr(os, "P_PIDFD", 3) if wait_pidfd is not None else os.P_PID
+                    identifier = wait_pidfd if wait_pidfd is not None else pid
+                    result = waitid(
+                        idtype,
+                        identifier,
+                        os.WEXITED | os.WNOWAIT | os.WNOHANG,
+                    )
+                    break
+                except InterruptedError:
+                    continue
+                except ChildProcessError:
+                    return _PosixAuthorityProof(
+                        _PosixAuthorityState.INVALID,
+                        "leader is no longer our unreaped child (ECHILD)",
+                    )
+                except PermissionError as exc:
+                    return _PosixAuthorityProof(
+                        _PosixAuthorityState.INDETERMINATE,
+                        f"child inspection access was denied ({type(exc).__name__})",
+                    )
+                except OSError as exc:
+                    if exc.errno == errno.ECHILD:
+                        return _PosixAuthorityProof(
+                            _PosixAuthorityState.INVALID,
+                            "stable leader generation is no longer waitable (ECHILD)",
+                        )
+                    if exc.errno == errno.EBADF:
+                        return _PosixAuthorityProof(
+                            _PosixAuthorityState.INVALID,
+                            "stable leader pidfd descriptor is invalid (EBADF)",
+                        )
+                    return _PosixAuthorityProof(
+                        _PosixAuthorityState.INDETERMINATE,
+                        f"child inspection failed ({type(exc).__name__})",
+                    )
+        finally:
+            if wait_pidfd is not None:
+                os.close(wait_pidfd)
+
+        observed_pid = int(getattr(result, "si_pid", 0)) if result is not None else 0
+        if observed_pid == 0:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.VALID,
+                "leader remains our live child",
+            )
+        if observed_pid != pid:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INVALID,
+                "waitid returned a different child",
+            )
+
+        terminal_codes = {
+            getattr(os, name)
+            for name in ("CLD_EXITED", "CLD_KILLED", "CLD_DUMPED")
+            if hasattr(os, name)
+        }
+        code = getattr(result, "si_code", None)
+        if not terminal_codes or code not in terminal_codes:
+            return _PosixAuthorityProof(
+                _PosixAuthorityState.INDETERMINATE,
+                f"waitid returned unsupported child state {code!r}",
+            )
+        return _PosixAuthorityProof(
+            _PosixAuthorityState.VALID,
+            "leader remains our unreaped zombie child",
+        )
+
+    def _finish_posix_authority_proof(
+        self,
+        identity: ProcessIdentity,
+        pgid: int,
+        proof: _PosixAuthorityProof,
+    ) -> _PosixAuthorityProof:
+        if proof.state is not _PosixAuthorityState.INVALID:
+            return proof
+
+        retired = False
+        with self._lock:
+            if self._identity == identity and self._process_group_id == pgid:
+                self._process_group_id = None
+                self._posix_authority_valid = False
+                self._posix_cleanup_uncertain = True
+                retired = True
+        if retired:
+            self._close_posix_pidfd()
+        return proof
+
+    def _live_posix_group_members(self, pgid: int) -> _PosixGroupInspection:
+        members: list[int] = []
+        denied = False
+        try:
+            processes = tuple(self._psutil.process_iter(["pid", "status"]))
+        except (PermissionError, self._psutil.AccessDenied):
+            return _PosixGroupInspection(
+                _PosixAuthorityState.INDETERMINATE,
+                (),
+                "process enumeration access was denied",
+            )
+        for proc in processes:
+            try:
+                if os.getpgid(proc.pid) != pgid:
+                    continue
                 info = getattr(proc, "info", {}) or {}
                 status = info.get("status") or proc.status()
                 if status == getattr(self._psutil, "STATUS_ZOMBIE", "zombie"):
                     continue
-                if os.getpgid(proc.pid) == pgid:
-                    members.append(proc.pid)
-            except (ProcessLookupError, self._psutil.NoSuchProcess, self._psutil.AccessDenied):
+                members.append(proc.pid)
+            except (PermissionError, self._psutil.AccessDenied):
+                denied = True
+            except (ProcessLookupError, self._psutil.NoSuchProcess):
                 continue
-        return tuple(sorted(set(members)))
+        unique_members = tuple(sorted(set(members)))
+        if denied:
+            return _PosixGroupInspection(
+                _PosixAuthorityState.INDETERMINATE,
+                unique_members,
+                "at least one process could not be inspected",
+            )
+        return _PosixGroupInspection(
+            _PosixAuthorityState.VALID,
+            unique_members,
+            "process-group membership inspection completed",
+        )
 
     def _retire_posix_authority_and_reap(
         self,
@@ -1234,7 +2518,15 @@ class OwnedProcessController:
             self._process_group_id = None
             self._posix_authority_valid = False
         try:
-            returncode = process.wait(timeout=1.0)
+            returncode = self._consume_posix_exit(process, identity, 1.0)
+        except _PosixPidfdInvalid:
+            with self._lock:
+                if self._process is process and self._identity == identity:
+                    self._process_group_id = None
+                    self._posix_authority_valid = False
+                    self._posix_cleanup_uncertain = True
+            self._close_posix_pidfd()
+            raise
         except subprocess.TimeoutExpired:
             # The leader was unexpectedly still live.  It has not been reaped,
             # so restoring the same anchored PGID is safe for a later retry.
@@ -1243,15 +2535,23 @@ class OwnedProcessController:
                     self._process_group_id = saved_pgid
                     self._posix_authority_valid = saved_authority
             raise
+        except Exception:
+            with self._lock:
+                if self._process is process and self._identity == identity:
+                    self._process_group_id = saved_pgid
+                    self._posix_authority_valid = saved_authority
+            raise
         with self._lock:
             if self._process is process and self._identity == identity:
                 self._returncode = returncode
-                self._posix_root_reaped = True
 
     def _retire_reaped_posix_authority(
         self,
         process: subprocess.Popen[bytes],
         identity: ProcessIdentity,
+        *,
+        externally_reaped: bool = False,
+        stable_pidfd: int | None = None,
     ) -> None:
         with self._lock:
             if self._process is not process or self._identity != identity:
@@ -1259,16 +2559,35 @@ class OwnedProcessController:
             self._process_group_id = None
             self._posix_authority_valid = False
             self._posix_cleanup_uncertain = True
-        try:
-            returncode = process.wait(timeout=0)
-        except ChildProcessError:
-            returncode = process.returncode
+            pidfd = self._posix_pidfd
+
+        if pidfd is not None or stable_pidfd is not None:
+            try:
+                returncode = self._consume_posix_exit(
+                    process,
+                    identity,
+                    0.0,
+                    stable_pidfd=stable_pidfd,
+                )
+            except _PosixPidfdInvalid:
+                self._close_posix_pidfd()
+                returncode = self._returncode
+                root_reaped = False
+            except (RuntimeError, subprocess.TimeoutExpired):
+                returncode = self._returncode
+                root_reaped = False
+            else:
+                root_reaped = True
+        elif externally_reaped:
+            returncode = self._returncode
+            if getattr(process, "returncode", None) is None:
+                process.returncode = returncode if returncode is not None else 0
             root_reaped = True
-        except subprocess.TimeoutExpired:
-            returncode = process.returncode
-            root_reaped = False
         else:
-            root_reaped = True
+            # The exact generation token was lost before its status could be
+            # consumed.  Never fall back to Popen.wait() on the numeric PID.
+            returncode = self._returncode
+            root_reaped = False
         with self._lock:
             if self._process is process and self._identity == identity:
                 if returncode is not None:
@@ -1419,10 +2738,40 @@ class OwnedProcessController:
                 if saw_empty:
                     return ()
                 saw_empty = True
+                if time.monotonic() >= deadline:
+                    continue
             else:
                 saw_empty = False
             if time.monotonic() >= deadline:
                 return remaining
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+
+    def _wait_for_posix_pgid_empty(
+        self,
+        pgid: int,
+        timeout: float,
+    ) -> _PosixGroupInspection:
+        deadline = time.monotonic() + timeout
+        saw_empty = False
+        while True:
+            inspection = self._live_posix_group_members(pgid)
+            if inspection.state is _PosixAuthorityState.INDETERMINATE:
+                saw_empty = False
+                if time.monotonic() >= deadline:
+                    return inspection
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+                continue
+            remaining = inspection.members
+            if not remaining:
+                if saw_empty:
+                    return inspection
+                saw_empty = True
+                if time.monotonic() >= deadline:
+                    continue
+            else:
+                saw_empty = False
+            if time.monotonic() >= deadline:
+                return inspection
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
 
     def _remaining_owned_pids(self, identity: ProcessIdentity) -> tuple[int, ...]:
@@ -1432,8 +2781,16 @@ class OwnedProcessController:
                 for item in self._validated_windows_tree(identity)
                 if self._identity_alive(item)
             )
-        if self._posix_group_authority_matches(identity):
-            return self._owned_posix_group_members(identity)
+        proof = self._prove_posix_group_authority(identity)
+        if proof.state is _PosixAuthorityState.VALID and proof.pgid is not None:
+            inspection = self._live_posix_group_members(proof.pgid)
+            if inspection.state is _PosixAuthorityState.VALID:
+                return inspection.members
+            return (identity.pid,)
+        if proof.state is _PosixAuthorityState.INDETERMINATE:
+            # This is a retryable diagnostic sentinel.  The anchor remains
+            # unreaped and broad authority remains cached but cannot be used.
+            return (identity.pid,)
         if self._posix_cleanup_uncertain:
             # Diagnostic sentinel only.  This PID is not signal authority and
             # may already be absent; it keeps cleanup visibly incomplete.

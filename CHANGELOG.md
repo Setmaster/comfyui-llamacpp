@@ -6,7 +6,9 @@
 
 - Replaced process-name cleanup with positively owned process trees.
 - Added deterministic stop escalation and terminal process barriers.
-- Added bounded, continuously drained, secret-redacted server logs.
+- Added bounded, continuously drained server logs with generation-bound,
+  streaming credential redaction across byte, UTF-8, line, and size
+  boundaries.
 - Added one coordinator for start, stop, replacement, router mutation,
   generation leases, explicit release, and native Comfy release.
 - Integrated successful Comfy `/free` and `/api/free` requests while retaining
@@ -22,8 +24,11 @@
   nonterminal outcomes.
 - Kept runtime diagnostics responsive during startup, shutdown, release, and
   router barriers without weakening lifecycle serialization.
-- Kept an exited POSIX group leader unreaped until descendant cleanup finishes,
-  preventing stale numeric process-group IDs from targeting a later process.
+- Added a pre-spawn Linux pidfd capability gate, launch-generation pidfd
+  ownership, `waitid(P_PIDFD)` observation and consumption, and atomic
+  pidfd process-group signaling on Linux 6.9 or newer. Older kernels use a
+  freshly revalidated `killpg` fallback. Missing, invalid, externally reaped,
+  or indeterminate authority fails closed without numeric PID fallback.
 
 ### llama.cpp protocol
 

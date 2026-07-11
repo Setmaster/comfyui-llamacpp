@@ -123,6 +123,19 @@ unique process group. `llama-server` runs as its child. This is expected and is
 what lets a hard Comfy owner exit trigger kernel-backed group cleanup. Process
 commands remain reported as the original redacted llama-server command.
 
+## Linux reports that pidfd support is required
+
+Linux lifecycle ownership requires both `pidfd_open` and
+`waitid(P_PIDFD)`. Those interfaces are normally available on Linux 5.4 or
+newer, although a distribution can backport them. The pack probes the actual
+interfaces before spawning a server, so this error does not leave a new
+llama.cpp process behind.
+
+Upgrade the host kernel, or run ComfyUI on Windows or another supported POSIX
+host. Do not bypass this check with numeric PID cleanup. The stable pidfd is
+what lets the pack reject PID reuse and consume only the process generation it
+launched.
+
 ## A VLM fails or ignores the image
 
 - Select the matching direct-mode projector explicitly.
