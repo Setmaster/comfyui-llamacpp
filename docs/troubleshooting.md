@@ -57,6 +57,144 @@ Read the bounded log tail in Server Status. Reduce `context_size`, use a smaller
 quantization, reduce numeric GPU layers, or validate the model with the same
 `llama-server` from a terminal.
 
+On Windows, deploy the complete matching release set into a clean directory.
+Current releases can require companion files such as
+`llama-server-impl.dll`, `llama-common.dll`, `ggml-cuda.dll`, and the separate
+CUDA runtime archive. Replacing only the executable, or overlaying a new build
+onto an older directory, can leave an incompatible mixture.
+
+## Roll back the pinned Windows runtime
+
+The plugin checkout and llama.cpp binary are separate rollback surfaces. To
+return the maintainer workstation from b9957 to the preserved b8261 runtime:
+
+1. Finish or interrupt every workflow, stop the owned llama.cpp runtime, and
+   exit ComfyUI.
+2. Confirm no `llama-server.exe` process remains and no Comfy Python command
+   is still running `main.py`.
+3. Preserve b9957 by renaming the complete directory, then rename the complete
+   b8261 rollback directory into the stable `C:\llama` path.
+
+```powershell
+$ErrorActionPreference = "Stop"
+$active = "C:\llama"
+$rollback = "C:\llama-b8261-e22cd0aa1-rollback-20260711"
+$standby = "C:\llama-b9957-c4ae9a88f-standby"
+$activeHash = "20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab"
+$rollbackHash = "2ede8d4d32308a8e625f804e7a39e9e78f2031495617ae6ae6432116a335bc44"
+
+$busy = Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -eq "llama-server.exe" -or
+    (($_.Name -eq "python.exe" -or $_.Name -eq "pythonw.exe") -and
+     $_.CommandLine -match "(^|\s)main\.py(\s|$)")
+}
+if ($busy) { throw "Stop ComfyUI and llama-server before rollback" }
+
+if (-not (Test-Path -LiteralPath $active -PathType Container)) {
+    throw "Active b9957 directory is missing: $active"
+}
+if (-not (Test-Path -LiteralPath $rollback -PathType Container)) {
+    throw "Rollback b8261 directory is missing: $rollback"
+}
+if (Test-Path -LiteralPath $standby) {
+    throw "Refusing to overwrite existing standby directory: $standby"
+}
+if ((Get-FileHash "$active\llama-server.exe" -Algorithm SHA256).Hash -ne $activeHash) {
+    throw "Active b9957 executable hash does not match the pinned build"
+}
+if ((Get-FileHash "$rollback\llama-server.exe" -Algorithm SHA256).Hash -ne $rollbackHash) {
+    throw "Rollback b8261 executable hash does not match the preserved build"
+}
+
+Rename-Item -LiteralPath $active -NewName (Split-Path -Leaf $standby)
+$rollbackMoved = $false
+try {
+    Rename-Item -LiteralPath $rollback -NewName (Split-Path -Leaf $active)
+    $rollbackMoved = $true
+
+    $version = & "$active\llama-server.exe" --version
+    if ($LASTEXITCODE -ne 0) { throw "b8261 version check failed" }
+    $devices = & "$active\llama-server.exe" --list-devices
+    if ($LASTEXITCODE -ne 0) { throw "b8261 device check failed" }
+    $version
+    $devices
+} catch {
+    if ($rollbackMoved -and (Test-Path -LiteralPath $active) -and
+        -not (Test-Path -LiteralPath $rollback)) {
+        Rename-Item -LiteralPath $active -NewName (Split-Path -Leaf $rollback)
+    }
+    if ((Test-Path -LiteralPath $standby) -and
+        -not (Test-Path -LiteralPath $active)) {
+        Rename-Item -LiteralPath $standby -NewName (Split-Path -Leaf $active)
+    }
+    throw
+}
+```
+
+The expected rollback build is `8261 (e22cd0aa1)`. Its executable SHA-256 is
+`2ede8d4d32308a8e625f804e7a39e9e78f2031495617ae6ae6432116a335bc44`.
+Restart ComfyUI only after those checks pass.
+
+b8261 is an emergency direct-compatibility rollback. It passed the 0.3 direct
+smoke, but it predates the current router model-management APIs and fixes used
+by the full 0.3 feature set. For a fully matched 0.2.1 stack, also switch the
+plugin checkout to `master` using the
+[migration rollback](migration-0.3.md#rollback).
+
+To restore b9957 later, stop ComfyUI and every llama-server process again,
+rename the active b8261 directory back to
+`llama-b8261-e22cd0aa1-rollback-20260711`, and rename
+`llama-b9957-c4ae9a88f-standby` to `llama`. Verify build
+`9957 (c4ae9a88f)`, executable SHA-256
+`20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab`,
+and CUDA device discovery before restarting ComfyUI. Never overlay the two
+directories or delete either generation before acceptance.
+
+## Non-ASCII output is corrupted
+
+If text such as `café` becomes `cafÃ©`, the SSE stream was decoded with the
+wrong inferred charset. The current 0.3 development branch reads raw SSE bytes
+and decodes them explicitly as UTF-8. Confirm the installed checkout includes
+commit `e077006` or later, restart ComfyUI, and repeat with a short exact
+Unicode response.
+
+If corruption remains, call the same server once with non-streaming output. A
+correct non-streaming response plus a corrupted workflow response points to
+the client path. Corruption in both responses points to the model, prompt
+template, proxy, or server build.
+
+## RTX 50-series diagnostic overrides
+
+llama.cpp b9957 enables newer Blackwell paths by default. If a workload has a
+repeatable CUDA correctness failure, try one upstream diagnostic override at a
+time before starting ComfyUI:
+
+```bat
+set GGML_CUDA_PDL=0
+```
+
+or:
+
+```bat
+set LLAMA_ATTN_ROT_DISABLE=1
+```
+
+Those `set` commands affect only that Command Prompt. Launch ComfyUI from the
+same window so its llama-server child inherits the variable. In PowerShell,
+use one of the equivalent session-scoped forms before launching ComfyUI:
+
+```powershell
+$env:GGML_CUDA_PDL = "0"
+# or
+$env:LLAMA_ATTN_ROT_DISABLE = "1"
+```
+
+The first disables CUDA Programmatic Dependent Launch. The second disables the
+attention rotation used with supported quantized KV-cache paths. These are
+diagnostic environment variables, not recommended defaults or node settings.
+Remove the override after isolating the problem, and record the exact model,
+quantization, context, KV-cache type, and llama.cpp build.
+
 ## Model dropdown is empty
 
 Place models under `ComfyUI/models/LLM/gguf`, or configure an `LLM` root in

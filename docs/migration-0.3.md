@@ -167,3 +167,8 @@ git pull --ff-only origin master
 
 Restart ComfyUI after switching. Workflows saved with new 0.3-only nodes will
 show those nodes as missing on 0.2.1; released legacy nodes remain compatible.
+
+Switching the plugin does not switch the external llama.cpp binary. On the
+maintainer Windows host, follow the separate
+[pinned runtime rollback procedure](troubleshooting.md#roll-back-the-pinned-windows-runtime)
+to exchange the complete b9957 and b8261 directories without overlaying them.

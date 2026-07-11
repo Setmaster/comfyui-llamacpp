@@ -98,6 +98,16 @@ from source, or install it with your platform package manager. On Windows, the
 official CUDA release consists of the matching llama binary and CUDA runtime
 archives. Extract both into the same directory.
 
+The exact Windows reference used for 0.3 validation is
+[llama.cpp b9957](https://github.com/ggml-org/llama.cpp/releases/tag/b9957)
+(`c4ae9a88f`) on an RTX 5090. Its two CUDA 13.3 assets are
+`llama-b9957-bin-win-cuda-13.3-x64.zip` and
+`cudart-llama-bin-win-cuda-13.3-x64.zip`. This is a tested pin, not the
+permanent minimum supported build. b9957 uses companion implementation DLLs
+that are absent from the older b8261 deployment, so deploy the complete release
+into an empty directory. Do not replace only `llama-server.exe` or overlay it
+onto an older llama.cpp directory.
+
 The start nodes resolve the executable in this order:
 
 1. The node's `binary_path` input.
@@ -303,7 +313,7 @@ Importable workflow examples live in [`examples/`](examples/). The
 [user acceptance checklist](docs/user-acceptance.md) covers upgrade
 compatibility, direct and router release, Windows ownership, VLMs, structured
 output, attached endpoints, and the final diffusion-to-LLM-to-diffusion GPU
-handoff. The completed pre-handoff evidence is recorded in the
+handoff. The pre-handoff and post-deployment evidence is recorded in the
 [0.3 validation report](docs/validation-0.3.md).
 
 For failures, start with **llama.cpp Server Status** and

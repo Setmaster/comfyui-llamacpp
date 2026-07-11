@@ -56,24 +56,27 @@ The detailed adaptive graph and wave checklist live in the change bundle. The in
 
 ## Closeout
 
-- Final reviewed runtime revision:
+- Pre-handoff reviewed runtime revision:
   `9f83be46dbe2986600aa46d3890590931dffe26b`.
-- Cross-platform test and closeout revision:
+- Current post-deployment runtime revision:
+  `e077006a46d842172c10a42d3ac8b95e848c4edd`.
+- Pre-handoff cross-platform test and closeout revision:
   `fc3e25220cf53f5f86ff458afcdeb94659d35ca3`.
 - Full evidence and known boundaries: `docs/validation-0.3.md`.
 - Maintainer acceptance gate: `docs/user-acceptance.md`.
-- Local verification: 382 tests and 36 subtests, 10 frontend tests, Ruff,
+- Local verification: 384 tests and 36 subtests, 10 frontend tests, Ruff,
   formatting, JavaScript syntax, package build, fresh-wheel import, and current
   Comfy Registry validation passed.
-- Native Windows verification: 338 tests and 36 subtests passed, with 44 POSIX
+- Native Windows verification: 340 tests and 36 subtests passed, with 44 POSIX
   or Linux-only tests skipped.
 - The 150-case process suite passed 20 consecutive repetitions, for 3,000
   executions. Exhaustive and randomized streaming-redaction tests covered byte,
   UTF-8, line, size, credential, Authorization, and launch-generation
   boundaries. Warmed real process cycles returned to the exact descriptor
   baseline.
-- GitHub Actions run `29135583640` passed all seven Linux, Windows, and quality
-  jobs for `fc3e252`.
+- GitHub Actions run `29148828684` passed all seven Linux, Windows, and quality
+  jobs for the current runtime revision `e077006`. Pre-handoff run
+  `29135583640` passed the same matrix for `fc3e252`.
 - Real ComfyUI 0.27.0 and llama.cpp b9957 passed direct, router, VLM,
   structured-output, attached-endpoint, deferred-release, native-release,
   Windows Job, responsive-status, abrupt-owner, and RTX 5090 two-sided GPU
@@ -82,6 +85,10 @@ The detailed adaptive graph and wave checklist live in the change bundle. The in
   removed the PID and returned the runtime to idle without escalation.
 - Independent lifecycle, compatibility, and release audits found and closed
   every P0/P1 issue. No known P0/P1 remains.
+- Post-handoff runtime deployment pinned the active Windows RTX 5090 host to
+  llama.cpp b9957 CUDA 13.3 and preserved b8261 as a complete versioned
+  rollback. Live testing found and fixed SSE UTF-8 charset inference in
+  `e077006`, then repeated direct, router, VLM, and native-release checks.
 - `master` and `origin/master` remained at
   `1e3b7a5a2d90ee3a40cf40e01784de1c343ea85a`; no merge was performed.
 - Registry publication remains outside this objective. The `setmaster`

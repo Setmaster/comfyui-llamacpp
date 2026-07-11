@@ -4,10 +4,37 @@ Run this checklist on the final `dev` revision before blessing a merge to
 `master`. Record the commit, ComfyUI version, frontend version, llama.cpp build,
 OS, GPU, driver, and model names.
 
+## Maintainer runtime pin
+
+For the current RTX 5090 acceptance pass, use the exact already-validated
+Windows [llama.cpp b9957](https://github.com/ggml-org/llama.cpp/releases/tag/b9957)
+CUDA 13.3 build:
+
+- Build: `9957 (c4ae9a88f)`.
+- Active executable: `C:\llama\llama-server.exe`.
+- Executable SHA-256:
+  `20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab`.
+- `llama-b9957-bin-win-cuda-13.3-x64.zip` SHA-256:
+  `80400f829152003afb5be2f6250d199c9f46301b0b453c66a207d7b1cb1292fc`.
+- `cudart-llama-bin-win-cuda-13.3-x64.zip` SHA-256:
+  `1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e`.
+- Preserved rollback:
+  `C:\llama-b8261-e22cd0aa1-rollback-20260711`.
+- Procedure: [roll back the pinned Windows runtime](troubleshooting.md#roll-back-the-pinned-windows-runtime).
+
+Deploy both b9957 archives as one clean 55-file directory. Do not overlay the
+old directory. Keep the rollback until this checklist is accepted. Newer
+upstream tags are outside this pinned pass unless they receive a separate live
+validation.
+
 ## 1. Upgrade and workflow compatibility
 
 - [ ] Switch the installed custom node checkout to final `origin/dev`.
 - [ ] Install requirements with ComfyUI's Python and restart ComfyUI.
+- [ ] Confirm `C:\llama\llama-server.exe --version` and its SHA-256 match the
+      maintainer runtime pin above.
+- [ ] Confirm the preserved b8261 rollback still reports build 8261 before
+      beginning model tests.
 - [ ] On Linux, confirm the host provides `pidfd_open` and
       `waitid(P_PIDFD)` (normally Linux 5.4 or newer), or confirm startup fails
       before spawning a server with the documented capability error.
@@ -20,10 +47,12 @@ OS, GPU, driver, and model names.
 
 ## 2. Direct text and utility nodes
 
-- [ ] Start a direct text model with the final current llama-server build.
+- [ ] Start a direct text model with the pinned b9957 llama-server build.
 - [ ] Server Status shows `owned=true`, `mode=direct`, the expected binary
       identity, and the expected process ownership primitive.
 - [ ] Basic Prompt returns response text and a true success output.
+- [ ] An exact response containing `café`, `naïve`, and `日本語` round-trips
+      without mojibake.
 - [ ] Token Count returns a plausible nonzero count.
 - [ ] Model Info returns the selected model and a nonzero context length.
 - [ ] Prompt Output displays the full response after switching browser tabs.

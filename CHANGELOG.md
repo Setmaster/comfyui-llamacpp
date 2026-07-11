@@ -41,6 +41,8 @@
   for llama.cpp's one-level `--models-dir` router scan.
 - Added robust SSE parsing, terminal success semantics, partial-output metadata,
   cancellation, response closure, and exact output-whitespace preservation.
+- Added explicit UTF-8 decoding from raw chat and router SSE bytes instead of
+  relying on `requests` charset inference for `text/event-stream`.
 - Added current build-number parsing, symbolic GPU-layer capability checks, and
   protection against typed/security flags being duplicated in `extra_args`.
 

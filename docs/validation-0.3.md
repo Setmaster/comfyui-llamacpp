@@ -9,6 +9,9 @@ Cross-platform test and closeout revision:
 identical to `9f83be4`; it makes two kernel-dependent pidfd tests deterministic
 and archives the completed change bundle.
 
+Current post-deployment runtime revision:
+`e077006a46d842172c10a42d3ac8b95e848c4edd` on `dev`.
+
 This report records the automated and live evidence gathered before handing
 0.3 to the maintainer for final user acceptance. It is not a substitute for
 the maintainer's checklist in [user acceptance](user-acceptance.md).
@@ -25,6 +28,8 @@ the maintainer's checklist in [user acceptance](user-acceptance.md).
 | Driver | 591.86 |
 | Broad validation llama.cpp | Official Windows CUDA release b9957 |
 | Final direct-smoke llama.cpp | Windows CUDA build 8261 (`e22cd0aa1`) |
+| Post-handoff active llama.cpp | Windows CUDA 13.3 build 9957 (`c4ae9a88f`) |
+| Preserved rollback | `C:\llama-b8261-e22cd0aa1-rollback-20260711` |
 | Direct text model | Qwen3.5 4B Q5_K_M GGUF |
 | Router and VLM model | Qwen3-VL 4B Q8_0 GGUF with matching Q8_0 projector |
 
@@ -190,6 +195,57 @@ port also closed, and no validation llama-server remained.
 - The package has Registry-oriented metadata but has not been published to the
   Comfy Registry. Publishing and any merge to `master` are outside this
   validation handoff.
+
+## Post-handoff b9957 deployment and UTF-8 repair
+
+On 2026-07-11, the active Windows runtime was upgraded from b8261 to the exact
+b9957 CUDA 13.3 artifact used by the broad validation. Both official archives
+matched the SHA-256 digests published by GitHub and passed ZIP integrity
+checks. Their clean extraction contained 55 files and matched the reference
+directory byte for byte. The active executable reports `9957 (c4ae9a88f)` and
+has SHA-256
+`20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab`.
+
+The previous 44-file b8261 directory was preserved by same-volume rename at
+`C:\llama-b8261-e22cd0aa1-rollback-20260711`. Its executable still reports
+`8261 (e22cd0aa1)` and has SHA-256
+`2ede8d4d32308a8e625f804e7a39e9e78f2031495617ae6ae6432116a335bc44`.
+No files from the prior release were overlaid or deleted.
+
+The active b9957 deployment then passed real ComfyUI graph tests for:
+
+- Exact direct text generation, Model Info build identity, a second startup
+  after release, native Comfy unload, and explicit runtime release.
+- Native router start, 14-model catalog discovery, exact model loading, text
+  generation, explicit unload, model reload, catalog reload, native Comfy
+  unload while preserving the router PID, and explicit router stop.
+- ADV++ Image2Prompt through the Qwen3-VL 4B Q8 model and matching Q8
+  projector. The known fixture was correctly described with its straw
+  sombrero and cyan, blue, and turquoise details.
+- Windows Job ownership with `windows_job_assigned=true`, no descendant
+  fallback, terminal PID disappearance, closed ports, and no remaining file
+  handles on `C:\llama` after teardown.
+- Directional GPU memory recovery. One direct native release returned from
+  19,324 MiB to 15,180 MiB against a 15,130 MiB pre-load observation. One
+  router native release returned from 14,031 MiB to 7,966 MiB while retaining
+  the router PID.
+
+Live Unicode testing exposed a client bug: b9957's raw non-streaming response
+was valid UTF-8, while `requests` inferred Latin-1 for an SSE response without
+an explicit charset. Commit `e077006` now consumes raw SSE bytes through the
+existing explicit UTF-8 decoder for both chat and router model events. Two
+byte-level regressions were added. After updating the installed Comfy checkout
+and restarting, an exact workflow response containing `café`, `naïve`, and
+`日本語` returned without corruption, and the VLM fixture passed again with
+no functional regression.
+
+The repair passed 384 Linux tests plus 36 subtests, and 340 native Windows
+tests plus 36 subtests with 44 platform skips. It also passed 10 frontend
+tests, Ruff, formatting, JavaScript syntax, package build, Registry validation,
+and whitespace checks. An independent review found no blocking issue. The
+installed Comfy checkout and `origin/dev` both contained `e077006` for the
+post-fix live pass. GitHub Actions run `29148828684` passed all seven jobs for
+that exact commit: Windows, quality, and Linux Python 3.10 through 3.14.
 
 ## Maintainer handoff
 
