@@ -212,7 +212,10 @@ def iter_model_events(
         def check() -> None:
             _check_stream(active, cancel, "model event stream")
 
-        for event in iter_sse_events(response.iter_lines(decode_unicode=True), check=check):
+        # SSE is UTF-8 by specification, but requests can infer Latin-1 when a
+        # text/event-stream response omits an explicit charset.  Keep the raw
+        # bytes so iter_sse_events applies our deterministic UTF-8 decoder.
+        for event in iter_sse_events(response.iter_lines(decode_unicode=False), check=check):
             if not event.data:
                 continue
             try:
@@ -348,7 +351,10 @@ def stream_chat(
         def check() -> None:
             _check_stream(active, cancel, "chat stream")
 
-        for event in iter_sse_events(response_obj.iter_lines(decode_unicode=True), check=check):
+        # Do not delegate SSE charset selection to requests.  Current
+        # llama-server streams UTF-8 but may omit ``charset=utf-8``, which lets
+        # requests decode non-ASCII model output as Latin-1.
+        for event in iter_sse_events(response_obj.iter_lines(decode_unicode=False), check=check):
             data = event.data.strip()
             if not data:
                 continue

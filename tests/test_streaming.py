@@ -26,6 +26,7 @@ class FakeResponse:
         self.headers = {}
         self.before_line = before_line
         self.closed = False
+        self.iter_lines_decode_unicode: list[bool] = []
 
     def json(self):
         if self.payload is None:
@@ -33,10 +34,16 @@ class FakeResponse:
         return self.payload
 
     def iter_lines(self, decode_unicode=False):
+        self.iter_lines_decode_unicode.append(decode_unicode)
         for line in self.lines:
             if self.before_line:
                 self.before_line()
-            yield line
+            if decode_unicode and isinstance(line, bytes):
+                # Match the failure mode requests exposes for
+                # text/event-stream without an explicit charset.
+                yield line.decode("latin-1")
+            else:
+                yield line
 
     def close(self) -> None:
         self.closed = True
@@ -179,6 +186,29 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertEqual(result.response, "  leading\ntrailing  ")
         self.assertEqual(result.thinking, "\nthink tail\n")
         self.assertFalse(result.partial)
+
+    def test_utf8_sse_bytes_do_not_use_requests_inferred_latin1(self) -> None:
+        expected = "café — naïve – it’s"
+        payload = {
+            "choices": [
+                {
+                    "delta": {"content": expected},
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+        response = FakeResponse(
+            [
+                f"data: {json.dumps(payload, ensure_ascii=False)}".encode(),
+                b"",
+            ]
+        )
+
+        result = stream_chat(self.connection(), {"stream": True}, session=FakeSession(response))
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.response, expected)
+        self.assertEqual(response.iter_lines_decode_unicode, [False])
 
     def test_finish_reason_is_terminal_without_done_marker(self) -> None:
         response = FakeResponse(
@@ -363,6 +393,30 @@ class ModelEventStreamingTests(unittest.TestCase):
             )
         )
         self.assertEqual(events[0].state, ModelState.FAILED)
+
+    def test_model_event_stream_uses_explicit_utf8_decoding(self) -> None:
+        payload = {
+            "model": "modèle—vision",
+            "event": "status_change",
+            "data": {"status": "loaded"},
+        }
+        response = FakeResponse(
+            [
+                f"data: {json.dumps(payload, ensure_ascii=False)}".encode(),
+                b"",
+            ]
+        )
+
+        events = list(
+            iter_model_events(
+                ConnectionConfig("http://localhost:8080"),
+                session=FakeSession(response),
+                timeout=5,
+            )
+        )
+
+        self.assertEqual(events[0].model, "modèle—vision")
+        self.assertEqual(response.iter_lines_decode_unicode, [False])
 
 
 if __name__ == "__main__":
