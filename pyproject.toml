@@ -14,7 +14,6 @@ authors = [{ name = "Setmaster" }]
 keywords = ["comfyui", "gguf", "llama.cpp", "llm", "local-ai", "vlm"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Environment :: GPU",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",

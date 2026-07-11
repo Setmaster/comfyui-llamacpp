@@ -795,6 +795,9 @@ def test_unexpected_group_leader_exit_cleans_surviving_owned_tree(
         )
         real_killpg(pgid, sig)
 
+    # This test inspects the checked pre-6.9 fallback's zombie anchor.
+    # Atomic pidfd group signaling is covered independently below.
+    monkeypatch.setattr(controller, "_signal_linux_pidfd_group", lambda _fd, _sig: False)
     monkeypatch.setattr(os, "killpg", observe_killpg)
 
     try:
@@ -2451,6 +2454,10 @@ def test_public_stop_retries_retained_provisional_pidfd_cleanup(monkeypatch) -> 
     pidfd = os.open("/dev/null", os.O_RDONLY)
     controller._posix_pidfd = pidfd
     monkeypatch.setattr(os, "getpgid", lambda _pid: process.pid)
+    # /dev/null is only a harmless descriptor for mocked waitid proofs.  Force
+    # the checked fallback so host kernel support cannot reinterpret it as a
+    # real pidfd during the group-signal syscall.
+    monkeypatch.setattr(controller, "_signal_linux_pidfd_group", lambda _fd, _sig: False)
     denied = True
 
     def fake_waitid(idtype, identifier, _options):

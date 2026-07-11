@@ -1,9 +1,9 @@
 # Active SOTA Refactor Plan
 
-Status: In progress
+Status: Complete
 Date: 2026-07-10
 Branch: `dev` (tracking `origin/dev`)
-Change bundle: `changes/2026-07-10-sota-refactor/`
+Change bundle: `changes/archive/2026-07-10-sota-refactor/`
 
 ## Objective
 
@@ -53,6 +53,31 @@ The detailed adaptive graph and wave checklist live in the change bundle. The in
 - Preserve legacy startup defaults even where current llama-server defaults differ. New behavior is opt-in and capability-gated.
 - Use one lifecycle coordinator for explicit nodes, native Comfy unload requests, shutdown, router residency, and active-generation leases.
 - Never stop or unload an attached external endpoint through an implicit Comfy lifecycle action.
+
+## Closeout
+
+- Final reviewed code revision: `1f01fc1d7cfc4ff5d12d3d256ddd5d14a4d313d0`.
+- Full evidence and known boundaries: `docs/validation-0.3.md`.
+- Maintainer acceptance gate: `docs/user-acceptance.md`.
+- Local verification: 248 tests and 36 subtests, 10 frontend tests, Ruff,
+  formatting, JavaScript syntax, package build, fresh-wheel import, and current
+  Comfy Registry validation passed.
+- Native Windows verification: 238 tests and 36 subtests passed, with ten
+  POSIX-only tests skipped.
+- GitHub Actions run `29130919137` passed all seven Linux, Windows, and quality
+  jobs for the exact code revision.
+- Real ComfyUI 0.27.0 and llama.cpp b9957 passed direct, router, VLM,
+  structured-output, attached-endpoint, deferred-release, native-release,
+  Windows Job, responsive-status, abrupt-owner, and RTX 5090 two-sided GPU
+  handoff validation. A final direct/native-free smoke also passed on the exact
+  code revision.
+- Independent lifecycle, compatibility, and release audits found and closed
+  every P0/P1 issue. No known P0/P1 remains.
+- `master` and `origin/master` remained at
+  `1e3b7a5a2d90ee3a40cf40e01784de1c343ea85a`; no merge was performed.
+- Registry publication remains outside this objective. The `setmaster`
+  publisher endpoint returned 404 during validation, so publisher setup is a
+  later external gate rather than a branch defect.
 
 ---
 

@@ -16,6 +16,8 @@ frontend during release validation.
 Model and projector names are local installation choices. After importing an
 example, select entries that exist in your configured `LLM/gguf` roots and set
 `binary_path` when `llama-server` is not on ComfyUI's `PATH`.
+The VLM example also records the release-validation input filename. Select an
+image from your own ComfyUI input folder before running it.
 
 The examples are demonstrations, not substitutes for the full
 [user acceptance checklist](../docs/user-acceptance.md).

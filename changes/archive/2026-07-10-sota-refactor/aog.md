@@ -1,7 +1,7 @@
 # Adaptive Objective Graph: SOTA Refactor
 
 Date: 2026-07-10
-Status: Active
+Status: Complete
 
 ## Stable objective
 
@@ -48,3 +48,6 @@ Parallel work is allowed after compatibility invariants and module ownership are
 ## Completion gate
 
 All requirements in `spec.md` are either proven by named evidence or explicitly documented as an unavoidable environment gap; no known P0 or P1 product defect remains; the full diff is reviewed; all commits are on and pushed to `origin/dev`; and `master` remains unchanged.
+
+Completed at code revision `1f01fc1`. Evidence and remaining platform
+boundaries are recorded in `docs/validation-0.3.md`.
