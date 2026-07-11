@@ -138,7 +138,7 @@ Restart ComfyUI only after those checks pass.
 b8261 is an emergency direct-compatibility rollback. It passed the 0.3 direct
 smoke, but it predates the current router model-management APIs and fixes used
 by the full 0.3 feature set. For a fully matched 0.2.1 stack, also switch the
-plugin checkout to `master` using the
+plugin checkout to the `0.2.1` tag using the
 [migration rollback](migration-0.3.md#rollback).
 
 To restore b9957 later, stop ComfyUI and every llama-server process again,
@@ -153,10 +153,9 @@ directories or delete either generation before acceptance.
 ## Non-ASCII output is corrupted
 
 If text such as `café` becomes `cafÃ©`, the SSE stream was decoded with the
-wrong inferred charset. The current 0.3 development branch reads raw SSE bytes
-and decodes them explicitly as UTF-8. Confirm the installed checkout includes
-commit `e077006` or later, restart ComfyUI, and repeat with a short exact
-Unicode response.
+wrong inferred charset. Version 0.3.0 and later read raw SSE bytes and decode
+them explicitly as UTF-8. Confirm the installed checkout is `0.3.0` or later,
+restart ComfyUI, and repeat with a short exact Unicode response.
 
 If corruption remains, call the same server once with non-streaming output. A
 correct non-streaming response plus a corrupted workflow response points to

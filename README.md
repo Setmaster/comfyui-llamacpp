@@ -10,8 +10,8 @@ only the `llama-server` process tree it started. ComfyUI's native **Unload
 Models** action also releases this pack's owned runtime. The existing explicit
 stop and unload nodes remain available.
 
-> The 0.3 refactor is being validated on the `dev` branch. `master` remains the
-> stable 0.2.1 line until hands-on testing is complete.
+The stable release is `0.3.0`. The `master` branch tracks the current stable
+line, while `dev` is reserved for later development.
 
 ## What it covers
 
@@ -53,11 +53,11 @@ No cloud service or cloud API key is required.
 
 ## Installation
 
-### Install the current development branch
+### Install the stable release from source
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone --branch dev https://github.com/Setmaster/comfyui-llamacpp.git
+git clone --branch master https://github.com/Setmaster/comfyui-llamacpp.git
 cd comfyui-llamacpp
 ```
 
@@ -81,8 +81,8 @@ Restart ComfyUI. Startup should report version `0.3.0` and 17 registered nodes.
 ```bash
 cd ComfyUI/custom_nodes/comfyui-llamacpp
 git fetch origin
-git switch dev
-git pull --ff-only origin dev
+git switch master
+git pull --ff-only origin master
 python -m pip install -r requirements.txt
 ```
 

@@ -146,7 +146,7 @@ leading and trailing whitespace exactly.
 ## Upgrade procedure
 
 1. Preserve a copy of important workflows.
-2. Switch the plugin checkout to `dev` and update dependencies.
+2. Switch the plugin checkout to `master` and update dependencies.
 3. Update `llama-server` to a current build.
 4. Restart ComfyUI and confirm 17 nodes register.
 5. Open each old workflow and verify model selections and visible image count.
@@ -157,16 +157,18 @@ leading and trailing whitespace exactly.
 
 ## Rollback
 
-The 0.3 work is isolated on `dev`. To return the plugin checkout to 0.2.1:
+To return the plugin checkout to the immutable 0.2.1 release:
 
 ```bash
-git fetch origin
-git switch master
-git pull --ff-only origin master
+git fetch --tags origin
+git switch --detach 0.2.1
+python -m pip install -r requirements.txt
 ```
 
-Restart ComfyUI after switching. Workflows saved with new 0.3-only nodes will
-show those nodes as missing on 0.2.1; released legacy nodes remain compatible.
+The detached checkout is intentional because 0.2.1 is a historical release.
+Return to the current stable line later with `git switch master`. Restart
+ComfyUI after either switch. Workflows saved with new 0.3-only nodes will show
+those nodes as missing on 0.2.1; released legacy nodes remain compatible.
 
 Switching the plugin does not switch the external llama.cpp binary. On the
 maintainer Windows host, follow the separate

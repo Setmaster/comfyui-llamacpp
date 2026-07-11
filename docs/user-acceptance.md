@@ -1,8 +1,9 @@
 # 0.3 user acceptance checklist
 
-Run this checklist on the final `dev` revision before blessing a merge to
-`master`. Record the commit, ComfyUI version, frontend version, llama.cpp build,
-OS, GPU, driver, and model names.
+Use this checklist to validate release `0.3.0` or a later candidate. Record the
+commit or tag, ComfyUI version, frontend version, llama.cpp build, OS, GPU,
+driver, and model names. The accepted 0.3.0 baseline is tag `0.3.0` at commit
+`365986af4a47426b5513b3cee917ebec93a4204a`.
 
 ## Maintainer runtime pin
 
@@ -29,7 +30,8 @@ validation.
 
 ## 1. Upgrade and workflow compatibility
 
-- [ ] Switch the installed custom node checkout to final `origin/dev`.
+- [ ] Switch the installed custom node checkout to tag `0.3.0` or the intended
+      candidate revision.
 - [ ] Install requirements with ComfyUI's Python and restart ComfyUI.
 - [ ] Confirm `C:\llama\llama-server.exe --version` and its SHA-256 match the
       maintainer runtime pin above.
@@ -133,7 +135,7 @@ validation.
 
 ## Acceptance result
 
-- Final dev commit:
+- Tested commit or tag:
 - Result: PASS / CONDITIONAL / FAIL
 - Failed checks:
 - Logs or screenshots:

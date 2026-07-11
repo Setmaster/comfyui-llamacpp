@@ -1,6 +1,12 @@
 # 0.3 validation report
 
 Date: 2026-07-10
+Released baseline: tag `0.3.0` at
+`365986af4a47426b5513b3cee917ebec93a4204a` on 2026-07-11
+
+The revision references below preserve the branch and commit context in which
+each validation pass originally ran.
+
 Validated runtime revision: `9f83be46dbe2986600aa46d3890590931dffe26b`
 on `dev`
 
@@ -12,9 +18,10 @@ and archives the completed change bundle.
 Current post-deployment runtime revision:
 `e077006a46d842172c10a42d3ac8b95e848c4edd` on `dev`.
 
-This report records the automated and live evidence gathered before handing
-0.3 to the maintainer for final user acceptance. It is not a substitute for
-the maintainer's checklist in [user acceptance](user-acceptance.md).
+This report records the automated and live evidence gathered before acceptance
+of the 0.3.0 baseline. The checklist in
+[user acceptance](user-acceptance.md) remains the repeatable test surface for
+new hosts and later candidates.
 
 ## Test environment
 
@@ -192,9 +199,10 @@ port also closed, and no validation llama-server remained.
 - Real macOS and BSD lifecycle execution was not available for this validation.
 - Driver telemetry can converge after a terminal process or router state.
   Functional allocation by the next GPU workload remains the final proof.
-- The package has Registry-oriented metadata but has not been published to the
-  Comfy Registry. Publishing and any merge to `master` are outside this
-  validation handoff.
+- At the time of the original validation, Registry publication and the merge
+  to `master` were still outside the handoff. The exact baseline was tagged,
+  released on GitHub, and promoted to `master` on 2026-07-11. Comfy Registry
+  publication remains pending first-time publisher setup.
 
 ## Post-handoff b9957 deployment and UTF-8 repair
 
@@ -247,8 +255,10 @@ installed Comfy checkout and `origin/dev` both contained `e077006` for the
 post-fix live pass. GitHub Actions run `29148828684` passed all seven jobs for
 that exact commit: Windows, quality, and Linux Python 3.10 through 3.14.
 
-## Maintainer handoff
+## Ongoing acceptance
 
-Run [the user acceptance checklist](user-acceptance.md) from the final remote
-`dev` revision. Record any differences in your own models, workflows, OS, and
-GPU environment. The branch should be merged only after that hands-on pass.
+Run [the user acceptance checklist](user-acceptance.md) from tag `0.3.0` or the
+candidate revision being evaluated. Record any differences in your own models,
+workflows, OS, and GPU environment. Release 0.3.0 was accepted at
+`365986af4a47426b5513b3cee917ebec93a4204a`; later releases should pass the
+relevant checklist before promotion.
