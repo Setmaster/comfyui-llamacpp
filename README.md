@@ -10,8 +10,8 @@ only the `llama-server` process tree it started. ComfyUI's native **Unload
 Models** action also releases this pack's owned runtime. The existing explicit
 stop and unload nodes remain available.
 
-The stable release is `0.3.0`. The `master` branch tracks the current stable
-line, while `dev` is reserved for later development.
+The stable release is `0.3.0`. It is available from the Comfy Registry and the
+`master` branch, while `dev` is reserved for later development.
 
 ## What it covers
 
@@ -52,6 +52,18 @@ database suite. It is a small local llama.cpp runtime and generation surface.
 No cloud service or cloud API key is required.
 
 ## Installation
+
+### Install from the Comfy Registry
+
+The Registry ID is `comfyui-llamacpp`. Install it with the Comfy CLI:
+
+```bash
+comfy node install comfyui-llamacpp
+```
+
+The public package page is
+[ComfyUI llama.cpp Suite](https://registry.comfy.org/nodes/comfyui-llamacpp).
+Restart ComfyUI after installation.
 
 ### Install the stable release from source
 

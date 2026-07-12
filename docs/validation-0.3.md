@@ -201,8 +201,13 @@ port also closed, and no validation llama-server remained.
   Functional allocation by the next GPU workload remains the final proof.
 - At the time of the original validation, Registry publication and the merge
   to `master` were still outside the handoff. The exact baseline was tagged,
-  released on GitHub, and promoted to `master` on 2026-07-11. Comfy Registry
-  publication remains pending first-time publisher setup.
+  released on GitHub, and promoted to `master` on 2026-07-11. Registry version
+  0.3.0 was published from the exact tag on 2026-07-12; its public page, install
+  metadata, and byte-identical CDN archive were verified while initial security
+  processing was pending. The version remained `NodeVersionStatusPending` with
+  no status reason through `2026-07-12T00:45:35Z`; the official backend applies
+  a 30-minute minimum age before an asynchronous scan with no published cadence
+  or completion SLA.
 
 ## Post-handoff b9957 deployment and UTF-8 repair
 
