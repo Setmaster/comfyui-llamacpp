@@ -279,7 +279,8 @@
         "",
         "upstream default",
         false,
-        ""
+        "",
+        "(auto)"
       ]
     },
     {
@@ -324,7 +325,9 @@
       "properties": {
         "Node name for S&R": "LlamaCppListModels"
       },
-      "widgets_values": []
+      "widgets_values": [
+        false
+      ]
     },
     {
       "id": 3,

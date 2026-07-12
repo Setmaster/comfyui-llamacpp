@@ -1,9 +1,13 @@
 import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
+import { restoreLegacyPromptOutput } from "./workflow_compat.js";
 
 function setupOutput(node) {
     if (node.constructor?.comfyClass !== "LlamaCppPromptOutput") return;
-    if (node.__llamacppOutputWidget) return;
+    if (node.__llamacppOutputWidget) {
+        restoreLegacyPromptOutput(node, node.__llamacppOutputWidget);
+        return;
+    }
 
     const widget = ComfyWidgets.STRING(
         node,
@@ -16,6 +20,7 @@ function setupOutput(node) {
     widget.serialize = false;
     widget.value = widget.value ?? "";
     node.__llamacppOutputWidget = widget;
+    restoreLegacyPromptOutput(node, widget);
 
     const originalOnExecuted = node.onExecuted;
     node.onExecuted = function (message) {

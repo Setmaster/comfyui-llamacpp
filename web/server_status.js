@@ -15,7 +15,8 @@ function setupStatusOutput(node) {
     widget.options.serialize = false;
     widget.serialize = false;
     widget.value = widget.value ?? "Run this node to refresh diagnostics.";
-    if (widget.inputEl) widget.inputEl.readOnly = true;
+    const element = "element" in widget ? widget.element : widget.inputEl;
+    if (element) element.readOnly = true;
     node.__llamacppStatusWidget = widget;
 
     const originalOnExecuted = node.onExecuted;
