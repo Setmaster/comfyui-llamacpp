@@ -30,33 +30,39 @@ Date: 2026-07-11
   validation, rich result, and terminal release integration.
 - [x] Add classic and Nodes 2.0 frontend controls for sampling, images, model
   discovery, seed, profile, live status, preview, and cancellation.
-- [ ] Add canonical workflows, App Mode surfaces, thumbnails, Start Here,
+- [x] Add canonical workflows, App Mode surfaces, thumbnails, Start Here,
   README, lifecycle, troubleshooting, migration, changelog, and validation docs.
-- [ ] Run focused and complete Python/JavaScript/lint/format/package/security
+- [x] Run focused and complete Python/JavaScript/lint/format/package/security
   gates plus extracted wheel/sdist tests.
-- [ ] Validate current Comfy classic and Nodes 2.0, including serialization,
-  reload, duplicate instances, subgraphs/list mapping, errors, and App Mode.
-- [ ] Validate real direct, VLM, structured, router, exact cancellation, native
+- [x] Validate current Comfy classic and Nodes 2.0, including serialization,
+  reload, duplicate instances, errors, and App Mode; retain automated execution
+  identity coverage for subgraphs and list mapping.
+- [x] Validate real direct, VLM, structured, router, exact cancellation, native
   free, scoped direct/router release, driver memory, and downstream allocation.
-- [ ] Run independent full-diff review and close every P0/P1/P2 finding.
-- [ ] Review `git diff`, commit/push `dev`, verify final CI, install exact head,
+- [x] Run independent full-diff review and close every P0/P1/P2 finding.
+- [x] Review `git diff`, commit/push `dev`, verify final CI, install exact head,
   prove `master`/`0.3.0` unchanged, update Project KB, and complete the goal.
 
 ## Verification commands
 
-- `PYTHONPATH=. .venv/bin/pytest -q`
+- `.venv/bin/python -m pytest -q`
 - `node --test tests/js/*.test.mjs`
 - `.venv/bin/ruff check .`
 - `.venv/bin/ruff format --check .`
 - `find web tests/js -name '*.js' -o -name '*.mjs' | xargs -n1 node --check`
-- `python -m build`
-- `python -m twine check dist/*`
+- `uv build`
+- `uvx twine check dist/*`
 - `COMFY_NO_TELEMETRY=1 uvx --from comfy-cli==1.12.0 comfy node validate`
 - `uvx pip-audit --requirement requirements.txt --progress-spinner off --strict`
-- `python tests/check_distribution.py`
+- `.venv/bin/python tests/check_distribution.py dist`
 - exact extracted wheel/sdist test commands recorded at closeout
-- exact Playwright/browser commands and artifacts recorded at closeout
-- exact real llama-server/GPU commands and evidence recorded at closeout
+- Playwright harness identities, browser evidence, and prompt IDs recorded in
+  the validation report and final Project KB recap
+- real llama-server/GPU evidence, prompt IDs, and artifacts recorded in the
+  validation report and final Project KB recap
+- `git diff --check`
+- `git status --short --branch`
+- `git rev-parse HEAD origin/dev origin/master '0.3.0^{}'`
 
 ## Rollback
 

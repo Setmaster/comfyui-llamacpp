@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-07-12 13:26:38Z
-Commit: b822d487c3f035128ac0ee673b94acb7e2d96c6b
+Generated: 2026-07-12 14:18:26Z
+Commit: e22518094af183e8f311dedda0739ebeb42f8526
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -18,7 +18,7 @@ Source: git ls-files (tracked files)
 - `.github/workflows`
 
 ## Directory structure (depth <= 3)
-- (root files): 17
+- (root files): 18
 - `tests/`: 35 files
   - `tests/js/`: 8 files
   - `tests/fixtures/`: 4 files
@@ -80,5 +80,6 @@ Source: git ls-files (tracked files)
 - `POST /models` downloads a model and `DELETE /models` deletes cache content. Neither endpoint is a compatibility fallback for load or unload.
 - Ten optional VLM image inputs must be declared in Python. Frontend JavaScript controls presentation only.
 - Research and implementation contract: `PLANS.md`,
+  `changes/2026-07-11-canonical-generate-work-block-b/`,
   `changes/2026-07-11-ux-work-block-a/`,
   `changes/archive/2026-07-10-sota-refactor/`, and `docs/research/`.

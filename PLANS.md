@@ -1,6 +1,6 @@
-# Active Canonical Generate Work Block B Plan
+# Completed Canonical Generate Work Block B Plan
 
-Status: Active
+Status: Complete
 Date: 2026-07-11
 Branch: `dev` (tracking `origin/dev`)
 Baseline: `7317660cdb0d6c17b4568ca2f80c5d2794699e61`
@@ -82,6 +82,23 @@ Stop condition:
 Human gate:
 
 - The user owns hands-on acceptance and any later merge to `master`.
+
+## Verification Closeout
+
+- Exact executable and package candidate
+  `e22518094af183e8f311dedda0739ebeb42f8526` passed the complete automated,
+  extracted-package, Registry-validation, browser, real-runtime,
+  GPU-allocation, and independent-review gates.
+- GitHub Actions run `29195799658` passed five Linux jobs, one Windows job, and
+  the quality job, including its package and frontend checks, at that revision.
+- The maintained Windows clone was clean at the same executable revision for
+  the final live router and both-renderer gates. It is advanced to the final
+  docs-only `dev` head during handoff without another runtime restart.
+- The exact evidence, prompt IDs, artifact hashes, environment, accepted
+  boundaries, and rollback state are recorded in
+  [`docs/validation-0.4.md`](docs/validation-0.4.md).
+- `master`, `origin/master`, and immutable tag `0.3.0` remained unchanged.
+  Version 0.4.0 was validated but not published.
 
 ## Frozen Product Decisions
 

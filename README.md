@@ -483,7 +483,7 @@ release validation.
 - [Canonical Generate validation report](docs/validation-0.4.md)
 - [User acceptance checklist](docs/user-acceptance.md)
 - [0.4 canonical user acceptance](docs/user-acceptance-0.4.md)
-- [0.3 changelog](CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
 - [Research and ecosystem analysis](docs/research/)
 
 ## License
