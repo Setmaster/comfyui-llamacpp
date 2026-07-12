@@ -64,6 +64,15 @@ Date: 2026-07-11
 - `git status --short --branch`
 - `git rev-parse HEAD origin/dev origin/master '0.3.0^{}'`
 
+## Evidence revisions
+
+- Executable and live-runtime candidate:
+  `e22518094af183e8f311dedda0739ebeb42f8526`.
+- Package-source candidate after the packaged README correction:
+  `af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97`.
+- The final docs-only repository and installed-clone SHA is recorded in the
+  Project KB closeout and maintainer handoff.
+
 ## Rollback
 
 - Revert the Work Block B commits on `dev`.

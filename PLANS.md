@@ -85,12 +85,15 @@ Human gate:
 
 ## Verification Closeout
 
-- Exact executable and package candidate
-  `e22518094af183e8f311dedda0739ebeb42f8526` passed the complete automated,
-  extracted-package, Registry-validation, browser, real-runtime,
-  GPU-allocation, and independent-review gates.
+- Exact executable candidate `e22518094af183e8f311dedda0739ebeb42f8526`
+  passed the automated, browser, real-runtime, GPU-allocation, and independent
+  review gates.
+- Package-source candidate `af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97`
+  differs only in packaged README metadata and passed the complete automated,
+  extracted-package, Registry-validation, dependency-audit, and CI gates.
 - GitHub Actions run `29195799658` passed five Linux jobs, one Windows job, and
-  the quality job, including its package and frontend checks, at that revision.
+  the quality job, including its package and frontend checks, at `e225180`.
+- Package-source run `29196489323` passed the same seven jobs at `af09ccb`.
 - The maintained Windows clone was clean at the same executable revision for
   the final live router and both-renderer gates. It is advanced to the final
   docs-only `dev` head during handoff without another runtime restart.

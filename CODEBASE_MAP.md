@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-07-12 14:18:26Z
-Commit: e22518094af183e8f311dedda0739ebeb42f8526
+Generated: 2026-07-12 14:35:07Z
+Commit: af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97
 Source: git ls-files (tracked files)
 
 ## Stack signals

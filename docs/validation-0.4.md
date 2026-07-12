@@ -9,8 +9,10 @@ rollback baseline.
 ## Candidate identity
 
 - Branch: `dev`
-- Validated executable and package revision:
+- Validated executable revision:
   `e22518094af183e8f311dedda0739ebeb42f8526`
+- Validated package-source revision:
+  `af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97`
 - Package version: `0.4.0` candidate
 - Stable rollback: tag `0.3.0` at
   `365986af4a47426b5513b3cee917ebec93a4204a`
@@ -18,9 +20,12 @@ rollback baseline.
   `40ff5d730dc27cb51d68ae53142cab9b4c91f5af`
 - Registry publication: not performed
 
-Documentation and checklist closeout after `e225180` does not change executable
-or packaged runtime inputs. The exact final repository and installed-clone SHA
-is recorded in the Project KB closeout and final handoff.
+Package-source revision `af09ccb` changes packaged README metadata but does not
+change executable runtime source after `e225180`. Its final evidence-only
+successor changes only `CODEBASE_MAP.md`, `PLANS.md`, the Work Block B task file,
+and this validation report; all four are excluded from both distributions. The
+exact final repository and installed-clone SHA is recorded in the Project KB
+closeout and final handoff.
 
 ## Test environment
 
@@ -71,10 +76,10 @@ Results:
 The package and Registry-validation commands passed:
 
 ```bash
-uv build --out-dir /tmp/comfyui-llamacpp-0.4.0-final-e225180
-uvx twine check /tmp/comfyui-llamacpp-0.4.0-final-e225180/*
+uv build --out-dir /tmp/comfyui-llamacpp-0.4.0-final-af09ccb
+uvx twine check /tmp/comfyui-llamacpp-0.4.0-final-af09ccb/*
 .venv/bin/python tests/check_distribution.py \
-  /tmp/comfyui-llamacpp-0.4.0-final-e225180
+  /tmp/comfyui-llamacpp-0.4.0-final-af09ccb
 COMFY_NO_TELEMETRY=1 uvx --from comfy-cli==1.12.0 comfy node validate
 uvx pip-audit --requirement requirements.txt --progress-spinner off --strict
 ```
@@ -88,9 +93,9 @@ Results:
 - Registry configuration and security validation passed without publishing.
 - `pip-audit` reported no known dependency vulnerabilities.
 - The validated wheel SHA-256 was
-  `b1a441f0815887c0b063d57976a91fd64d7c3c5f428cb90d69f2b541ddd0b5b7`.
+  `6d88ae54d9e645804329091a8b672dc8c14b0a88bce32acf64366278e7e94343`.
 - The validated source archive SHA-256 was
-  `f401e0c7c52770fb461786dc5952ea5ea98e674e105b81a8efa6937d0f337702`.
+  `71cbbb2bb54bb6f55b4da5c89f8c6b4a1f340f3f7c88897643464ba31da09219`.
 
 Fresh extraction also passed:
 
@@ -149,8 +154,7 @@ The exact-revision 12-check browser gate covered node creation through search,
 all seven dynamic samplers, image counts and socket ordering at 0, 1, and 10,
 per-user profile refresh, explicit snapshot update, undo and redo,
 missing-model retention, clone state isolation, transient serialization, graph
-reload, both renderers,
-and raw numeric App Mode node IDs.
+reload, both renderers, and raw numeric App Mode node IDs.
 
 The exact-revision App Mode contract retained ten intended inputs, including
 read-only **Generation Status** and **Live Response**, and one native Generate
@@ -288,11 +292,15 @@ Each Linux job passed 779 tests and 54 subtests. Windows passed 735 tests,
 skipped 44 platform-specific tests, and passed 54 subtests. The quality job
 repeated package, distribution, Ruff, format, and frontend validation.
 
+Package-source GitHub Actions run `29196489323` also passed the same seven jobs
+at exact revision `af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97` after the packaged
+README correction.
+
 The maintained clone at
-`C:\ComfyUI\custom_nodes\comfyui-llamacpp` was clean on `dev` at the same
-revision after the final live tests. Closeout documentation commits contain no
-runtime changes; their exact final clone and CI state is recorded in the Project
-KB and final handoff.
+`C:\ComfyUI\custom_nodes\comfyui-llamacpp` was clean on `dev` at executable
+revision `e225180` after the final live tests. Closeout documentation commits
+contain no runtime changes; their exact final clone and CI state is recorded in
+the Project KB and final handoff.
 
 ## Remaining boundaries
 
