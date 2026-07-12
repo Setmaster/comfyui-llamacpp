@@ -36,11 +36,13 @@ select one exact model ID. Managed Refresh is passive and retains a missing
 saved value instead of replacing it.
 
 When current router status records expose their selected GGUF through launch
-arguments or preset metadata, Generate verifies that target against the local
-selection. A directory-level router ID that actually points at another
-quantization is rejected before prompt submission. Older routers without this
-evidence retain ID-only compatibility, so keep one base GGUF in each portable
-router bundle.
+arguments or preset metadata, Generate resolves a local selection under the
+active router root and compares the complete normalized paths. A matching
+basename or suffix in another directory does not pass. A directory-level router
+ID that actually points at another quantization is rejected before prompt
+submission. Exact canonical live router IDs remain authoritative. Older routers
+without target evidence retain ID-only compatibility, so keep one base GGUF in
+each portable router bundle.
 
 ## Behavior differences to expect
 

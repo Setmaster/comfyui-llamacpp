@@ -107,9 +107,12 @@ falls back honestly rather than treating it as a permanent llama.cpp contract.
 ## Router target proof
 
 When current router records expose launch or preset target metadata, a selected
-local GGUF must match that target. A mismatch fails before generation as
-`[model_missing]`. Routers without target evidence retain ID-only compatibility,
-so one base GGUF per bundle remains the portable layout.
+local GGUF is resolved under the active router root and must match the complete
+normalized target. Matching basenames or path suffixes elsewhere do not count as
+proof. A mismatch fails before generation as `[model_missing]`. An exact
+canonical live router ID remains authoritative when it is not a local file.
+Routers without target evidence retain ID-only compatibility, so one base GGUF
+per bundle remains the portable layout.
 
 ## Release after generation
 

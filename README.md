@@ -243,12 +243,14 @@ base models or projectors in one bundle are ambiguous, and deeper directories
 are invisible. Direct-mode dropdowns remain recursive across all configured
 roots, so **List Models** is the authoritative router catalog.
 
-For canonical Generate, current router status metadata is also checked against
-the selected local GGUF when it is available. If a directory-level router ID
-actually targets another quantization, generation fails before submitting the
-prompt instead of using the wrong file. Older routers that omit target metadata
-retain ID-only compatibility, so one base GGUF per bundle remains the portable
-layout.
+For canonical Generate, a local GGUF is resolved under the active router root
+and current status metadata is checked against that complete normalized path.
+Matching basenames or suffixes in another bundle or configured root do not count
+as proof. If a directory-level router ID actually targets another quantization,
+generation fails before submitting the prompt. An exact canonical live router
+ID remains authoritative when it does not name a local file. Older routers that
+omit target metadata retain ID-only compatibility, so one base GGUF per bundle
+remains the portable layout.
 
 ### Attach to an existing local server
 

@@ -148,24 +148,22 @@ def _record_target(record: Mapping[str, Any]) -> _TargetIdentity | None:
     return args_target or preset_target
 
 
-def _target_matches_request(target: _TargetIdentity, requested: str) -> bool:
-    dialect, normalized = target
-    if dialect == "windows":
-        expected = ntpath.normcase(requested.replace("/", "\\"))
-        return normalized == expected or normalized.endswith(f"\\{expected}")
-    return normalized == requested or normalized.endswith(f"/{requested}")
-
-
 def _validate_local_target(
     model_name: str,
     canonical: str,
     records: Iterable[Mapping[str, Any]],
+    *,
+    expected_local_path: str | None,
+    allow_exact_server_identity: bool,
 ) -> None:
     requested = _local_gguf_path(model_name)
     if requested is None:
         return
+    record_list = tuple(records)
     try:
-        targets = {target for record in records if (target := _record_target(record)) is not None}
+        targets = {
+            target for record in record_list if (target := _record_target(record)) is not None
+        }
         if len(targets) > 1:
             raise _RouterTargetEvidenceError
         target = next(iter(targets), None)
@@ -176,15 +174,37 @@ def _validate_local_target(
         ) from None
     if target is None:
         return
-    if not _target_matches_request(target, requested):
+    if expected_local_path is None:
+        exact_server_identity = allow_exact_server_identity and model_name == canonical
+        if exact_server_identity:
+            return
+        raise RouterIdentityError(
+            f"Router model {canonical!r} target metadata cannot be anchored to the "
+            "active router root; select an exact live router ID or a local GGUF under "
+            "the active root"
+        )
+    try:
+        expected = _normalize_target(expected_local_path)
+    except _RouterTargetEvidenceError:
+        raise RouterIdentityError(
+            f"Router model {canonical!r} local target is invalid; "
+            "refusing exact local model resolution"
+        ) from None
+    if target != expected:
         raise RouterIdentityError(
             f"Router model {canonical!r} targets a different GGUF than the selected "
             "local model; keep one base GGUF per router directory or define distinct presets"
         )
 
 
-def resolve_router_model(model_name: str, server_models: Iterable[Mapping[str, Any]]) -> str:
-    """Resolve a local catalog name to one exact server ID or fail visibly."""
+def resolve_router_model(
+    model_name: str,
+    server_models: Iterable[Mapping[str, Any]],
+    *,
+    expected_local_path: str | None = None,
+    allow_exact_server_identity: bool = False,
+) -> str:
+    """Resolve one model to an exact server ID, anchoring local GGUFs when possible."""
 
     records: list[tuple[str, set[str], Mapping[str, Any]]] = []
     for record in server_models:
@@ -206,6 +226,8 @@ def resolve_router_model(model_name: str, server_models: Iterable[Mapping[str, A
             model_name,
             canonical,
             (record for identity, _names, record in records if identity == canonical),
+            expected_local_path=expected_local_path,
+            allow_exact_server_identity=allow_exact_server_identity,
         )
         return canonical
     if len(exact) > 1:
@@ -225,6 +247,8 @@ def resolve_router_model(model_name: str, server_models: Iterable[Mapping[str, A
             model_name,
             canonical,
             (record for identity, _names, record in records if identity == canonical),
+            expected_local_path=expected_local_path,
+            allow_exact_server_identity=allow_exact_server_identity,
         )
         return canonical
     if len(insensitive) > 1:

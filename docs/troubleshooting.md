@@ -221,12 +221,14 @@ directories are not visible. A model appearing in the recursive direct-mode
 dropdown therefore does not prove it exists in the active router catalog.
 
 Canonical Generate checks current router launch or preset target metadata when
-the router supplies it. If the selected local GGUF resolves to a directory ID
-that actually targets a different file, the node raises `[model_missing]`
-before generation. Malformed or conflicting evidence is also rejected without
-printing the router's local path. Routers that omit target evidence retain the
-older ID-only fallback, so this check does not make multi-quantization bundles
-portable.
+the router supplies it. A local GGUF is resolved under the active router root and
+compared to the complete normalized target; a matching basename or suffix in
+another directory is not accepted. If the directory ID actually targets a
+different file, the node raises `[model_missing]` before generation. Malformed
+or conflicting evidence is rejected without printing the router's local path.
+An exact canonical live router ID remains authoritative when no local file has
+that name. Routers that omit target evidence retain the older ID-only fallback,
+so this check does not make multi-quantization bundles portable.
 
 Load and unload operations can take time. Their `operation_timeout` is an
 overall deadline, not a socket-read timeout per poll.

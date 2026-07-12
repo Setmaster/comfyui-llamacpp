@@ -17,10 +17,12 @@
   facts, raw missing-value retention, runtime-epoch protection, and
   suggestion-only adjacent projectors.
 - Added exact router target-evidence validation for current llama.cpp status
-  metadata. When that metadata exposes the target, a directory-level router ID
-  can no longer silently select a different GGUF. Malformed or inconsistent
-  evidence fails without exposing local filesystem paths. Routers without target
-  evidence retain ID-only compatibility.
+  metadata. Local GGUF selections are resolved under the active router root and
+  compared to the complete normalized target, so matching basenames or suffixes
+  in another directory cannot pass. Malformed or inconsistent evidence fails
+  without exposing local filesystem paths. Exact live router IDs remain
+  authoritative, and routers without target evidence retain ID-only
+  compatibility.
 - Added bounded targeted live response/thinking and prompt progress, reload
   restoration, stale-event rejection, and truthful generation-scoped versus
   prompt-scoped Stop labels.

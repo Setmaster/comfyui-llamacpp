@@ -312,15 +312,21 @@ class ModelCatalog:
         ]
         return siblings[0] if len(siblings) == 1 else None
 
-    def resolve(self, name: str, *, require_file: bool = True) -> Path:
+    def resolve_lexical(self, name: str, *, require_file: bool = True) -> Path:
+        """Return the contained lexical path that llama.cpp receives for a model."""
+
         relative = _safe_relative_name(name)
         for root in self.roots:
-            candidate = (root / relative).resolve()
-            if not _contained(root, candidate):
+            lexical = root / relative
+            actual = lexical.resolve()
+            if not _contained(root, actual):
                 continue
-            if not require_file or candidate.is_file():
-                return candidate
+            if not require_file or actual.is_file():
+                return lexical
         raise ModelCatalogError(f"Model not found in configured llama.cpp folders: {name}")
+
+    def resolve(self, name: str, *, require_file: bool = True) -> Path:
+        return self.resolve_lexical(name, require_file=require_file).resolve()
 
     def candidate(self, name: str) -> Path:
         """Return a safe path under the default root without requiring a file."""

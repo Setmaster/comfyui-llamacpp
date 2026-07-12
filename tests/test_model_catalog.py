@@ -38,6 +38,22 @@ def test_catalog_rejects_symlink_escape(tmp_path):
         ModelCatalog([tmp_path]).resolve("linked.gguf")
 
 
+def test_catalog_preserves_a_safe_contained_symlink_as_the_lexical_router_target(tmp_path):
+    real = tmp_path / "real.gguf"
+    real.write_bytes(b"x")
+    link = tmp_path / "link.gguf"
+    try:
+        os.symlink(real.name, link)
+    except OSError:
+        pytest.skip("symlinks unavailable")
+
+    catalog = ModelCatalog([tmp_path])
+
+    assert "link.gguf" in catalog.list_models()
+    assert catalog.resolve_lexical("link.gguf") == link
+    assert catalog.resolve("link.gguf") == real.resolve()
+
+
 def test_configured_roots_include_existing_comfy_llm_gguf_folder(tmp_path, monkeypatch):
     default_models = tmp_path / "comfy-models"
     external_llm = tmp_path / "external" / "LLM"
@@ -239,6 +255,7 @@ def test_router_identity_fails_on_ambiguity_and_missing():
 
 def test_router_identity_rejects_b9957_bundle_target_mismatch_without_path_leakage():
     router_target = r"F:\models\LLM\gguf\qwen3.5-4b-bakeoff\Qwen_Qwen3.5-4B-Q6_K.gguf"
+    requested_q5 = r"F:\models\LLM\gguf\qwen3.5-4b-bakeoff\Qwen_Qwen3.5-4B-Q5_K_M.gguf"
     record = {
         "id": "qwen3.5-4b-bakeoff",
         "status": {
@@ -249,11 +266,19 @@ def test_router_identity_rejects_b9957_bundle_target_mismatch_without_path_leaka
     }
 
     assert (
-        resolve_router_model("qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q6_K.gguf", [record])
+        resolve_router_model(
+            "qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q6_K.gguf",
+            [record],
+            expected_local_path=router_target,
+        )
         == "qwen3.5-4b-bakeoff"
     )
     with pytest.raises(RouterIdentityError, match="targets a different GGUF") as caught:
-        resolve_router_model("qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf", [record])
+        resolve_router_model(
+            "qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf",
+            [record],
+            expected_local_path=requested_q5,
+        )
 
     message = str(caught.value)
     assert "qwen3.5-4b-bakeoff" in message
@@ -272,7 +297,14 @@ def test_router_identity_rejects_b9957_bundle_target_mismatch_without_path_leaka
 )
 def test_router_identity_accepts_current_model_argument_forms(args):
     record = {"id": "bundle", "status": {"value": "unloaded", "args": args}}
-    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+    assert (
+        resolve_router_model(
+            "bundle/model.gguf",
+            [record],
+            expected_local_path="/models/bundle/model.gguf",
+        )
+        == "bundle"
+    )
 
 
 def test_router_identity_uses_exact_preset_fallback_and_ignores_model_url():
@@ -285,7 +317,14 @@ def test_router_identity_uses_exact_preset_fallback_and_ignores_model_url():
             "preset": f"[bundle]\nmodel = {target}\nmodel-url = ignored\n",
         },
     }
-    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+    assert (
+        resolve_router_model(
+            "bundle/model.gguf",
+            [record],
+            expected_local_path=target,
+        )
+        == "bundle"
+    )
 
     record["status"] = {
         "value": "unloaded",
@@ -328,6 +367,48 @@ def test_router_identity_preserves_non_gguf_and_missing_evidence_fallbacks():
     assert resolve_router_model("bundle/model.gguf", [{"id": "bundle"}]) == "bundle"
 
 
+def test_router_identity_rejects_unanchored_suffix_only_target_proof():
+    target = "/models/different-bundle/model.gguf"
+    record = {
+        "id": "model",
+        "status": {"args": ["llama-server", "--model", target]},
+    }
+
+    with pytest.raises(RouterIdentityError, match="cannot be anchored") as caught:
+        resolve_router_model("model.gguf", [record])
+
+    assert target not in str(caught.value)
+    assert "different-bundle" not in str(caught.value)
+
+
+def test_router_identity_allows_an_explicit_live_id_when_no_local_anchor_exists():
+    record = {
+        "id": "cache-model.gguf",
+        "status": {"args": ["llama-server", "--model", "/cache/private/model.gguf"]},
+    }
+
+    assert (
+        resolve_router_model(
+            "cache-model.gguf",
+            [record],
+            allow_exact_server_identity=True,
+        )
+        == "cache-model.gguf"
+    )
+
+    alias_only = {
+        "id": "cache-bundle",
+        "aliases": ["cache-model.gguf"],
+        "status": {"args": ["llama-server", "--model", "/cache/private/model.gguf"]},
+    }
+    with pytest.raises(RouterIdentityError, match="cannot be anchored"):
+        resolve_router_model(
+            "cache-model.gguf",
+            [alias_only],
+            allow_exact_server_identity=True,
+        )
+
+
 @pytest.mark.parametrize(
     "model_name",
     [
@@ -353,7 +434,14 @@ def test_router_identity_normalizes_windows_drive_case_slashes_and_segments():
             "preset": f"[bundle]\nmodel = {preset_target}\n",
         },
     }
-    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+    assert (
+        resolve_router_model(
+            "bundle/model.gguf",
+            [record],
+            expected_local_path="f:/models/bundle/model.gguf",
+        )
+        == "bundle"
+    )
 
 
 def test_router_identity_normalizes_windows_unc_case_slashes_and_segments():
@@ -366,7 +454,14 @@ def test_router_identity_normalizes_windows_unc_case_slashes_and_segments():
             "preset": f"[bundle]\nmodel = {preset_target}\n",
         },
     }
-    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+    assert (
+        resolve_router_model(
+            "bundle/model.gguf",
+            [record],
+            expected_local_path="//server/share/models/bundle/model.gguf",
+        )
+        == "bundle"
+    )
 
 
 def test_router_identity_normalizes_posix_segments_but_preserves_case():
@@ -377,7 +472,14 @@ def test_router_identity_normalizes_posix_segments_but_preserves_case():
             "preset": "[bundle]\nmodel = /models/other/../bundle/model.gguf\n",
         },
     }
-    assert resolve_router_model("bundle/model.gguf", [equivalent]) == "bundle"
+    assert (
+        resolve_router_model(
+            "bundle/model.gguf",
+            [equivalent],
+            expected_local_path="/models/bundle/model.gguf",
+        )
+        == "bundle"
+    )
 
     wrong_case = {
         "id": "bundle",
@@ -386,7 +488,11 @@ def test_router_identity_normalizes_posix_segments_but_preserves_case():
         },
     }
     with pytest.raises(RouterIdentityError, match="targets a different GGUF"):
-        resolve_router_model("bundle/model.gguf", [wrong_case])
+        resolve_router_model(
+            "bundle/model.gguf",
+            [wrong_case],
+            expected_local_path="/models/bundle/model.gguf",
+        )
 
 
 def test_router_identity_rejects_unbounded_argument_metadata_safely():

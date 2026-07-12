@@ -799,7 +799,25 @@ class LlamaCppServerManager:
         if not self.is_router_mode or self._client is None:
             return model_name
         records = [self._model_dict(model) for model in self._client.models(timeout=timeout)]
-        return resolve_router_model(model_name, records)
+        expected_local_path: str | None = None
+        allow_exact_server_identity = False
+        if model_name.strip().lower().endswith(".gguf"):
+            config = self._config
+            if isinstance(config, RouterConfig) and config.models_dir:
+                try:
+                    expected_local_path = str(
+                        ModelCatalog((config.models_dir,)).resolve_lexical(model_name)
+                    )
+                except (OSError, ValueError):
+                    allow_exact_server_identity = True
+            else:
+                allow_exact_server_identity = True
+        return resolve_router_model(
+            model_name,
+            records,
+            expected_local_path=expected_local_path,
+            allow_exact_server_identity=allow_exact_server_identity,
+        )
 
     def load_model(self, model_name: str, timeout: float | None = 300) -> tuple[bool, str | None]:
         try:
