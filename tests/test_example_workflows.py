@@ -5,8 +5,10 @@ import re
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 EXAMPLE_ROOT = Path(__file__).resolve().parents[1] / "example_workflows"
+FIRST_RUN_THUMBNAILS = {"quick-text", "setup-check"}
 EXPECTED = {
     "setup-check.json": {
         "LlamaCppServerStatus",
@@ -70,6 +72,22 @@ def _walk_strings(value):
     elif isinstance(value, list):
         for child in value:
             yield from _walk_strings(child)
+
+
+def test_first_run_workflows_have_only_the_curated_thumbnail_pair() -> None:
+    assert {path.stem for path in EXAMPLE_ROOT.glob("*.jpg")} == FIRST_RUN_THUMBNAILS
+
+
+@pytest.mark.parametrize("stem", sorted(FIRST_RUN_THUMBNAILS))
+def test_first_run_thumbnail_is_bounded_square_jpeg(stem: str) -> None:
+    path = EXAMPLE_ROOT / f"{stem}.jpg"
+
+    assert 0 < path.stat().st_size <= 256 * 1024
+    with Image.open(path) as image:
+        assert image.format == "JPEG"
+        assert image.mode == "RGB"
+        assert image.size == (768, 768)
+        image.verify()
 
 
 @pytest.mark.parametrize("name", EXPECTED)
