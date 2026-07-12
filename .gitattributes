@@ -1,0 +1,2 @@
+# Released workflow JSON files have byte-exact compatibility hashes.
+example_workflows/*.json text eol=lf
