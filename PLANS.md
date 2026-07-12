@@ -1,6 +1,6 @@
-# Active UX Work Block A Plan
+# UX Work Block A Plan
 
-Status: In progress
+Status: Verification complete; pushed `dev` CI pending
 Date: 2026-07-11
 Branch: `dev` (tracking `origin/dev`)
 Baseline: `40ff5d730dc27cb51d68ae53142cab9b4c91f5af`
@@ -85,6 +85,38 @@ Human gate:
   engineering workflows and defer App Mode and richer task workflows.
 - Keep provider aggregation, agents, RAG, MCP, prompt databases, persistent
   sessions, video, model stores, and canonical Generate work outside this goal.
+
+## Verification Closeout
+
+- Work Block A is implemented through reviewed candidate `4f1c585`, with the
+  baseline `master`, `origin/master`, and immutable tag `0.3.0` unchanged.
+- The final local candidate passed 431 Python tests plus 36 subtests, 27
+  JavaScript tests, Ruff, format, JavaScript syntax, diff, Registry metadata,
+  dependency audit, wheel, sdist, and Twine checks.
+- The extracted source archive independently passed the complete Python and
+  JavaScript suites. Distribution checks found nine workflow assets and 26
+  source-test files, no duplicate members, and no tests in the runtime wheel.
+- Real ComfyUI 0.27.0 with frontend 1.45.20 passed classic LiteGraph and Nodes
+  2.0 disclosure, links, dynamic images, templates, search, setup diagnostics,
+  all saved workflows, and exact 0.2.1 compatibility.
+- Quick Text generated `QUICK_TEXT_BROWSER_OK` through llama.cpp b9957 on the RTX
+  5090. Native Comfy free returned terminal completion, removed the owned
+  Windows Job process, and returned the runtime to idle.
+- A final compatibility retest proved historical 0.2.1 seeds remain fixed in
+  real queue payloads and through Comfy serialize/reload under both renderers.
+- Independent full-diff review found and closed one P1 and four P2 findings. The
+  final verdict reports no remaining P0, P1, or P2 issue.
+
+Non-blocking boundaries:
+
+- Browser/runtime evidence covers the current Windows host, not every platform
+  and frontend version.
+- Model catalog inspection is result-bounded but a very large or slow network
+  root is not strictly time-bounded.
+- The classic renderer adapter uses Comfy's legacy internal widget module and may
+  need adaptation after a future frontend change.
+- Final completion still requires pushed `dev` CI, exact-head artifact rebuild,
+  installed-clone fast-forward, and Project KB closeout.
 
 ---
 
