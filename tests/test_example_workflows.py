@@ -368,6 +368,13 @@ def test_canonical_app_mode_exposes_only_real_serialized_widgets_and_generate_ou
             item["name"] == widget_name and "widget" in item
             for item in nodes[str(node_id)]["inputs"]
         )
+        schema = node_package.NODE_CLASS_MAPPINGS[nodes[str(node_id)]["type"]].INPUT_TYPES()
+        input_spec = next(
+            fields[widget_name]
+            for fields in (schema.get("required", {}), schema.get("optional", {}))
+            if widget_name in fields
+        )
+        assert input_spec[1].get("advanced") is not True
         exposed_names.append(widget_name)
 
     assert exposed_names == [

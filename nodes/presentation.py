@@ -292,7 +292,6 @@ NODE_ADVANCED_INPUTS = {
             "verify_tls",
             "request_timeout",
             "include_image_batch",
-            "release_after_generation",
             "partial_output_policy",
         }
     ),
