@@ -35,6 +35,13 @@ Supplying both Connection and a nonempty Server URL is an error. In router mode,
 select one exact model ID. Managed Refresh is passive and retains a missing
 saved value instead of replacing it.
 
+When current router status records expose their selected GGUF through launch
+arguments or preset metadata, Generate verifies that target against the local
+selection. A directory-level router ID that actually points at another
+quantization is rejected before prompt submission. Older routers without this
+evidence retain ID-only compatibility, so keep one base GGUF in each portable
+router bundle.
+
 ## Behavior differences to expect
 
 Generate is intentionally stricter than the legacy prompt surface:
@@ -87,6 +94,14 @@ constraints, release, or partial policy.
 
 See [Canonical Generate](canonical-generate.md) for the bounded profile document
 format and the complete execution contract.
+
+## App Mode on the tested frontend
+
+Frontend 1.45.20 retains terminal text in Comfy's native jobs and history output
+but does not render that inline text in App Mode's central result pane. The
+canonical workflow therefore exposes transient read-only **Generation Status**
+and **Live Response** fields. They are current-session feedback, reset on reload,
+and are not serialized or surrogate output files.
 
 ## Rollback
 

@@ -237,6 +237,187 @@ def test_router_identity_fails_on_ambiguity_and_missing():
         resolve_router_model("missing.gguf", [{"id": "present"}])
 
 
+def test_router_identity_rejects_b9957_bundle_target_mismatch_without_path_leakage():
+    router_target = r"F:\models\LLM\gguf\qwen3.5-4b-bakeoff\Qwen_Qwen3.5-4B-Q6_K.gguf"
+    record = {
+        "id": "qwen3.5-4b-bakeoff",
+        "status": {
+            "value": "unloaded",
+            "args": [r"C:\llama\llama-server.exe", "--model", router_target],
+            "preset": (f"[qwen3.5-4b-bakeoff]\nmodel = {router_target}\nctx-size = 8192\n"),
+        },
+    }
+
+    assert (
+        resolve_router_model("qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q6_K.gguf", [record])
+        == "qwen3.5-4b-bakeoff"
+    )
+    with pytest.raises(RouterIdentityError, match="targets a different GGUF") as caught:
+        resolve_router_model("qwen3.5-4b-bakeoff/Qwen_Qwen3.5-4B-Q5_K_M.gguf", [record])
+
+    message = str(caught.value)
+    assert "qwen3.5-4b-bakeoff" in message
+    assert router_target not in message
+    assert r"F:\models" not in message
+    assert "Q6_K.gguf" not in message
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["llama-server", "-m", "/models/bundle/model.gguf"],
+        ["llama-server", "--model=/models/bundle/model.gguf"],
+        ["llama-server", "-m=/models/bundle/model.gguf"],
+    ],
+)
+def test_router_identity_accepts_current_model_argument_forms(args):
+    record = {"id": "bundle", "status": {"value": "unloaded", "args": args}}
+    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+
+
+def test_router_identity_uses_exact_preset_fallback_and_ignores_model_url():
+    target = r"F:\models\bundle\model.gguf"
+    record = {
+        "id": "bundle",
+        "status": {
+            "value": "unloaded",
+            "args": ["llama-server", "--model-url", "https://example.invalid/other.gguf"],
+            "preset": f"[bundle]\nmodel = {target}\nmodel-url = ignored\n",
+        },
+    }
+    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+
+    record["status"] = {
+        "value": "unloaded",
+        "args": ["llama-server", "--model-url", "https://example.invalid/other.gguf"],
+    }
+    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+
+
+def test_router_identity_rejects_conflicting_target_evidence_without_leaking_either_path():
+    args_target = r"F:\private\bundle\model.gguf"
+    preset_target = r"G:\secret\bundle\other.gguf"
+    record = {
+        "id": "bundle",
+        "status": {
+            "value": "unloaded",
+            "args": ["llama-server", "--model", args_target],
+            "preset": f"[bundle]\nmodel = {preset_target}\n",
+        },
+    }
+
+    with pytest.raises(RouterIdentityError, match="inconsistent target metadata") as caught:
+        resolve_router_model("bundle/model.gguf", [record])
+
+    message = str(caught.value)
+    assert args_target not in message
+    assert preset_target not in message
+    assert "private" not in message
+    assert "secret" not in message
+
+
+def test_router_identity_preserves_non_gguf_and_missing_evidence_fallbacks():
+    conflicting = {
+        "id": "bundle",
+        "status": {
+            "args": ["llama-server", "--model", "/models/one.gguf"],
+            "preset": "[bundle]\nmodel = /models/two.gguf\n",
+        },
+    }
+    assert resolve_router_model("bundle", [conflicting]) == "bundle"
+    assert resolve_router_model("bundle/model.gguf", [{"id": "bundle"}]) == "bundle"
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bundle//q5.gguf",
+        "bundle/./q5.gguf",
+        "bundle/../q5.gguf",
+        "/bundle/q5.gguf",
+        r"C:\bundle\q5.gguf",
+    ],
+)
+def test_router_identity_rejects_malformed_local_gguf_requests(model_name):
+    with pytest.raises(RouterIdentityError, match="normalized relative model path"):
+        resolve_router_model(model_name, [{"id": "bundle"}])
+
+
+def test_router_identity_normalizes_windows_drive_case_slashes_and_segments():
+    args_target = r"F:\MODELS\Bundle\.\Sub\..\MODEL.GGUF"
+    preset_target = "f:/models/bundle/model.gguf"
+    record = {
+        "id": "bundle",
+        "status": {
+            "args": ["llama-server", "--model", args_target],
+            "preset": f"[bundle]\nmodel = {preset_target}\n",
+        },
+    }
+    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+
+
+def test_router_identity_normalizes_windows_unc_case_slashes_and_segments():
+    args_target = r"\\SERVER\Share\Models\Bundle\.\model.gguf"
+    preset_target = "//server/share/models/other/../bundle/MODEL.GGUF"
+    record = {
+        "id": "bundle",
+        "status": {
+            "args": ["llama-server", "--model", args_target],
+            "preset": f"[bundle]\nmodel = {preset_target}\n",
+        },
+    }
+    assert resolve_router_model("bundle/model.gguf", [record]) == "bundle"
+
+
+def test_router_identity_normalizes_posix_segments_but_preserves_case():
+    equivalent = {
+        "id": "bundle",
+        "status": {
+            "args": ["llama-server", "--model", "/models/bundle/./model.gguf"],
+            "preset": "[bundle]\nmodel = /models/other/../bundle/model.gguf\n",
+        },
+    }
+    assert resolve_router_model("bundle/model.gguf", [equivalent]) == "bundle"
+
+    wrong_case = {
+        "id": "bundle",
+        "status": {
+            "args": ["llama-server", "--model", "/models/Bundle/MODEL.gguf"],
+        },
+    }
+    with pytest.raises(RouterIdentityError, match="targets a different GGUF"):
+        resolve_router_model("bundle/model.gguf", [wrong_case])
+
+
+def test_router_identity_rejects_unbounded_argument_metadata_safely():
+    record = {
+        "id": "bundle",
+        "status": {"args": ["llama-server", *(["--flag"] * 5000)]},
+    }
+    with pytest.raises(RouterIdentityError, match="inconsistent target metadata") as caught:
+        resolve_router_model("bundle/model.gguf", [record])
+    assert "--flag" not in str(caught.value)
+
+
+def test_router_identity_rejects_aggregate_argument_overflow_and_nuls_safely():
+    aggregate = {
+        "id": "bundle",
+        "status": {"args": ["llama-server", *(["x" * 1024] * 257)]},
+    }
+    with pytest.raises(RouterIdentityError, match="inconsistent target metadata") as caught:
+        resolve_router_model("bundle/model.gguf", [aggregate])
+    assert "x" * 1024 not in str(caught.value)
+
+    for args in (
+        ["llama-server\x00hidden", "--model", "/models/bundle/model.gguf"],
+        ["llama-server", "--model", "/models/bundle/model.gguf\x00hidden"],
+    ):
+        record = {"id": "bundle", "status": {"args": args}}
+        with pytest.raises(RouterIdentityError, match="inconsistent target metadata") as caught:
+            resolve_router_model("bundle/model.gguf", [record])
+        assert "hidden" not in str(caught.value)
+
+
 def test_adjacent_projector_is_suggestion_only_when_unique(tmp_path):
     bundle = tmp_path / "vision"
     bundle.mkdir()

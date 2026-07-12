@@ -104,6 +104,13 @@ silently escalated into a whole-job interrupt.
 The upstream stream-control API is explicitly internal. Generate probes it and
 falls back honestly rather than treating it as a permanent llama.cpp contract.
 
+## Router target proof
+
+When current router records expose launch or preset target metadata, a selected
+local GGUF must match that target. A mismatch fails before generation as
+`[model_missing]`. Routers without target evidence retain ID-only compatibility,
+so one base GGUF per bundle remains the portable layout.
+
 ## Release after generation
 
 `Release After Generation` is available only for a runtime positively owned by

@@ -40,5 +40,15 @@ is a portable no-op snapshot, so execution never depends on a mutable profile
 file from the machine that created the workflow. The other seven examples remain
 the exact 0.3.0 workflow assets.
 
+Each canonical JSON workflow has a same-stem 768 by 768 JPEG thumbnail captured
+from the current Comfy frontend. Setup Check and Quick Text retain their existing
+thumbnails.
+
+On the tested frontend 1.45.20, terminal text remains in native jobs and history
+output but is not rendered inline in App Mode's central result pane. The App Mode
+example exposes transient read-only Generation Status and Live Response fields
+for current-session feedback. They reset on reload and are neither serialized
+nor surrogate output files.
+
 The examples are demonstrations, not substitutes for the full
 [0.4 user acceptance checklist](../docs/user-acceptance-0.4.md).

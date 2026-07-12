@@ -7,6 +7,7 @@ import pytest
 
 import runtime.manager as manager_module
 from models.catalog import ModelCatalog
+from models.identity import RouterIdentityError
 from runtime.capabilities import ServerCapabilities
 from runtime.client import (
     HealthStatus,
@@ -544,7 +545,20 @@ def test_router_model_resolution_forwards_the_caller_timeout(tmp_path, monkeypat
     process = FakeProcess()
     service = RuntimeService(process)  # type: ignore[arg-type]
     client = FakeClient(None, role="router")
-    client.model_records = (RouterModel("exact/model.gguf", ModelState.LOADED),)
+    target = tmp_path / "exact" / "model.gguf"
+    client.model_records = (
+        RouterModel(
+            "exact/model.gguf",
+            ModelState.LOADED,
+            raw={
+                "id": "exact/model.gguf",
+                "status": {
+                    "value": "loaded",
+                    "args": ["llama-server", "--model", str(target)],
+                },
+            },
+        ),
+    )
     monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
     manager = LlamaCppServerManager(
         runtime_service=service,
@@ -557,6 +571,40 @@ def test_router_model_resolution_forwards_the_caller_timeout(tmp_path, monkeypat
 
     assert model_id == "exact/model.gguf"
     assert client.models_kwargs[-1] == {"timeout": 1.25}
+
+
+def test_router_model_resolution_rejects_a_different_reported_target(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    target = tmp_path / "bundle" / "q6.gguf"
+    client.model_records = (
+        RouterModel(
+            "bundle",
+            ModelState.UNLOADED,
+            raw={
+                "id": "bundle",
+                "status": {
+                    "value": "unloaded",
+                    "args": ["llama-server", "--model", str(target)],
+                },
+            },
+        ),
+    )
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    with pytest.raises(RouterIdentityError, match="targets a different GGUF") as caught:
+        manager.resolve_model_id("bundle/q5.gguf", timeout=0.75)
+
+    assert client.models_kwargs[-1] == {"timeout": 0.75}
+    assert str(target) not in str(caught.value)
+    assert "q6.gguf" not in str(caught.value)
 
 
 def test_managed_discovery_is_passive_and_uses_one_runtime_epoch(tmp_path, monkeypatch):

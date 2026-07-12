@@ -16,6 +16,11 @@
 - Added passive managed model discovery with `autoload=false`, Known/Unknown
   facts, raw missing-value retention, runtime-epoch protection, and
   suggestion-only adjacent projectors.
+- Added exact router target-evidence validation for current llama.cpp status
+  metadata. When that metadata exposes the target, a directory-level router ID
+  can no longer silently select a different GGUF. Malformed or inconsistent
+  evidence fails without exposing local filesystem paths. Routers without target
+  evidence retain ID-only compatibility.
 - Added bounded targeted live response/thinking and prompt progress, reload
   restoration, stale-event rejection, and truthful generation-scoped versus
   prompt-scoped Stop labels.
@@ -49,6 +54,11 @@
   copyable summary while preserving its released result tuple.
 - Moved workflow templates to canonical `example_workflows`, added Setup Check
   and Quick Text first-run paths, and added a compact Start Here guide.
+- Added four current-Comfy canonical Generate workflows with curated 768 by 768
+  thumbnails for text, image understanding, structured JSON, and App Mode.
+- Exposed transient read-only Generation Status and Live Response fields in the
+  canonical App Mode workflow. They remain visible during the current session
+  without becoming serialized workflow state.
 - Added complete immutable 0.3 contract characterization alongside the existing
   0.2.1 workflow fixtures.
 - Added a narrowly guarded browser migration for historical 0.2.1 seed companion

@@ -220,6 +220,14 @@ quantizations in one directory are filesystem-order-dependent upstream; deeper
 directories are not visible. A model appearing in the recursive direct-mode
 dropdown therefore does not prove it exists in the active router catalog.
 
+Canonical Generate checks current router launch or preset target metadata when
+the router supplies it. If the selected local GGUF resolves to a directory ID
+that actually targets a different file, the node raises `[model_missing]`
+before generation. Malformed or conflicting evidence is also rejected without
+printing the router's local path. Routers that omit target evidence retain the
+older ID-only fallback, so this check does not make multi-quantization bundles
+portable.
+
 Load and unload operations can take time. Their `operation_timeout` is an
 overall deadline, not a socket-read timeout per poll.
 
@@ -312,6 +320,14 @@ Selection or Refresh alone never mutates the workflow. If the local profile file
 is invalid, fix `comfyui-llamacpp/profiles.json` in the current Comfy user data
 directory. The backend rejects oversized documents, unknown or duplicate keys,
 duplicate IDs, invalid UTF-8 or JSON, and attempts to override built-in Freeform.
+
+## App Mode does not show terminal text in the central result pane
+
+The tested frontend 1.45.20 retains terminal text in Comfy's native jobs and
+history output but does not render that inline text in App Mode's central result
+pane. The canonical workflow therefore exposes transient read-only **Generation
+Status** and **Live Response** fields. They are current-session feedback, reset
+on reload, and are not serialized or surrogate output files.
 
 ## Release After Generation fails
 

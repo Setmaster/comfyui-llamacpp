@@ -243,6 +243,13 @@ base models or projectors in one bundle are ambiguous, and deeper directories
 are invisible. Direct-mode dropdowns remain recursive across all configured
 roots, so **List Models** is the authoritative router catalog.
 
+For canonical Generate, current router status metadata is also checked against
+the selected local GGUF when it is available. If a directory-level router ID
+actually targets another quantization, generation fails before submitting the
+prompt instead of using the wrong file. Older routers that omit target metadata
+retain ID-only compatibility, so one base GGUF per bundle remains the portable
+layout.
+
 ### Attach to an existing local server
 
 Use `server_url` directly or create a **llama.cpp Connection** profile. An
@@ -421,11 +428,16 @@ ComfyUI discovers the curated workflows in
 [`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
 the first-run paths; the direct, router, vision, structured-output, and VRAM
 handoff workflows retain the released 0.3 examples. Canonical text, vision,
-structured, and App Mode examples demonstrate the post-0.3 Generate surface. The
-[0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
+structured, and App Mode examples demonstrate the post-0.3 Generate surface.
+The tested frontend 1.45.20 retains terminal text in native jobs and history
+output but does not render it inline in App Mode's central result pane. The
+canonical workflow exposes transient read-only Generation Status and Live
+Response fields that reset on reload and are not serialized.
+
+The [0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
 workflow compatibility, direct and scoped router release, live Stop, profiles,
 App Mode, VLMs, structured output, and the final
-diffusion-to-LLM-to-diffusion GPU handoff. The accepted stable evidence remains
+terminal LLM-to-diffusion GPU handoff. The accepted stable evidence remains
 in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
 recorded separately in the
 [canonical Generate validation report](docs/validation-0.4.md).

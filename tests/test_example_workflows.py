@@ -9,7 +9,14 @@ import pytest
 from PIL import Image
 
 EXAMPLE_ROOT = Path(__file__).resolve().parents[1] / "example_workflows"
-FIRST_RUN_THUMBNAILS = {"quick-text", "setup-check"}
+FIRST_RUN_THUMBNAILS = {
+    "canonical-app-mode",
+    "canonical-structured-json",
+    "canonical-text",
+    "canonical-vlm-image-understanding",
+    "quick-text",
+    "setup-check",
+}
 LEGACY_EXAMPLE_HASHES = {
     "direct-text.json": "556ecb20b11185b38338fdb65daaf6b88e810b1fc75904cab4ddc08b8fb8c851",
     "quick-text.json": "35e6884c0f2ee8632059679aea295ec79cc124a8b69543ef45730ec62c3e2d2d",
@@ -183,7 +190,7 @@ def test_released_examples_remain_byte_exact(name: str, digest: str) -> None:
     assert hashlib.sha256((EXAMPLE_ROOT / name).read_bytes()).hexdigest() == digest
 
 
-def test_first_run_workflows_have_only_the_curated_thumbnail_pair() -> None:
+def test_first_run_workflows_have_only_the_curated_thumbnail_set() -> None:
     assert {path.stem for path in EXAMPLE_ROOT.glob("*.jpg")} == FIRST_RUN_THUMBNAILS
 
 
