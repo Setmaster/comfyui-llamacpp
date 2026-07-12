@@ -545,9 +545,8 @@ class LlamaCppGenerate:
             cancel_check=_interrupt_check,
         )
         return {
-            # Current Comfy's jobs API recognizes ui.text as native text output
-            # and promotes it into App Mode's text preview. A custom result-item
-            # key would instead become an unknown, non-previewable media type.
+            # Keep Comfy's native text-output contract for history/API clients
+            # and App Mode frontends whose result parser accepts inline text.
             "ui": {"text": (response,)},
             "result": (response, thinking, result),
         }

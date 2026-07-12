@@ -348,7 +348,7 @@ def test_canonical_structured_example_connects_a_strict_json_schema() -> None:
     assert schema["additionalProperties"] is False
 
 
-def test_canonical_app_mode_exposes_only_real_serialized_widgets_and_generate_output(
+def test_canonical_app_mode_exposes_contract_widgets_transient_feedback_and_generate_output(
     node_package,
 ) -> None:
     workflow = _load("canonical-app-mode.json")
@@ -360,8 +360,10 @@ def test_canonical_app_mode_exposes_only_real_serialized_widgets_and_generate_ou
     assert nodes["3"]["type"] == "LlamaCppGenerate"
     assert node_package.NODE_CLASS_MAPPINGS[nodes["3"]["type"]].OUTPUT_NODE is True
 
+    serialized_entries = linear["inputs"][:8]
+    transient_entries = linear["inputs"][8:]
     exposed_names = []
-    for entry in linear["inputs"]:
+    for entry in serialized_entries:
         node_id, widget_name = entry[:2]
         assert type(node_id) is int
         assert any(
@@ -387,7 +389,17 @@ def test_canonical_app_mode_exposes_only_real_serialized_widgets_and_generate_ou
         "seed",
         "release_after_generation",
     ]
-    assert linear["inputs"][2][2] == {"height": 220}
+    assert serialized_entries[2][2] == {"height": 220}
+    assert transient_entries == [
+        [3, "Generation Status"],
+        [3, "Live Response", {"height": 220}],
+    ]
+
+    generate = nodes["3"]
+    assert not any(
+        item.get("name") in {"Generation Status", "Live Response"} for item in generate["inputs"]
+    )
+    assert len(generate["widgets_values"]) == 25
 
 
 def test_vlm_example_round_tripped_with_one_visible_image_socket() -> None:

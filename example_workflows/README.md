@@ -11,7 +11,8 @@ current frontend during validation.
 - `canonical-structured-json.json`: connect a strict JSON Schema and validate the
   terminal response as JSON.
 - `canonical-app-mode.json`: a small App Mode surface exposing selected local
-  model and generation controls, with Generate itself as the output-history node.
+  model and generation controls plus transient live status and response, with
+  Generate itself as the native output-history node.
 - `setup-check.json`: inspect binary, device, model-root, model, and projector
   readiness without starting a server.
 - `quick-text.json`: the smallest owned-server text path: Start, Basic Prompt,

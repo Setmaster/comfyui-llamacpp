@@ -170,6 +170,11 @@ Invalid local state while the saved snapshot remains authoritative.
 ## App Mode
 
 Canonical examples expose the Generate prompt and selected primary controls as
-App Mode inputs and use Generate itself as the text output. Live preview and
-cancellation remain available on the graph surface; the terminal response is
-also reported through Comfy's output history.
+App Mode inputs and use Generate itself as the native text-output node. The
+canonical App Mode workflow also exposes **Generation Status** and the bounded,
+read-only **Live Response** as current-session feedback. That preview is
+transient and is not durable output history after a reload. Generate still
+reports its terminal response through Comfy's native output-history and jobs API
+contract. Some current Comfy frontend builds do not render inline text from that
+contract in App Mode's central result pane, so the live response remains visible
+in the app controls without patching Comfy or writing surrogate files.

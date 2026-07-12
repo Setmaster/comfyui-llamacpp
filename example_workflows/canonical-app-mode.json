@@ -688,7 +688,7 @@
     "llamacpp_example": {
       "name": "canonical-app-mode",
       "version": "0.4.0",
-      "note": "Opens as a small local generation app. Generate is the selected output node, so its terminal text appears in Comfy output history for App Mode and API clients."
+      "note": "Opens as a small local generation app. Generation Status and Live Response provide bounded current-session feedback; Generate also reports native text to Comfy output history and API clients."
     },
     "linearMode": true,
     "linearData": {
@@ -727,6 +727,17 @@
         [
           3,
           "release_after_generation"
+        ],
+        [
+          3,
+          "Generation Status"
+        ],
+        [
+          3,
+          "Live Response",
+          {
+            "height": 220
+          }
         ]
       ],
       "outputs": [

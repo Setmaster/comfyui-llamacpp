@@ -25,7 +25,10 @@ The accepted 0.3 checklist remains available in
 - [ ] Duplicate, save, reload, and reopen both nodes. No live, status, selector,
   Refresh, Update, or Stop widget is serialized.
 - [ ] App Mode shows the intended prompt and primary controls, queues normally,
-  and displays the terminal text output.
+  and updates bounded, read-only Generation Status and Live Response fields.
+- [ ] The jobs/history APIs retain the terminal native text output. Treat a
+  missing central text preview in affected Comfy frontend builds as the
+  documented upstream parser limitation, not loss of the generated response.
 
 ## Direct text and strict behavior
 
