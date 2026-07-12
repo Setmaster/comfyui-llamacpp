@@ -15,6 +15,7 @@ export const ADVANCED_NODE_IDS = new Set([
     "LlamaCppTokenCount",
     "LlamaCppModelInfo",
     "LlamaCppStructuredOutput",
+    "LlamaCppGenerate",
 ]);
 
 function setDeclaredAdvanced(widget, value) {

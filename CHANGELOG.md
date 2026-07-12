@@ -1,6 +1,42 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - Unreleased
+
+### Canonical generation
+
+- Added one strict **llama.cpp Generate** node for text, vision, prompt
+  generation, structured output, token bans, typed request provenance, and a
+  versioned rich result without removing or changing any released prompt node.
+- Added Default/Custom sampling, Auto/Off/On thinking, explicit partial-output
+  policy, syntactic JSON validation, Comfy seed control, and actionable
+  categorized exceptions instead of success Booleans or error strings.
+- Added portable **llama.cpp Task Profile** snapshots plus bounded current-user
+  profile refresh and an explicit undoable snapshot update. Freeform remains the
+  only bundled profile.
+- Added passive managed model discovery with `autoload=false`, Known/Unknown
+  facts, raw missing-value retention, runtime-epoch protection, and
+  suggestion-only adjacent projectors.
+- Added bounded targeted live response/thinking and prompt progress, reload
+  restoration, stale-event rejection, and truthful generation-scoped versus
+  prompt-scoped Stop labels.
+- Added optional exact llama.cpp stream deletion on every terminal path after a
+  positive capability probe. Unsupported or Unknown endpoints retain
+  prompt-targeted Comfy interruption without claiming node-local cancellation.
+- Restricted canonical workflow credential names to the llama.cpp namespace and
+  require HTTPS, certificate verification, and an exact local origin-to-key
+  binding when authenticated endpoints are outside loopback, without changing
+  legacy node behavior.
+
+### Scoped lifecycle
+
+- Added exact generation lease identities and awaitable release handles while
+  retaining the existing global native and explicit release paths.
+- Direct release-after waits for all direct leases and terminal process-tree
+  shutdown. Router release-after waits for the exact model, unloads only that
+  model, and never uses process fallback. Attached endpoints are rejected before
+  prompt submission.
+- Added one bounded scoped-release worker, global-release dominance, and caller
+  wait semantics that never cancel accepted cleanup.
 
 ### User experience
 

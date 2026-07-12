@@ -35,6 +35,10 @@ Diagnostic API routes are also available:
 
 - `GET /llamacpp/runtime/status`
 - `POST /llamacpp/runtime/release`
+- `GET /llamacpp/runtime/discovery`
+- `GET /llamacpp/generation/active`
+- `POST /llamacpp/generation/cancel`
+- `GET /llamacpp/profiles`
 
 HTTP-visible diagnostics withhold raw backend exception material. The Server
 Status node and local Comfy log retain useful redacted details.
@@ -45,6 +49,12 @@ directory paths plus a redacted log tail. Release can stop or unload this
 pack's owned runtime. Bind ComfyUI to loopback or place it behind trusted
 authentication when those capabilities should not be exposed to network
 clients.
+
+The live generation routes require the caller's currently connected Comfy
+websocket client ID and match it to the recorded execution owner. This is useful
+tab and client isolation, not a separate authentication system. The discovery
+route accepts only a saved model value and probes only the manager's current
+endpoint. It cannot be used to supply an arbitrary URL or credential.
 
 Status remains available while startup, shutdown, release, or a router barrier
 is in progress. Service and process fields are captured independently under
@@ -74,6 +84,33 @@ Driver-visible VRAM can converge slightly after the process or child exits.
 For release validation, observe `nvidia-smi` or the equivalent backend tool and
 also prove that the next GPU workload can allocate and run.
 
+## Canonical release after generation
+
+Generate can request cleanup as part of one managed request. This is narrower
+than the global native or explicit Release action:
+
+- Direct scope arms before the requesting lease exits, blocks new direct
+  admission, waits for all already-admitted direct leases, and then stops the
+  exact owned process tree once.
+- Router scope resolves and leases one exact canonical model ID, blocks new work
+  only for that model after arming, waits only for leases using that ID, and
+  unloads only that model.
+- Router scoped cleanup fails closed if exact terminal evidence is unavailable.
+  It never stops the router or unloads another model as fallback.
+- Attached endpoints are rejected before prompt submission because this pack
+  does not own their process or model residency.
+
+Generate withholds its output sockets until the caller observes a terminal
+cleanup result. If that caller reaches its deadline or is interrupted while
+waiting, only the wait ends. The already accepted coordinator-owned cleanup
+continues. A global native or explicit release dominates queued scoped work and
+can satisfy its handles through the global terminal result.
+
+Terminal process or router state is recorded in the typed generation result.
+`driver_memory_verified` remains false unless a separate driver-level check was
+actually performed. The node does not turn process completion into an unproven
+claim about immediate VRAM convergence.
+
 ## Concurrency
 
 Start, replacement, stop, router mutation, release, and generation leases share
@@ -86,6 +123,10 @@ one lifecycle authority.
   lifecycle barrier.
 - Concurrent release requests share one result or observe the resulting idle
   state.
+- Canonical model resolution, runtime epoch capture, and generation lease
+  admission occur under the same lifecycle operation barrier.
+- Scoped release operations use one coordinator-owned worker. Caller timeout or
+  cancellation cannot remove an accepted operation from that queue.
 - A failed replacement preflight leaves a healthy existing runtime intact.
 
 The explicit Stop node is intentionally separate from native release. Its exact

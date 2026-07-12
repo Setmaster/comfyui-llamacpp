@@ -31,6 +31,8 @@ EXPECTED_CATEGORIES = {
     "LlamaCppTokenCount": "LlamaCpp/Utilities",
     "LlamaCppModelInfo": "LlamaCpp/Utilities",
     "LlamaCppStructuredOutput": "LlamaCpp/Utilities",
+    "LlamaCppGenerate": "LlamaCpp/Generate",
+    "LlamaCppTaskProfile": "LlamaCpp/Generate",
 }
 
 EXPECTED_SEARCH_ALIASES = {
@@ -136,6 +138,23 @@ EXPECTED_SEARCH_ALIASES = {
         "gbnf",
         "grammar",
         "constrained generation",
+    ],
+    "LlamaCppGenerate": [
+        "llm",
+        "local llm",
+        "gguf",
+        "vlm",
+        "generate text",
+        "image understanding",
+        "prompt generation",
+        "prompt enhancer",
+        "structured generation",
+    ],
+    "LlamaCppTaskProfile": [
+        "llm profile",
+        "prompt profile",
+        "task profile",
+        "prompt enhancer profile",
     ],
 }
 
@@ -249,11 +268,22 @@ EXPECTED_ADVANCED_INPUTS = {
     },
     "LlamaCppModelInfo": {"api_key_env", "verify_tls", "request_timeout"},
     "LlamaCppStructuredOutput": {"schema_name", "strict"},
+    "LlamaCppGenerate": {
+        "server_url",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch",
+        "release_after_generation",
+        "partial_output_policy",
+    },
+    "LlamaCppTaskProfile": set(),
 }
 
 
 def test_every_registered_node_has_a_concise_description(node_package):
-    assert len(node_package.NODE_CLASS_MAPPINGS) == 17
+    assert len(node_package.NODE_CLASS_MAPPINGS) == 19
 
     for node_id, node_class in node_package.NODE_CLASS_MAPPINGS.items():
         description = getattr(node_class, "DESCRIPTION", None)
@@ -398,6 +428,27 @@ def test_every_registered_input_has_a_display_name_and_exact_advanced_state(node
                 "temperature",
             },
         ),
+        (
+            "LlamaCppGenerate",
+            {
+                "prompt",
+                "model",
+                "system_prompt",
+                "thinking_mode",
+                "max_tokens",
+                "sampling_mode",
+                "temperature",
+                "top_p",
+                "top_k",
+                "min_p",
+                "repeat_penalty",
+                "presence_penalty",
+                "frequency_penalty",
+                "seed",
+                "cache_prompt",
+                "image_amount",
+            },
+        ),
     ),
 )
 def test_primary_workflow_inputs_remain_visible(node_package, node_id, visible_inputs):
@@ -418,8 +469,19 @@ def test_every_registered_input_has_a_tooltip(node_package, input_group):
     for node_id, node_class in node_package.NODE_CLASS_MAPPINGS.items():
         schema = node_class.INPUT_TYPES()
         for input_name, input_spec in schema.get(input_group, {}).items():
+            if input_group == "hidden" and isinstance(input_spec, str):
+                continue
             tooltip = _input_options(input_spec).get("tooltip")
             if not isinstance(tooltip, str) or not tooltip.strip():
                 missing.append(f"{node_id}.{input_group}.{input_name}")
 
     assert missing == [], f"Inputs missing tooltips: {missing}"
+
+
+def test_canonical_utility_metadata_names_generate_consumers(node_package):
+    for node_id in ("LlamaCppStructuredOutput", "LlamaCppTokenBan"):
+        node_class = node_package.NODE_CLASS_MAPPINGS[node_id]
+        assert "Generate" in node_class.DESCRIPTION or "Generate" in " ".join(
+            node_class.OUTPUT_TOOLTIPS
+        )
+        assert "Generate" in " ".join(node_class.OUTPUT_TOOLTIPS)

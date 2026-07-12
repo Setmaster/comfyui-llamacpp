@@ -235,3 +235,38 @@ def test_router_identity_fails_on_ambiguity_and_missing():
         resolve_router_model("bundle/model.gguf", [{"id": "bundle"}, {"id": "model"}])
     with pytest.raises(RouterIdentityError, match="not found"):
         resolve_router_model("missing.gguf", [{"id": "present"}])
+
+
+def test_adjacent_projector_is_suggestion_only_when_unique(tmp_path):
+    bundle = tmp_path / "vision"
+    bundle.mkdir()
+    model = bundle / "model.gguf"
+    projector = bundle / "mmproj-model.gguf"
+    model.write_bytes(b"model")
+    projector.write_bytes(b"projector")
+    catalog = ModelCatalog([tmp_path])
+
+    suggestion = catalog.adjacent_projector("vision/model.gguf")
+
+    assert suggestion is not None
+    assert suggestion.name == "vision/mmproj-model.gguf"
+    assert suggestion.path == projector.resolve()
+    assert suggestion.is_mmproj is True
+
+
+def test_adjacent_projector_refuses_ambiguous_or_other_directory_candidates(tmp_path):
+    bundle = tmp_path / "vision"
+    bundle.mkdir()
+    (bundle / "model.gguf").write_bytes(b"model")
+    (bundle / "mmproj-a.gguf").write_bytes(b"a")
+    (bundle / "mmproj-b.gguf").write_bytes(b"b")
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "mmproj-only.gguf").write_bytes(b"other")
+    catalog = ModelCatalog([tmp_path])
+
+    assert catalog.adjacent_projector("vision/model.gguf") is None
+
+    (bundle / "mmproj-b.gguf").unlink()
+    (bundle / "mmproj-a.gguf").unlink()
+    assert catalog.adjacent_projector("vision/model.gguf") is None

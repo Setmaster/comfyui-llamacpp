@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import runpy
 from pathlib import Path
 
 import pytest
@@ -257,6 +258,15 @@ def test_root_and_compatibility_module_imports(node_package, released_contracts)
         module = importlib.import_module(f"{node_package.__name__}.{module_name}")
         for export_name in export_names:
             assert hasattr(module, export_name), f"{module_name}.{export_name} missing"
+
+
+def test_direct_tooling_import_uses_the_single_source_package_version(capsys):
+    root = FIXTURE_ROOT.parents[2]
+    direct = runpy.run_path(str(root / "__init__.py"))
+    version = runpy.run_path(str(root / "_version.py"))
+
+    assert direct["__version__"] == version["__version__"]
+    capsys.readouterr()
 
 
 def test_contract_fixture_is_anchored_to_the_released_commit(released_contracts):

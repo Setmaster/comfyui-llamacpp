@@ -86,7 +86,13 @@ def _safe_diagnostics_payload(payload: Any) -> Any:
     if isinstance(payload, dict):
         safe: dict[str, Any] = {}
         for key, value in payload.items():
-            if key in {"error", "last_error"} and value:
+            if key == "released_model_diagnostics":
+                safe[key] = _safe_released_model_diagnostics(value)
+            elif key == "raw":
+                # Keep the compatibility key while dropping arbitrary upstream
+                # router records at every public bridge boundary.
+                safe[key] = {}
+            elif key in {"error", "last_error"} and value:
                 safe[key] = "details withheld; inspect local server diagnostics"
             else:
                 safe[key] = _safe_diagnostics_payload(value)
@@ -94,6 +100,25 @@ def _safe_diagnostics_payload(payload: Any) -> Any:
     if isinstance(payload, (list, tuple)):
         return [_safe_diagnostics_payload(value) for value in payload]
     return payload
+
+
+def _safe_released_model_diagnostics(payload: Any) -> list[dict[str, Any]]:
+    if not isinstance(payload, (list, tuple)):
+        return []
+    safe: list[dict[str, Any]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        model_id = item.get("id")
+        state = item.get("state")
+        safe.append(
+            {
+                "id": model_id if isinstance(model_id, str) else None,
+                "state": state if isinstance(state, str) else None,
+                "raw": {},
+            }
+        )
+    return safe
 
 
 async def _emit_event(
@@ -282,12 +307,19 @@ def install_comfy_bridge(
 
         routes_installed = False
         if install_routes:
-            routes_installed = _register_routes(
+            lifecycle_routes_installed = _register_routes(
                 prompt_server,
                 service,
                 web_module,
                 getattr(prompt_server, "send_sync", None),
             )
+            from .comfy_routes import install_generation_routes
+
+            generation_routes_installed = install_generation_routes(
+                prompt_server,
+                web_module,
+            )
+            routes_installed = lifecycle_routes_installed and generation_routes_installed
         return BridgeInstallResult(True, routes_installed=routes_installed)
     except Exception as exc:
         LOGGER.warning(

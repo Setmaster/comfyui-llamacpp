@@ -10,13 +10,15 @@ from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_pres
 
 class LlamaCppStructuredOutput:
     DESCRIPTION = (
-        "Builds a JSON Schema, JSON object, or GBNF grammar constraint for ADV++ generation."
+        "Builds a JSON Schema, JSON object, or GBNF grammar constraint for Generate or ADV++."
     )
     CATEGORY = NODE_CATEGORIES["LlamaCppStructuredOutput"]
     SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppStructuredOutput"]
     RETURN_TYPES = ("STRUCTURED_OUTPUT",)
     RETURN_NAMES = ("structured_output",)
-    OUTPUT_TOOLTIPS = ("Validated structured-output constraint for an ADV++ Prompt node.",)
+    OUTPUT_TOOLTIPS = (
+        "Validated structured-output constraint for a Generate or ADV++ Prompt node.",
+    )
     FUNCTION = "create_constraint"
 
     @classmethod

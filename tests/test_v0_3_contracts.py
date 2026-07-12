@@ -94,8 +94,8 @@ def test_v0_3_fixture_is_anchored_to_immutable_release(v0_3_contracts):
 
 def test_complete_v0_3_node_surface_remains_registered(node_package, v0_3_contracts):
     expected_ids = set(v0_3_contracts["nodes"])
-    assert set(node_package.NODE_CLASS_MAPPINGS) == expected_ids
-    assert set(node_package.NODE_DISPLAY_NAME_MAPPINGS) == expected_ids
+    assert expected_ids <= set(node_package.NODE_CLASS_MAPPINGS)
+    assert expected_ids <= set(node_package.NODE_DISPLAY_NAME_MAPPINGS)
 
 
 @pytest.mark.parametrize("node_id", json.loads(FIXTURE.read_text())["nodes"])

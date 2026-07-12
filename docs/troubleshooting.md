@@ -248,6 +248,82 @@ This is expected when managed generation is active. The final generation lease
 performs the pending release. If the generation is hung, use Comfy's interrupt
 control so the request can unwind and close its HTTP response.
 
+## Generate raises instead of returning an error string
+
+This is the canonical node's intended contract. Authentication, TLS, missing
+model, timeout, transport, protocol, upstream, invalid request, structured JSON,
+and terminal release failures raise a categorized redacted exception. Downstream
+nodes do not execute on those failures.
+
+Partial text also raises by default. Select `return_marked_partial` only when the
+downstream graph is explicitly prepared to inspect the typed result's state and
+error. A cancelled result is not silently relabelled complete because some text
+arrived first.
+
+## Remote credential destination is not approved
+
+For authenticated non-loopback Canonical Generate connections, configure an
+exact server-side binding before starting ComfyUI. The origin includes the
+scheme and port, and the value is the API-key environment name selected by the
+Connection or Generate node:
+
+```bash
+export LLAMACPP_REMOTE_AUTH_BINDINGS='{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+```
+
+Also keep TLS certificate verification enabled. A different hostname, scheme,
+port, key name, malformed JSON value, or disabled verification is rejected
+before any request is sent. Loopback credentials do not require this binding.
+
+## Stop generation is unavailable
+
+Generate labels the exact action **Stop generation** only after a positive probe
+of llama.cpp's resumable-stream interface. A 404 or 405 means unsupported. A
+timeout, transport failure, or malformed success is Unknown. Those cases use
+**Stop Comfy job**, which requests prompt-targeted Comfy interruption and does
+not claim node-local scope.
+
+If final status says stream cleanup was unconfirmed, the backend attempted the
+exact DELETE but did not receive positive upstream confirmation. Inspect the
+local network, authentication, reverse proxy, and llama.cpp build. The node does
+not escalate that failure into a broader workflow or runtime stop.
+
+## Managed model Refresh shows Unknown or Missing
+
+Refresh is intentionally passive. It calls router `/models` without reload and
+selected-model `/props` with `autoload=false`. An unloaded model may therefore
+have Unknown context or modality facts. Unknown means no authoritative passive
+evidence was available; it does not mean unsupported.
+
+Missing means the saved exact value was absent from the current managed runtime
+response. The value remains selectable so the workflow is not silently changed.
+Use **llama.cpp List Models** to inspect authoritative router IDs, then choose a
+replacement explicitly. Browser Refresh never probes an arbitrary attached URL.
+
+## Task Profile is Missing or Changed
+
+The saved workflow snapshot remains authoritative in both states:
+
+- Missing means the current Comfy user's local file has no profile with that ID.
+- Changed means that local entry has different content from the saved snapshot.
+
+Select a local entry and press **Update Saved Snapshot** to copy it explicitly.
+Selection or Refresh alone never mutates the workflow. If the local profile file
+is invalid, fix `comfyui-llamacpp/profiles.json` in the current Comfy user data
+directory. The backend rejects oversized documents, unknown or duplicate keys,
+duplicate IDs, invalid UTF-8 or JSON, and attempts to override built-in Freeform.
+
+## Release After Generation fails
+
+Attached endpoints are rejected before prompt submission. For an owned router,
+the node also requires one exact model ID. Scoped router cleanup never stops the
+router as fallback, so ambiguous, mismatched, or nonterminal state is reported as
+a release failure while the router and unrelated models remain intact.
+
+If the caller times out while waiting, accepted cleanup continues in the
+lifecycle coordinator. Check Server Status before submitting new work for the
+same direct runtime or exact router model.
+
 ## Windows reports descendant fallback
 
 `descendant_fallback: true` after launch means Job Object assignment failed.
@@ -285,8 +361,8 @@ launched.
 - Test one image before enabling `include_image_batch`.
 - Confirm `image_amount` includes the connected socket.
 
-An image conversion failure is returned through the prompt node with
-`success=false`; it is no longer silently skipped.
+Legacy prompt nodes return an image conversion failure with `success=false`;
+Generate raises an invalid-request error. Neither path silently skips the image.
 
 ## Structured output fails
 

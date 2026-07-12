@@ -22,6 +22,7 @@ test("compatibility setup targets every node with advanced metadata", () => {
         "LlamaCppTokenCount",
         "LlamaCppModelInfo",
         "LlamaCppStructuredOutput",
+        "LlamaCppGenerate",
     ]);
 });
 

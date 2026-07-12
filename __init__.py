@@ -12,7 +12,10 @@ Provides nodes for:
 if __package__:
     from ._version import __version__
 else:  # direct tooling import, see below
-    __version__ = "0.3.0"
+    from pathlib import Path
+    from runpy import run_path
+
+    __version__ = str(run_path(str(Path(__file__).with_name("_version.py")))["__version__"])
 
 # Pytest discovers the repository root as ``__init__`` because the checkout
 # directory contains a hyphen. ComfyUI always imports this file as a package.

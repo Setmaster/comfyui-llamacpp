@@ -1,3 +1,142 @@
+# Active Canonical Generate Work Block B Plan
+
+Status: Active
+Date: 2026-07-11
+Branch: `dev` (tracking `origin/dev`)
+Baseline: `7317660cdb0d6c17b4568ca2f80c5d2794699e61`
+Preserved release: tag `0.3.0` at `365986af4a47426b5513b3cee917ebec93a4204a`
+Change bundle: `changes/2026-07-11-canonical-generate-work-block-b/`
+
+## Objective
+
+Add one obvious, complete canonical llama.cpp generation surface for new
+workflows while leaving all 17 released nodes and their saved-workflow contracts
+unchanged. The new surface must remain local-first, use the existing external
+llama-server runtime, provide bounded live feedback and truthful cancellation,
+discover runtime facts without surprise model loading, preserve user-owned task
+profiles as workflow snapshots, and make optional release-after-generation a
+real terminal lifecycle promise.
+
+## Completion Contract
+
+Outcome:
+
+- `LlamaCppGenerate` provides text, image, structured-output, token-ban,
+  thinking, sampling, seed, partial-output, and release behavior through one
+  compact V1 node.
+- `LlamaCppTaskProfile` provides a bounded, update-safe user profile mechanism
+  whose saved snapshot, rather than a mutable local name, drives execution.
+- The existing typed `LLAMACPP_CONNECTION` remains the reusable connection
+  object. Existing Start nodes remain byte-for-byte compatible and can connect
+  their existing URL output directly to Generate.
+- Generation returns response, thinking, and one typed, JSON-safe rich result.
+- Fatal failures raise one actionable root cause and do not become valid output
+  strings.
+- Managed current llama.cpp builds receive true generation-scoped Stop through
+  capability-probed resumable-stream control. Unsupported endpoints expose an
+  explicitly whole-Comfy-job fallback.
+- Passive discovery reports Known versus Unknown facts and never autoloads a
+  model or silently replaces a missing saved selection.
+- Direct release waits for every active direct lease. Router release waits only
+  for the exact selected model and never falls back to stopping the router.
+
+Success checks:
+
+- The complete 0.2.1 and 0.3 fixtures retain every legacy class ID, schema,
+  positional widget contract, output, default, and execution behavior.
+- Default sampling omits expert sampler keys; Custom sends the complete group.
+  Thinking Auto omits the upstream override; Off and On send explicit values.
+- Text plus 0, 1, and 10 image cases, full Comfy batches, structured output, and
+  token bans execute through the same payload and streaming path as legacy nodes.
+- Live events are execution-scoped, reject stale events, emit at no more than
+  8 Hz, retain no more than 64 KiB of valid UTF-8 per preview pane, and never
+  serialize into workflows or API prompts.
+- b9957-capable silent streams stop within two seconds, close the HTTP response,
+  explicitly delete the upstream replay session on every exit path, and release
+  their generation lease. Unsupported endpoints are never described as having
+  node-local cancellation.
+- Every passive properties request uses `autoload=false`; missing metadata stays
+  Unknown; live router identities remain authoritative; projector candidates are
+  suggestion-only and require confirmation.
+- Profile storage is per Comfy user, bounded, GET-only, and resolved through
+  Comfy's user manager. Freeform is the only built-in snapshot in this block.
+- Concurrent direct and two-model router release races pass, including
+  coalescing, admission blocking, timeout/cancelled waits, epoch changes, native
+  `/free`, attached endpoints, and router failures without process fallback.
+- Current ComfyUI classic and Nodes 2.0 pass discovery, profile, live preview,
+  cancellation, seed, dynamic sampling/images, serialization, and App Mode
+  checks.
+- Real direct, VLM, structured, router, cancellation, native free, scoped
+  release, driver-memory convergence, and downstream diffusion allocation checks
+  pass on the current Windows RTX 5090 host.
+- Python, JavaScript, lint, format, package, Registry validation, dependency
+  audit, extracted-distribution tests, independent review, pushed `dev` CI, and
+  exact installed-clone handoff are green.
+
+Stop condition:
+
+- Stop only when Work Block B is fully reviewed, committed, pushed to
+  `origin/dev`, green in CI, installed at the exact validated commit, and recorded
+  in the Project KB, or at a genuine human or external gate.
+
+Human gate:
+
+- The user owns hands-on acceptance and any later merge to `master`.
+
+## Frozen Product Decisions
+
+- Add exactly two public nodes: `LlamaCppGenerate` and
+  `LlamaCppTaskProfile`. Do not add a public request-builder node.
+- Preserve all legacy Start outputs. Generate accepts an optional typed
+  Connection plus an optional advanced URL. Supplying both is an error; supplying
+  neither targets the current managed runtime.
+- Keep V1 for this additive surface. A V3 migration is not a prerequisite.
+- Keep legacy `run_prompt()` and error-string compatibility unchanged. Canonical
+  execution is a strict new facade over the same payload, stream, manager, and
+  coordinator foundations.
+- Use capability-probed llama.cpp resumable-stream control for exact Stop. Treat
+  it as optional because upstream documents it as an internal interface.
+- Keep native and explicit global release behavior unchanged. Add a private
+  exact-target lease and release-handle path for canonical Generate.
+- Reject release-after-generation on attached endpoints before sending a prompt.
+  The lower-level global attached release remains a terminal no-op.
+- No automatic projector selection and no capability inference from filenames.
+- Profiles may transform prompt/system text only through a connected saved
+  snapshot. They never override model, sampling, seed, release, or other
+  generation controls.
+- Ship only the no-op Freeform profile before the separate fixed bakeoff.
+
+## Execution Sequence
+
+1. Freeze typed request, result, profile, discovery, event, and release contracts
+   with focused characterization tests.
+2. Implement passive client/discovery facts and bounded per-user profile loading.
+3. Implement runtime epochs, exact generation leases, scoped release operations,
+   awaitable handles, and race tests while retaining global compatibility.
+4. Implement stream progress, resumable control probing/cleanup, active execution
+   registry, live events, and truthful cancel routes.
+5. Implement canonical Generate and Task Profile nodes plus strict errors and
+   frontend dynamic controls.
+6. Add canonical workflows, App Mode surfaces, documentation, migration notes,
+   and package coverage.
+7. Run full automated, both-renderer browser, and real direct/router/GPU gates.
+8. Complete independent full-diff review, resolve every P0/P1/P2 finding, push
+   final `dev`, verify CI, install the exact head, and close the Project KB/goal.
+
+## Explicit Non-goals
+
+- Cloud-provider aggregation, agents, RAG, MCP, prompt databases, hidden or
+  persistent chat sessions, model stores, downloads, or provider abstraction.
+- Audio, transcription, video, explicit message arrays, prompt studio, diff,
+  galleries, or result-unpacker nodes.
+- Bundled target-aware profile content before a fixed bakeoff.
+- Public arbitrary scoped-release APIs, automatic projector pairing, driver VRAM
+  polling inside the coordinator, or a broad V3 migration.
+- Any merge to `master`, mutation of `0.3.0`, or Registry publication during this
+  work block.
+
+---
+
 # Completed UX Work Block A Plan
 
 Status: Complete

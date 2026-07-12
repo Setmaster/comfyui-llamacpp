@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import io
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -54,6 +55,35 @@ def image_tensor_to_data_urls(tensor: Any, *, include_batch: bool = False) -> li
     if not include_batch:
         frames = frames[:1]
     return [_encode_frame(frame) for frame in frames]
+
+
+def image_tensor_frame_count(tensor: Any, *, include_batch: bool = False) -> int:
+    """Return the number of frames a conversion would encode without encoding them."""
+
+    array = _as_numpy(tensor)
+    if array.ndim == 3 or not include_batch:
+        return 1
+    return int(array.shape[0])
+
+
+def image_tensor_to_data_urls_bounded(
+    tensor: Any,
+    *,
+    include_batch: bool = False,
+    interrupt_check: Callable[[], object] | None = None,
+) -> list[str]:
+    """Encode frames while allowing a caller to observe interruption between frames."""
+
+    array = _as_numpy(tensor)
+    frames = array if array.ndim == 4 else array[np.newaxis, ...]
+    if not include_batch:
+        frames = frames[:1]
+    encoded: list[str] = []
+    for frame in frames:
+        if interrupt_check is not None:
+            interrupt_check()
+        encoded.append(_encode_frame(frame))
+    return encoded
 
 
 def image_tensor_to_data_url(tensor: Any) -> str:

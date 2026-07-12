@@ -8,9 +8,9 @@ from ..generation import (
     GenerationOptions,
     apply_template,
     build_chat_payload,
-    image_tensor_to_data_urls,
     parse_text_list,
 )
+from ..generation.images import image_tensor_frame_count, image_tensor_to_data_urls_bounded
 from ..runtime.manager import LlamaCppServerManager, get_server_manager
 from ..runtime.streaming import StreamResult, stream_chat
 from .connection import LlamaCppConnectionProfile
@@ -32,13 +32,30 @@ def collect_images(
     image_inputs: dict[str, Any],
     *,
     include_batch: bool = False,
+    maximum_images: int | None = None,
+    interrupt_check: Any = None,
 ) -> list[str]:
     count = max(0, min(MAX_IMAGES, int(image_amount)))
+    selected = [
+        image_inputs.get(f"image_{index}")
+        for index in range(1, count + 1)
+        if image_inputs.get(f"image_{index}") is not None
+    ]
+    if maximum_images is not None:
+        total = sum(
+            image_tensor_frame_count(image, include_batch=include_batch) for image in selected
+        )
+        if total > maximum_images:
+            raise ValueError(f"image batch exceeds {maximum_images} frames")
     images: list[str] = []
-    for index in range(1, count + 1):
-        image = image_inputs.get(f"image_{index}")
-        if image is not None:
-            images.extend(image_tensor_to_data_urls(image, include_batch=include_batch))
+    for image in selected:
+        images.extend(
+            image_tensor_to_data_urls_bounded(
+                image,
+                include_batch=include_batch,
+                interrupt_check=interrupt_check,
+            )
+        )
     return images
 
 

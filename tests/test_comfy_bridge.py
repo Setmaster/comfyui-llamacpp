@@ -16,6 +16,12 @@ from runtime.comfy_bridge import (
     build_free_middleware,
     install_comfy_bridge,
 )
+from runtime.comfy_routes import (
+    ACTIVE_GENERATIONS_ROUTE,
+    CANCEL_GENERATION_ROUTE,
+    DISCOVERY_ROUTE,
+    PROFILES_ROUTE,
+)
 from runtime.service import ReleaseResult, ReleaseStatus, RuntimeMode
 
 
@@ -42,6 +48,7 @@ class FakeService:
         self.calls: list[tuple[str, bool, int]] = []
         self.failure: BaseException | None = None
         self.diagnostic_payload: dict[str, object] = {"mode": "direct"}
+        self.released_model_diagnostics: tuple[dict[str, object], ...] = ()
 
     def request_release(
         self,
@@ -61,6 +68,7 @@ class FakeService:
             owned=True,
             started_at=now,
             completed_at=now,
+            released_model_diagnostics=self.released_model_diagnostics,
         )
 
     def diagnostics(self) -> dict[str, object]:
@@ -167,6 +175,35 @@ def test_extension_failure_is_fail_open_and_emits_no_raw_error_material() -> Non
     assert secret not in str(events)
 
 
+def test_release_event_drops_arbitrary_router_model_diagnostics() -> None:
+    secret = "RAW_ROUTER_MODEL_RESPONSE_SECRET"
+    service = FakeService()
+    service.released_model_diagnostics = (
+        {
+            "id": "model-a",
+            "state": "failed",
+            "raw": {"response_body": secret},
+            "arbitrary": secret,
+        },
+    )
+    events: list[tuple[str, dict[str, object]]] = []
+
+    async def handler(_request: FakeRequest) -> FakeResponse:
+        return FakeResponse()
+
+    asyncio.run(
+        build_free_middleware(service, event_sender=lambda *args: events.append(args))(
+            FakeRequest("/free", {"free_memory": True}),
+            handler,
+        )
+    )
+
+    assert secret not in str(events)
+    assert events[0][1]["released_model_diagnostics"] == [
+        {"id": "model-a", "state": "failed", "raw": {}}
+    ]
+
+
 @dataclass
 class FakeRoute:
     method: str
@@ -217,7 +254,8 @@ class FakePromptServer:
         self.routes = FakeRoutes()
         self.events: list[tuple[str, dict[str, object]]] = []
 
-    def send_sync(self, name: str, payload: dict[str, object]) -> None:
+    def send_sync(self, name: str, payload: dict[str, object], client_id=None) -> None:
+        del client_id
         self.events.append((name, payload))
 
 
@@ -244,6 +282,10 @@ def test_install_is_idempotent_and_registers_only_namespaced_routes_once() -> No
     assert [(route.method, route.path) for route in prompt_server.routes] == [
         ("GET", STATUS_ROUTE),
         ("POST", RELEASE_ROUTE),
+        ("GET", PROFILES_ROUTE),
+        ("GET", DISCOVERY_ROUTE),
+        ("GET", ACTIVE_GENERATIONS_ROUTE),
+        ("POST", CANCEL_GENERATION_ROUTE),
     ]
 
 
@@ -274,7 +316,17 @@ def test_status_route_withholds_nested_raw_backend_errors() -> None:
     service = FakeService()
     service.diagnostic_payload = {
         "last_error": secret,
-        "last_release": {"error": secret},
+        "last_release": {
+            "error": secret,
+            "released_model_diagnostics": [
+                {
+                    "id": "model-a",
+                    "state": "failed",
+                    "raw": {"response_body": secret},
+                    "arbitrary": secret,
+                }
+            ],
+        },
         "process": {"last_error": None},
     }
     install_comfy_bridge(
@@ -290,6 +342,9 @@ def test_status_route_withholds_nested_raw_backend_errors() -> None:
     assert secret not in str(response.payload)
     assert response.payload["last_error"].startswith("details withheld")
     assert response.payload["last_release"]["error"].startswith("details withheld")
+    assert response.payload["last_release"]["released_model_diagnostics"] == [
+        {"id": "model-a", "state": "failed", "raw": {}}
+    ]
 
 
 def test_bridge_installation_failure_is_import_safe_and_fail_open() -> None:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import threading
+import time
 
 import pytest
 
 import runtime.manager as manager_module
+from models.catalog import ModelCatalog
 from runtime.capabilities import ServerCapabilities
 from runtime.client import (
     HealthStatus,
@@ -17,6 +19,16 @@ from runtime.config import RouterConfig, ServerConfig
 from runtime.manager import LlamaCppServerManager, ServerStatus, get_server_manager
 from runtime.process import ProcessLifecycle, StopResult
 from runtime.service import ReleaseStatus, RuntimeMode, RuntimeService
+
+
+def _wait_for_event(event: threading.Event, *, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while not event.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        event.wait(timeout=remaining)
+    return True
 
 
 class FakeSnapshot:
@@ -80,7 +92,7 @@ class FakeProcess:
         if self.start_entered is not None:
             self.start_entered.set()
         if self.start_gate is not None:
-            assert self.start_gate.wait(timeout=5)
+            assert _wait_for_event(self.start_gate, timeout=5)
         self.command = list(command)
         self.running = True
         self.owned = True
@@ -92,7 +104,7 @@ class FakeProcess:
         if self.stop_entered is not None:
             self.stop_entered.set()
         if self.stop_gate is not None:
-            assert self.stop_gate.wait(timeout=5)
+            assert _wait_for_event(self.stop_gate, timeout=5)
         self.running = False
         self.owned = False
         self.state = ProcessLifecycle.STOPPED
@@ -113,6 +125,7 @@ class FakeClient:
         self.unload_calls = []
         self.load_calls = []
         self.models_kwargs = []
+        self.props_kwargs = []
         self.models_entered = None
         self.models_gate = None
         self.load_entered = None
@@ -127,6 +140,7 @@ class FakeClient:
         return HealthStatus(True, 200, "ok", None, {"status": "ok"})
 
     def props(self, **kwargs):
+        self.props_kwargs.append(dict(kwargs))
         return ServerProps(
             self.role,
             "fixture",
@@ -137,12 +151,15 @@ class FakeClient:
             {"role": self.role} if self.role else {"model_path": self.model_path},
         )
 
+    def passive_props(self, model=None, **kwargs):
+        return self.props(model=model, autoload=False, **kwargs)
+
     def models(self, **kwargs):
         self.models_kwargs.append(dict(kwargs))
         if kwargs.get("reload") and self.models_entered is not None:
             self.models_entered.set()
         if kwargs.get("reload") and self.models_gate is not None:
-            assert self.models_gate.wait(timeout=5)
+            assert _wait_for_event(self.models_gate, timeout=5)
         return tuple(self.model_records)
 
     list_models = models
@@ -152,7 +169,7 @@ class FakeClient:
         if self.load_entered is not None:
             self.load_entered.set()
         if self.load_gate is not None:
-            assert self.load_gate.wait(timeout=5)
+            assert _wait_for_event(self.load_gate, timeout=5)
         model = RouterModel(model_id, ModelState.LOADED)
         return ModelOperationResult(model, True, True, 0.1)
 
@@ -161,7 +178,7 @@ class FakeClient:
         if self.unload_entered is not None:
             self.unload_entered.set()
         if self.unload_gate is not None:
-            assert self.unload_gate.wait(timeout=5)
+            assert _wait_for_event(self.unload_gate, timeout=5)
         model = RouterModel(model_id, ModelState.UNLOADED)
         return ModelOperationResult(model, True, True, 0.1)
 
@@ -254,6 +271,30 @@ def test_direct_start_native_release_and_status(tmp_path, monkeypatch):
     assert release.status == ReleaseStatus.COMPLETE
     assert manager.status == ServerStatus.STOPPED
     assert clients[0].closed is True
+
+
+def test_managed_restart_boundaries_clear_stream_capability_cache(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    clears = []
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    monkeypatch.setattr(
+        manager_module,
+        "clear_stream_control_cache",
+        lambda: clears.append("clear"),
+    )
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    assert manager.start(ServerConfig(str(model)), timeout=2) == (True, None)
+    assert clears == ["clear"]
+    assert manager.stop() == (True, None)
+    assert clears == ["clear", "clear"]
 
 
 def test_router_native_release_unloads_models_but_keeps_router(tmp_path, monkeypatch):
@@ -405,7 +446,7 @@ def test_bind_hosts_produce_valid_loopback_connect_urls(
     assert manager.server_url == expected_url
 
 
-def test_equivalent_loopback_urls_retain_managed_generation_leases(tmp_path, monkeypatch):
+def test_only_exact_owned_endpoint_retains_managed_generation_lease(tmp_path, monkeypatch):
     model = tmp_path / "model.gguf"
     model.write_bytes(b"fixture")
     process = FakeProcess()
@@ -418,17 +459,44 @@ def test_equivalent_loopback_urls_retain_managed_generation_leases(tmp_path, mon
     )
     assert manager.start(ServerConfig(str(model), host="127.0.0.1"), timeout=2)[0]
 
-    for url in (
-        "http://127.0.0.1:8080",
-        "http://localhost:8080/",
-        "http://[::1]:8080",
-    ):
+    for url in ("http://127.0.0.1:8080", "HTTP://127.0.0.1:8080/"):
         connection, managed = manager.connection_for(url)
-        assert connection.base_url == url.rstrip("/")
+        assert connection.base_url == "http://127.0.0.1:8080"
         assert managed is True
 
-    _, managed = manager.connection_for("http://localhost:8081")
-    assert managed is False
+    for url in (
+        "http://127.0.0.2:8080",
+        "http://localhost:8080",
+        "http://[::1]:8080",
+        "http://127.0.0.1:8081",
+    ):
+        _, managed = manager.connection_for(url)
+        assert managed is False
+
+
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        ("HTTP://LOCALHOST", "http://localhost:80/"),
+        ("https://Example.COM/api/", "HTTPS://example.com:443/api"),
+        ("http://example.com./", "http://EXAMPLE.COM:80"),
+        ("http://[0:0:0:0:0:0:0:1]:8080/", "http://[::1]:8080"),
+    ],
+)
+def test_endpoint_equivalence_preserves_valid_url_normalization(left, right):
+    assert manager_module._same_endpoint(left, right) is True
+
+
+@pytest.mark.parametrize(
+    ("left", "right"),
+    [
+        ("http://127.0.0.2:8080", "http://127.0.0.1:8080"),
+        ("http://[::1]:8080", "http://127.0.0.1:8080"),
+        ("http://example.com:0", "http://example.com"),
+    ],
+)
+def test_endpoint_equivalence_does_not_collapse_distinct_endpoints(left, right):
+    assert manager_module._same_endpoint(left, right) is False
 
 
 @pytest.mark.parametrize(
@@ -470,6 +538,144 @@ def test_model_list_reload_is_forwarded_to_router_client(tmp_path, monkeypatch):
 
     assert (success, error) == (True, None)
     assert client.models_kwargs[-1] == {"reload": True}
+
+
+def test_router_model_resolution_forwards_the_caller_timeout(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("exact/model.gguf", ModelState.LOADED),)
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    model_id = manager.resolve_model_id("exact/model.gguf", timeout=1.25)
+
+    assert model_id == "exact/model.gguf"
+    assert client.models_kwargs[-1] == {"timeout": 1.25}
+
+
+def test_managed_discovery_is_passive_and_uses_one_runtime_epoch(tmp_path, monkeypatch):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("selected.gguf", ModelState.LOADED),)
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    result = manager.discover_models("selected.gguf")
+
+    assert result.runtime_epoch == service.runtime_epoch
+    assert result.models[0].model_id == "selected.gguf"
+    assert client.models_kwargs[-1] == {"reload": False}
+    assert client.props_kwargs[-1] == {
+        "model": "selected.gguf",
+        "autoload": False,
+    }
+
+
+def test_clientless_manager_discovery_reports_offline_despite_stale_runtime_mode(tmp_path):
+    (tmp_path / "offline.gguf").write_bytes(b"offline")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    service.configure_attached()
+
+    def unexpected_client(_connection):
+        raise AssertionError("offline discovery must not construct a runtime client")
+
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=unexpected_client,
+    )
+
+    result = manager.discover_models(
+        "offline.gguf",
+        catalog=ModelCatalog((tmp_path,)),
+    )
+
+    assert service.mode == RuntimeMode.ATTACHED
+    assert result.mode == RuntimeMode.NONE
+    assert result.owned is False
+    assert result.endpoint == ""
+    assert result.runtime_epoch == service.runtime_epoch
+    assert result.models[0].ownership.value == "offline"
+
+
+def test_managed_discovery_returns_only_an_unconfirmed_adjacent_projector_suggestion(
+    tmp_path,
+    monkeypatch,
+):
+    bundle = tmp_path / "vision"
+    bundle.mkdir()
+    (bundle / "model.gguf").write_bytes(b"model")
+    (bundle / "mmproj-model.gguf").write_bytes(b"projector")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("vision/model.gguf", ModelState.UNLOADED),)
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+
+    result = manager.discover_models(
+        "vision/model.gguf",
+        catalog=ModelCatalog((tmp_path,)),
+    )
+
+    suggestion = result.models[0].projector
+    assert suggestion is not None
+    assert suggestion.projector_name == "vision/mmproj-model.gguf"
+    assert suggestion.requires_confirmation is True
+    assert suggestion.compatibility.state.value == "unknown"
+
+
+def test_managed_discovery_retries_once_when_runtime_epoch_changes(
+    tmp_path,
+    monkeypatch,
+):
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    client = FakeClient(None, role="router")
+    client.model_records = (RouterModel("selected.gguf", ModelState.LOADED),)
+    monkeypatch.setattr("runtime.manager._port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: client,
+    )
+    assert manager.start_router(RouterConfig(str(tmp_path)), timeout=2)[0]
+    original = manager_module.discover_runtime
+    calls = 0
+
+    def racing_discovery(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        result = original(*args, **kwargs)
+        if calls == 1:
+            with service._state_lock:
+                service._runtime_epoch += 1
+        return result
+
+    monkeypatch.setattr(manager_module, "discover_runtime", racing_discovery)
+
+    result = manager.discover_models("selected.gguf")
+
+    assert calls == 2
+    assert result.runtime_epoch == service.runtime_epoch
 
 
 def test_model_list_reload_rejects_before_request_during_generation(tmp_path, monkeypatch):

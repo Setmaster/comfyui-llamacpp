@@ -286,6 +286,32 @@ class ModelCatalog:
     def list_mmproj(self) -> list[str]:
         return [entry.name for entry in self.entries() if entry.is_mmproj]
 
+    def adjacent_projector(self, model_name: str) -> ModelEntry | None:
+        """Return one unambiguous sibling projector without claiming compatibility.
+
+        Directory adjacency is useful guidance for a human, but it is not proof
+        that a projector matches a model architecture.  Callers must present this
+        result as a suggestion and require confirmation.
+        """
+
+        model_path = self.resolve(model_name)
+        entries = self.entries()
+        model_entry = next(
+            (entry for entry in entries if not entry.is_mmproj and entry.path == model_path),
+            None,
+        )
+        if model_entry is None:
+            return None
+
+        siblings = [
+            entry
+            for entry in entries
+            if entry.is_mmproj
+            and entry.root == model_entry.root
+            and entry.path.parent == model_entry.path.parent
+        ]
+        return siblings[0] if len(siblings) == 1 else None
+
     def resolve(self, name: str, *, require_file: bool = True) -> Path:
         relative = _safe_relative_name(name)
         for root in self.roots:

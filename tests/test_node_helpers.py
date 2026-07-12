@@ -5,6 +5,7 @@ import json
 import sys
 from contextlib import contextmanager
 
+import numpy as np
 import pytest
 
 
@@ -12,6 +13,49 @@ def test_token_ban_supports_json_entries_containing_commas(node_package):
     node = node_package.NODE_CLASS_MAPPINGS["LlamaCppTokenBan"]()
     value = node.create_ban_list('["one,two", " three "]', True)[0]
     assert value == [["one,two", False], [" three ", False]]
+
+
+def test_canonical_image_batch_is_preflight_bounded_before_any_encoding(
+    node_package,
+    monkeypatch,
+):
+    common = importlib.import_module(f"{node_package.__name__}.nodes.common")
+    encoded = []
+    monkeypatch.setattr(
+        common,
+        "image_tensor_to_data_urls_bounded",
+        lambda *args, **kwargs: encoded.append((args, kwargs)) or [],
+    )
+    batch = np.zeros((4097, 1, 1, 3), dtype=np.float32)
+
+    with pytest.raises(ValueError, match="exceeds 4096 frames"):
+        common.collect_images(
+            1,
+            {"image_1": batch},
+            include_batch=True,
+            maximum_images=4096,
+        )
+
+    assert encoded == []
+
+
+def test_canonical_image_conversion_error_is_generic_and_bounded(
+    node_package,
+    monkeypatch,
+):
+    module = importlib.import_module(f"{node_package.__name__}.nodes.generate")
+    monkeypatch.setattr(
+        module,
+        "collect_images",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("S" * 10_000)),
+    )
+
+    with pytest.raises(module.CanonicalGenerationError) as caught:
+        module.LlamaCppGenerate().generate("hello", image_amount=1, image_1=object())
+
+    assert caught.value.category == module.ErrorCategory.INVALID_REQUEST
+    assert len(caught.value.info.message) <= 4096
+    assert "S" * 100 not in caught.value.info.message
 
 
 def test_structured_output_builds_nested_json_schema(node_package):

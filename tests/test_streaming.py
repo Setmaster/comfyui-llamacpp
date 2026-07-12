@@ -2,9 +2,25 @@ from __future__ import annotations
 
 import json
 import unittest
+import uuid
+from dataclasses import asdict
 
-from runtime.client import AuthConfig, ConnectionConfig, Deadline, ModelState, TLSConfig
-from runtime.streaming import iter_model_events, iter_sse_events, stream_chat
+from runtime.client import (
+    AuthConfig,
+    ConnectionConfig,
+    Deadline,
+    LlamaServerClient,
+    ModelState,
+    StreamControl,
+    TLSConfig,
+)
+from runtime.streaming import (
+    PromptProgress,
+    StreamUpdate,
+    iter_model_events,
+    iter_sse_events,
+    stream_chat,
+)
 
 
 class FakeClock:
@@ -17,7 +33,14 @@ class FakeClock:
 
 class FakeResponse:
     def __init__(
-        self, lines=(), *, status_code=200, payload=None, text="", before_line=None
+        self,
+        lines=(),
+        *,
+        status_code=200,
+        payload=None,
+        text="",
+        before_line=None,
+        content_chunks=None,
     ) -> None:
         self.lines = list(lines)
         self.status_code = status_code
@@ -25,8 +48,11 @@ class FakeResponse:
         self.text = text or (json.dumps(payload) if payload is not None else "")
         self.headers = {}
         self.before_line = before_line
+        self.content_chunks = list(content_chunks) if content_chunks is not None else None
         self.closed = False
         self.iter_lines_decode_unicode: list[bool] = []
+        self.iter_content_chunk_sizes: list[int] = []
+        self.content_chunks_yielded = 0
 
     def json(self):
         if self.payload is None:
@@ -44,6 +70,28 @@ class FakeResponse:
                 yield line.decode("latin-1")
             else:
                 yield line
+
+    def iter_content(self, chunk_size=1):
+        self.iter_content_chunk_sizes.append(chunk_size)
+        if self.content_chunks is not None:
+            chunks = iter(self.content_chunks)
+        elif self.lines:
+
+            def line_chunks():
+                for line in self.lines:
+                    if self.before_line:
+                        self.before_line()
+                    yield (line if isinstance(line, bytes) else line.encode("utf-8")) + b"\n"
+
+            chunks = line_chunks()
+        else:
+            encoded = self.text.encode("utf-8")
+            chunks = [
+                encoded[index : index + chunk_size] for index in range(0, len(encoded), chunk_size)
+            ]
+        for chunk in chunks:
+            self.content_chunks_yielded += 1
+            yield chunk
 
     def close(self) -> None:
         self.closed = True
@@ -146,6 +194,10 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer top-secret")
         self.assertFalse(kwargs["verify"])
         self.assertTrue(kwargs["stream"])
+        self.assertFalse(kwargs["allow_redirects"])
+        self.assertNotIn("X-Conversation-Id", kwargs["headers"])
+        self.assertNotIn("return_progress", kwargs["json"])
+        self.assertNotIn("sse_ping_interval", kwargs["json"])
 
     def test_complete_stream_preserves_exact_content_and_reasoning_whitespace(self) -> None:
         response = FakeResponse(
@@ -208,7 +260,8 @@ class ChatStreamingTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(result.response, expected)
-        self.assertEqual(response.iter_lines_decode_unicode, [False])
+        self.assertEqual(response.iter_lines_decode_unicode, [])
+        self.assertTrue(response.iter_content_chunk_sizes)
 
     def test_finish_reason_is_terminal_without_done_marker(self) -> None:
         response = FakeResponse(
@@ -353,6 +406,760 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertNotIn("top-secret", result.error_message)
         self.assertTrue(response.closed)
 
+    def test_http_error_body_is_bounded_and_never_exposes_raw_sentinel(self) -> None:
+        response = FakeResponse(
+            status_code=500,
+            content_chunks=[b"raw-http-error-sentinel" * 4096, b"must-not-be-read"],
+        )
+        session = FakeSession(response)
+
+        result = stream_chat(self.connection(), {"stream": True}, session=session)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "http")
+        self.assertNotIn("raw-http-error-sentinel", result.error_message)
+        self.assertEqual(response.content_chunks_yielded, 1)
+        self.assertFalse(session.calls[0][2]["allow_redirects"])
+
+    def test_strict_chat_404_has_typed_missing_model_context_without_raw_body(self) -> None:
+        response = FakeResponse(
+            status_code=404,
+            payload={"error": {"message": "raw-model-and-secret-sentinel"}},
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status_code, 404)
+        self.assertEqual(result.error_type, "model_missing")
+        self.assertNotIn("raw-model-and-secret-sentinel", result.error_message)
+
+    def test_strict_wire_line_and_event_limits_cleanup_exact_stream(self) -> None:
+        cases = (
+            (
+                FakeResponse(content_chunks=[b"data: " + (b"x" * 65)]),
+                {"max_line_bytes": 32, "max_event_bytes": 256},
+            ),
+            (
+                FakeResponse(
+                    content_chunks=[
+                        b"data: 1234567890\n",
+                        b"data: 1234567890\n",
+                        b"\n",
+                    ]
+                ),
+                {"max_line_bytes": 64, "max_event_bytes": 24},
+            ),
+        )
+        for response, limits in cases:
+            with self.subTest(limits=limits):
+                connection = self.connection()
+                deletes = []
+                control = StreamControl(
+                    connection,
+                    uuid.uuid4(),
+                    _delete=lambda identity, _timeout, sink=deletes: sink.append(identity) or True,
+                )
+
+                result = stream_chat(
+                    connection,
+                    {"stream": True},
+                    session=FakeSession(response),
+                    stream_control=control,
+                    strict_protocol=True,
+                    **limits,
+                )
+
+                self.assertFalse(result.success)
+                self.assertEqual(result.error_type, "resource")
+                self.assertEqual(
+                    result.error_message, "stream response exceeded a configured safety limit"
+                )
+                self.assertEqual(deletes, [control.conversation_id])
+                self.assertTrue(result.stream_cleanup.confirmed)
+                self.assertTrue(response.closed)
+
+    def test_strict_many_tiny_chunks_bound_response_and_thinking_accumulation(self) -> None:
+        for field, limit_name, expected_response, expected_thinking in (
+            ("content", "max_response_bytes", "xxx", ""),
+            ("reasoning_content", "max_thinking_bytes", "", "xxx"),
+        ):
+            with self.subTest(field=field):
+                lines = []
+                for _ in range(4):
+                    lines.extend([data_line({"choices": [{"delta": {field: "x"}}]}), ""])
+                response = FakeResponse(lines)
+                connection = self.connection()
+                deletes = []
+                control = StreamControl(
+                    connection,
+                    uuid.uuid4(),
+                    _delete=lambda identity, _timeout, sink=deletes: sink.append(identity) or True,
+                )
+
+                result = stream_chat(
+                    connection,
+                    {"stream": True},
+                    session=FakeSession(response),
+                    stream_control=control,
+                    strict_protocol=True,
+                    **{limit_name: 3},
+                )
+
+                self.assertEqual(result.error_type, "resource")
+                self.assertEqual(result.response, expected_response)
+                self.assertEqual(result.thinking, expected_thinking)
+                self.assertTrue(result.partial)
+                self.assertEqual(result.chunks, 4)
+                self.assertEqual(deletes, [control.conversation_id])
+                self.assertTrue(result.stream_cleanup.confirmed)
+
+    def test_strict_output_limits_count_utf8_bytes_across_chunks(self) -> None:
+        response = FakeResponse(
+            [
+                data_line({"choices": [{"delta": {"content": "é"}}]}),
+                "",
+                data_line({"choices": [{"delta": {"content": "é"}}]}),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+            max_response_bytes=3,
+        )
+
+        self.assertEqual(result.error_type, "resource")
+        self.assertEqual(result.response, "é")
+        self.assertTrue(result.partial)
+
+    def test_strict_stream_fields_reject_objects_and_surrogates_generically(self) -> None:
+        malformed_chunks = (
+            {"choices": [{"delta": {"content": {"raw-field-sentinel": True}}}]},
+            {"choices": [{"delta": {"reasoning_content": ["raw-field-sentinel"]}}]},
+            {"model": {"raw-field-sentinel": True}, "choices": []},
+            {"id": ["raw-field-sentinel"], "choices": []},
+            {"choices": [{"delta": {}, "finish_reason": {"raw-field-sentinel": True}}]},
+            {"choices": [{"delta": {"content": "\ud800"}}]},
+        )
+        for malformed in malformed_chunks:
+            with self.subTest(malformed=repr(malformed)):
+                response = FakeResponse([data_line(malformed), ""])
+                connection = self.connection()
+                deletes = []
+                control = StreamControl(
+                    connection,
+                    uuid.uuid4(),
+                    _delete=lambda identity, _timeout, sink=deletes: sink.append(identity) or True,
+                )
+
+                result = stream_chat(
+                    connection,
+                    {"stream": True},
+                    session=FakeSession(response),
+                    stream_control=control,
+                    strict_protocol=True,
+                )
+
+                self.assertFalse(result.success)
+                self.assertEqual(result.error_type, "protocol")
+                self.assertEqual(
+                    result.error_message, "stream response violated the expected protocol"
+                )
+                self.assertNotIn("raw-field-sentinel", result.error_message)
+                self.assertEqual(deletes, [control.conversation_id])
+                self.assertTrue(result.stream_cleanup.confirmed)
+
+    def test_strict_stream_fields_are_individually_bounded_and_accept_null(self) -> None:
+        cases = (
+            ({"id": "12345", "choices": []}, {"max_id_bytes": 4}),
+            ({"model": "12345", "choices": []}, {"max_model_bytes": 4}),
+            (
+                {"choices": [{"delta": {}, "finish_reason": "12345"}]},
+                {"max_finish_reason_bytes": 4},
+            ),
+        )
+        for chunk, limits in cases:
+            with self.subTest(limits=limits):
+                result = stream_chat(
+                    self.connection(),
+                    {"stream": True},
+                    session=FakeSession(FakeResponse([data_line(chunk), ""])),
+                    strict_protocol=True,
+                    **limits,
+                )
+                self.assertEqual(result.error_type, "resource")
+
+        null_chunk = {
+            "id": None,
+            "model": None,
+            "choices": [
+                {
+                    "delta": {"content": None, "reasoning_content": None},
+                    "finish_reason": None,
+                }
+            ],
+        }
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(FakeResponse([data_line(null_chunk), "", "data: [DONE]", ""])),
+            strict_protocol=True,
+        )
+        self.assertTrue(result.success)
+
+    def test_strict_stream_rejects_model_change_after_partial_content(self) -> None:
+        connection = self.connection()
+        deletes = []
+        control = StreamControl(
+            connection,
+            uuid.uuid4(),
+            _delete=lambda identity, _timeout: deletes.append(identity) or True,
+        )
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "model": "model-b",
+                        "choices": [{"delta": {"content": "partial"}}],
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "model": "model-a",
+                        "choices": [{"delta": {}, "finish_reason": "stop"}],
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            connection,
+            {"stream": True},
+            session=FakeSession(response),
+            stream_control=control,
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "protocol")
+        self.assertEqual(
+            result.error_message,
+            "stream response violated the expected protocol",
+        )
+        self.assertEqual(result.response, "partial")
+        self.assertTrue(result.partial)
+        self.assertEqual(result.model, "model-b")
+        self.assertEqual(deletes, [control.conversation_id])
+        self.assertTrue(result.stream_cleanup.confirmed)
+        self.assertTrue(response.closed)
+
+    def test_strict_stream_rejects_response_id_change(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "id": "chat-b",
+                        "choices": [{"delta": {"content": "partial"}}],
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "id": "chat-a",
+                        "choices": [{"delta": {}, "finish_reason": "stop"}],
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "protocol")
+        self.assertEqual(
+            result.error_message,
+            "stream response violated the expected protocol",
+        )
+        self.assertEqual(result.response_id, "chat-b")
+        self.assertEqual(result.response, "partial")
+        self.assertTrue(result.partial)
+        self.assertTrue(response.closed)
+
+    def test_strict_stream_accepts_repeated_identity_values(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "id": "chat-one",
+                        "model": "model-one",
+                        "choices": [{"delta": {"content": "answer"}}],
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "id": "chat-one",
+                        "model": "model-one",
+                        "choices": [{"delta": {}, "finish_reason": "stop"}],
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.response, "answer")
+        self.assertEqual(result.response_id, "chat-one")
+        self.assertEqual(result.model, "model-one")
+
+    def test_strict_stream_accepts_identity_first_seen_after_missing_values(self) -> None:
+        response = FakeResponse(
+            [
+                data_line({"choices": [{"delta": {"content": "answer"}}]}),
+                "",
+                data_line(
+                    {
+                        "id": "chat-late",
+                        "model": "model-late",
+                        "choices": [{"delta": {}, "finish_reason": "stop"}],
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.response_id, "chat-late")
+        self.assertEqual(result.model, "model-late")
+
+    def test_legacy_stream_retains_last_identity_value(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "id": "chat-one",
+                        "model": "model-one",
+                        "choices": [{"delta": {"content": "answer"}}],
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "id": "chat-two",
+                        "model": "model-two",
+                        "choices": [{"delta": {}, "finish_reason": "stop"}],
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.response_id, "chat-two")
+        self.assertEqual(result.model, "model-two")
+
+    def test_invalid_json_is_generic_and_typed_in_strict_client_path(self) -> None:
+        response = FakeResponse(["data: raw-json-sentinel", ""])
+        session = FakeSession(response)
+        client = LlamaServerClient(self.connection(), session=session)
+
+        result = client.stream_chat({"stream": True})
+
+        self.assertEqual(result.error_type, "protocol")
+        self.assertEqual(result.error_message, "stream response violated the expected protocol")
+        self.assertNotIn("raw-json-sentinel", result.error_message)
+        self.assertTrue(response.iter_content_chunk_sizes)
+
+    def test_rich_update_callback_normalizes_prompt_progress_without_changing_legacy_chunks(
+        self,
+    ) -> None:
+        legacy = []
+        updates: list[StreamUpdate] = []
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "id": "chat-progress",
+                        "model": "model-one",
+                        "prompt_progress": {
+                            "total": 10,
+                            "cache": 2,
+                            "processed": 5,
+                            "time_ms": 15,
+                        },
+                        "choices": [],
+                    }
+                ),
+                "",
+                data_line(
+                    {
+                        "choices": [
+                            {
+                                "delta": {
+                                    "content": "answer",
+                                    "reasoning_content": "thought",
+                                },
+                                "finish_reason": "stop",
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 1,
+                            "total_tokens": 11,
+                        },
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            on_chunk=lambda content, thinking: legacy.append((content, thinking)),
+            on_update=updates.append,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(legacy, [("answer", "thought")])
+        self.assertEqual(len(updates), 2)
+        self.assertEqual(updates[0].prompt_progress, PromptProgress(10, 2, 5, 15))
+        self.assertEqual(updates[0].prompt_progress.percent, 50.0)
+        self.assertEqual(updates[1].content, "answer")
+        self.assertEqual(updates[1].thinking, "thought")
+        self.assertEqual(updates[1].finish_reason, "stop")
+        self.assertEqual(result.prompt_progress, PromptProgress(10, 2, 5, 15))
+
+    def test_observability_callback_failure_is_fail_open(self) -> None:
+        response = FakeResponse(
+            [
+                data_line({"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}),
+                "",
+            ]
+        )
+
+        def fail(_update: StreamUpdate) -> None:
+            raise RuntimeError("UI callback failed")
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            on_update=fail,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.response, "ok")
+
+    def test_supported_stream_control_adds_exact_fields_and_deletes_in_finally(self) -> None:
+        deletes: list[tuple[uuid.UUID, float]] = []
+        connection = self.connection()
+        conversation_id = uuid.uuid4()
+        control = StreamControl(
+            connection,
+            conversation_id,
+            _delete=lambda identity, timeout: deletes.append((identity, timeout)) or True,
+        )
+        original_payload = {"messages": [], "stream": True}
+        response = FakeResponse(["data: [DONE]", ""])
+        session = FakeSession(response)
+
+        result = stream_chat(
+            connection,
+            original_payload,
+            session=session,
+            stream_control=control,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(original_payload, {"messages": [], "stream": True})
+        _, _, kwargs = session.calls[0]
+        self.assertEqual(kwargs["headers"]["X-Conversation-Id"], str(conversation_id))
+        self.assertIs(kwargs["json"]["return_progress"], True)
+        self.assertEqual(kwargs["json"]["sse_ping_interval"], 1)
+        self.assertEqual(deletes, [(conversation_id, 2.0)])
+        self.assertIsNotNone(result.stream_cleanup)
+        self.assertEqual(
+            result.stream_cleanup.as_dict(),
+            {
+                "attempts": 1,
+                "confirmed": True,
+                "failures": 0,
+                "last_error_type": None,
+            },
+        )
+        self.assertEqual(asdict(result)["stream_cleanup"]["confirmed"], True)
+        self.assertTrue(response.closed)
+
+    def test_conversation_header_cannot_bypass_or_duplicate_the_capability_gate(self) -> None:
+        connection = ConnectionConfig(
+            "http://localhost:8080",
+            default_headers=(("x-conversation-id", "user-supplied"),),
+        )
+        unsupported_session = FakeSession(FakeResponse(["data: [DONE]", ""]))
+        result = stream_chat(
+            connection,
+            {"stream": True},
+            session=unsupported_session,
+        )
+        self.assertTrue(result.success)
+        unsupported_headers = unsupported_session.calls[0][2]["headers"]
+        self.assertFalse(any(key.lower() == "x-conversation-id" for key in unsupported_headers))
+
+        control = StreamControl(
+            connection,
+            uuid.uuid4(),
+            _delete=lambda _identity, _timeout: True,
+        )
+        supported_session = FakeSession(FakeResponse(["data: [DONE]", ""]))
+        result = stream_chat(
+            connection,
+            {"stream": True},
+            session=supported_session,
+            stream_control=control,
+        )
+        self.assertTrue(result.success)
+        supported_headers = supported_session.calls[0][2]["headers"]
+        conversation_headers = [
+            (key, value)
+            for key, value in supported_headers.items()
+            if key.lower() == "x-conversation-id"
+        ]
+        self.assertEqual(
+            conversation_headers,
+            [("X-Conversation-Id", str(control.conversation_id))],
+        )
+
+    def test_stream_control_cleanup_runs_on_http_error_cancel_timeout_and_base_exception(
+        self,
+    ) -> None:
+        class ComfyInterrupt(BaseException):
+            pass
+
+        cases = []
+        cases.append((FakeResponse(status_code=500, payload={"error": "bad"}), None, None))
+
+        should_cancel = False
+
+        def mark_cancel(_content: str, _thinking: str) -> None:
+            nonlocal should_cancel
+            should_cancel = True
+
+        cases.append(
+            (
+                FakeResponse([data_line({"choices": [{"delta": {"content": "partial"}}]}), ""]),
+                mark_cancel,
+                lambda: should_cancel,
+            )
+        )
+
+        clock = FakeClock()
+
+        def advance() -> None:
+            clock.now += 2
+
+        timeout_response = FakeResponse([": ping", ""], before_line=advance)
+
+        for index, (response, on_chunk, cancel) in enumerate(cases):
+            with self.subTest(case=index):
+                deletes = []
+                connection = self.connection()
+                control = StreamControl(
+                    connection,
+                    uuid.uuid4(),
+                    _delete=lambda identity, timeout, sink=deletes: sink.append(identity) or True,
+                )
+                stream_chat(
+                    connection,
+                    {"stream": True},
+                    session=FakeSession(response),
+                    on_chunk=on_chunk,
+                    cancel=cancel,
+                    stream_control=control,
+                )
+                self.assertEqual(deletes, [control.conversation_id])
+                self.assertTrue(response.closed)
+
+        timeout_deletes = []
+        timeout_control = StreamControl(
+            self.connection(),
+            uuid.uuid4(),
+            _delete=lambda identity, timeout: timeout_deletes.append(identity) or True,
+        )
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(timeout_response),
+            deadline=Deadline(1, clock.monotonic),
+            stream_control=timeout_control,
+        )
+        self.assertEqual(result.error_type, "timeout")
+        self.assertEqual(timeout_deletes, [timeout_control.conversation_id])
+        self.assertTrue(timeout_response.closed)
+
+        interrupt_response = FakeResponse([": ping", ""])
+        interrupt_deletes = []
+        interrupt_control = StreamControl(
+            self.connection(),
+            uuid.uuid4(),
+            _delete=lambda identity, timeout: interrupt_deletes.append(identity) or True,
+        )
+
+        interrupt_checks = 0
+
+        def interrupt() -> bool:
+            nonlocal interrupt_checks
+            interrupt_checks += 1
+            if interrupt_checks > 1:
+                raise ComfyInterrupt()
+            return False
+
+        with self.assertRaises(ComfyInterrupt):
+            stream_chat(
+                self.connection(),
+                {"stream": True},
+                session=FakeSession(interrupt_response),
+                cancel=interrupt,
+                stream_control=interrupt_control,
+            )
+        self.assertEqual(interrupt_deletes, [interrupt_control.conversation_id])
+        self.assertTrue(interrupt_control.cleanup.confirmed)
+        self.assertTrue(interrupt_response.closed)
+
+    def test_stream_control_cleanup_covers_request_and_callback_base_exceptions(self) -> None:
+        class ComfyInterrupt(BaseException):
+            pass
+
+        class InterruptingSession(FakeSession):
+            def request(self, method, url, **kwargs):
+                self.calls.append((method, url, kwargs))
+                raise ComfyInterrupt()
+
+        def interrupt_chunk(_content: str, _thinking: str) -> None:
+            raise ComfyInterrupt()
+
+        def interrupt_update(_update: StreamUpdate) -> None:
+            raise ComfyInterrupt()
+
+        scenarios = (
+            (InterruptingSession(FakeResponse()), None, None, None),
+            (
+                FakeSession(
+                    FakeResponse([data_line({"choices": [{"delta": {"content": "token"}}]}), ""])
+                ),
+                interrupt_chunk,
+                None,
+                "response",
+            ),
+            (
+                FakeSession(
+                    FakeResponse([data_line({"choices": [{"delta": {"content": "token"}}]}), ""])
+                ),
+                None,
+                interrupt_update,
+                "response",
+            ),
+        )
+        for index, (session, on_chunk, on_update, response_marker) in enumerate(scenarios):
+            with self.subTest(scenario=index):
+                deletes = []
+                connection = self.connection()
+                control = StreamControl(
+                    connection,
+                    uuid.uuid4(),
+                    _delete=lambda identity, _timeout, sink=deletes: sink.append(identity) or True,
+                )
+                with self.assertRaises(ComfyInterrupt):
+                    stream_chat(
+                        connection,
+                        {"stream": True},
+                        session=session,
+                        on_chunk=on_chunk,
+                        on_update=on_update,
+                        stream_control=control,
+                    )
+                self.assertEqual(deletes, [control.conversation_id])
+                self.assertTrue(control.cleanup.confirmed)
+                if response_marker is not None:
+                    self.assertTrue(session.response.closed)
+
+    def test_stream_cleanup_failure_never_masks_the_generation_result(self) -> None:
+        response = FakeResponse(["data: [DONE]", ""])
+        control = StreamControl(
+            self.connection(),
+            uuid.uuid4(),
+            _delete=lambda _identity, _timeout: (_ for _ in ()).throw(RuntimeError("offline")),
+        )
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            stream_control=control,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(
+            result.stream_cleanup.as_dict(),
+            {
+                "attempts": 1,
+                "confirmed": False,
+                "failures": 1,
+                "last_error_type": "RuntimeError",
+            },
+        )
+        self.assertTrue(response.closed)
+
+    def test_response_close_failure_does_not_mask_the_generation_result(self) -> None:
+        class BrokenCloseResponse(FakeResponse):
+            def close(self) -> None:
+                self.closed = True
+                raise RuntimeError("close failed")
+
+        response = BrokenCloseResponse(["data: [DONE]", ""])
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+        )
+        self.assertTrue(result.success)
+        self.assertTrue(response.closed)
+
 
 class ModelEventStreamingTests(unittest.TestCase):
     def test_current_status_change_and_documented_model_status_are_both_typed(self) -> None:
@@ -416,7 +1223,8 @@ class ModelEventStreamingTests(unittest.TestCase):
         )
 
         self.assertEqual(events[0].model, "modèle—vision")
-        self.assertEqual(response.iter_lines_decode_unicode, [False])
+        self.assertEqual(response.iter_lines_decode_unicode, [])
+        self.assertTrue(response.iter_content_chunk_sizes)
 
 
 if __name__ == "__main__":

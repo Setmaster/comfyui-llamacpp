@@ -13,7 +13,7 @@ class LlamaCppTokenBan:
     SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppTokenBan"]
     RETURN_TYPES = ("LOGIT_BIAS",)
     RETURN_NAMES = ("logit_bias",)
-    OUTPUT_TOOLTIPS = ("Token-ban entries for an ADV++ Prompt node.",)
+    OUTPUT_TOOLTIPS = ("Token-ban entries for a Generate or ADV++ Prompt node.",)
     FUNCTION = "create_ban_list"
 
     @classmethod

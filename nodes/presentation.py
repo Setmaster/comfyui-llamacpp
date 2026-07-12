@@ -33,6 +33,8 @@ NODE_CATEGORIES = {
     "LlamaCppTokenCount": CATEGORY_UTILITIES,
     "LlamaCppModelInfo": CATEGORY_UTILITIES,
     "LlamaCppStructuredOutput": CATEGORY_UTILITIES,
+    "LlamaCppGenerate": CATEGORY_GENERATE,
+    "LlamaCppTaskProfile": CATEGORY_GENERATE,
 }
 
 NODE_SEARCH_ALIASES = {
@@ -138,6 +140,23 @@ NODE_SEARCH_ALIASES = {
         "gbnf",
         "grammar",
         "constrained generation",
+    ],
+    "LlamaCppGenerate": [
+        "llm",
+        "local llm",
+        "gguf",
+        "vlm",
+        "generate text",
+        "image understanding",
+        "prompt generation",
+        "prompt enhancer",
+        "structured generation",
+    ],
+    "LlamaCppTaskProfile": [
+        "llm profile",
+        "prompt profile",
+        "task profile",
+        "prompt enhancer profile",
     ],
 }
 
@@ -265,6 +284,19 @@ NODE_ADVANCED_INPUTS = {
     ),
     "LlamaCppModelInfo": frozenset({"api_key_env", "verify_tls", "request_timeout"}),
     "LlamaCppStructuredOutput": frozenset({"schema_name", "strict"}),
+    "LlamaCppGenerate": frozenset(
+        {
+            "server_url",
+            "stop_sequences",
+            "api_key_env",
+            "verify_tls",
+            "request_timeout",
+            "include_image_batch",
+            "release_after_generation",
+            "partial_output_policy",
+        }
+    ),
+    "LlamaCppTaskProfile": frozenset(),
 }
 
 INPUT_DISPLAY_NAMES = {
@@ -293,6 +325,12 @@ INPUT_DISPLAY_NAMES = {
     "request_timeout": "Request Timeout (Seconds)",
     "include_image_batch": "Include Full Image Batches",
     "connection": "Connection",
+    "profile": "Task Profile",
+    "thinking_mode": "Thinking",
+    "sampling_mode": "Sampling",
+    "cache_prompt": "Reuse Prompt Prefix Cache",
+    "release_after_generation": "Release After Generation",
+    "partial_output_policy": "Partial Output Policy",
     "template": "Template",
     "token_ban": "Token Ban",
     "enable_token_ban": "Enable Token Ban",

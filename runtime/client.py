@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import math
 import re
+import threading
 import time
+import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -16,12 +18,19 @@ from urllib.parse import urlsplit, urlunsplit
 import requests
 
 if TYPE_CHECKING:
-    from .streaming import ModelEvent, StreamResult
+    from .streaming import ModelEvent, StreamResult, StreamUpdate
 
 Clock = Callable[[], float]
 CancelCheck = Callable[[], bool]
 VerifyValue = bool | str
 CertValue = str | tuple[str, str]
+
+STREAM_CONTROL_CACHE_SECONDS = 60.0
+STREAM_CONTROL_CACHE_MAX_ENTRIES = 128
+STREAM_CONTROL_DELETE_TIMEOUT = 2.0
+JSON_RESPONSE_MAX_BYTES = 16 * 1024 * 1024
+ERROR_RESPONSE_MAX_BYTES = 64 * 1024
+RESPONSE_READ_CHUNK_BYTES = 64 * 1024
 
 
 class LlamaClientError(RuntimeError):
@@ -37,6 +46,14 @@ class LlamaClientError(RuntimeError):
         self.status_code = status_code
         self.endpoint = endpoint
         self.body = body
+
+
+class ResponseBodyLimitError(LlamaClientError):
+    """A response exceeded the amount of data this client will materialize."""
+
+
+class ResponseProtocolError(LlamaClientError):
+    """A response body could not be decoded using the advertised JSON contract."""
 
 
 class DeadlineExceeded(LlamaClientError, TimeoutError):
@@ -69,6 +86,46 @@ def redact_secrets(value: object, secrets: Iterable[str | None] = ()) -> str:
     text = re.sub(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+", r"\1<redacted>", text)
     text = re.sub(r"(?i)(x-api-key\s*[:=]\s*)[^\s,;]+", r"\1<redacted>", text)
     return text
+
+
+def _read_bounded_response_bytes(
+    response: Any,
+    max_bytes: int,
+    *,
+    truncate: bool = False,
+    check: Callable[[], None] | None = None,
+) -> tuple[bytes, bool]:
+    """Read at most ``max_bytes`` without touching eager ``text``/``json`` properties."""
+
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
+        raise ValueError("response body limit must be a positive integer")
+
+    body = bytearray()
+    for chunk in response.iter_content(chunk_size=RESPONSE_READ_CHUNK_BYTES):
+        if check is not None:
+            check()
+        if not chunk:
+            continue
+        if isinstance(chunk, str):
+            try:
+                encoded = chunk.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ResponseProtocolError("response body was not valid UTF-8") from exc
+        elif isinstance(chunk, (bytes, bytearray, memoryview)):
+            encoded = bytes(chunk)
+        else:
+            raise ResponseProtocolError("response body contained an invalid byte chunk")
+
+        remaining = max_bytes - len(body)
+        if len(encoded) > remaining:
+            if truncate:
+                body.extend(encoded[:remaining])
+                return bytes(body), True
+            raise ResponseBodyLimitError("response body exceeded the configured safety limit")
+        body.extend(encoded)
+    if check is not None:
+        check()
+    return bytes(body), False
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +388,182 @@ class ModelOperationResult:
         return self.model.state == ModelState.FAILED
 
 
+class StreamControlSupport(str, Enum):
+    """Capability state for llama.cpp's optional resumable stream interface."""
+
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class StreamControlProbe:
+    support: StreamControlSupport
+    reason: str | None = None
+
+    @property
+    def supported(self) -> bool:
+        return self.support == StreamControlSupport.SUPPORTED
+
+
+StreamDeleteCallback = Callable[[uuid.UUID, float], bool]
+
+
+@dataclass(frozen=True, slots=True)
+class StreamCleanupSnapshot:
+    attempts: int
+    confirmed: bool
+    failures: int
+    last_error_type: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "attempts": self.attempts,
+            "confirmed": self.confirmed,
+            "failures": self.failures,
+            "last_error_type": self.last_error_type,
+        }
+
+
+class StreamCleanupOutcome:
+    """Thread-safe, redacted visibility into idempotent stream DELETE attempts."""
+
+    __slots__ = ("_attempts", "_confirmed", "_failures", "_last_error_type", "_lock")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._attempts = 0
+        self._confirmed = False
+        self._failures = 0
+        self._last_error_type: str | None = None
+
+    def _begin(self) -> None:
+        with self._lock:
+            self._attempts += 1
+
+    def _complete(self, confirmed: bool) -> None:
+        with self._lock:
+            self._confirmed = self._confirmed or confirmed
+
+    def _fail(self, error: BaseException) -> None:
+        with self._lock:
+            self._failures += 1
+            self._last_error_type = type(error).__name__[:128]
+
+    @property
+    def attempts(self) -> int:
+        with self._lock:
+            return self._attempts
+
+    @property
+    def confirmed(self) -> bool:
+        with self._lock:
+            return self._confirmed
+
+    @property
+    def failures(self) -> int:
+        with self._lock:
+            return self._failures
+
+    @property
+    def last_error_type(self) -> str | None:
+        with self._lock:
+            return self._last_error_type
+
+    def as_dict(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "attempts": self._attempts,
+                "confirmed": self._confirmed,
+                "failures": self._failures,
+                "last_error_type": self._last_error_type,
+            }
+
+    def snapshot(self) -> StreamCleanupSnapshot:
+        with self._lock:
+            return StreamCleanupSnapshot(
+                attempts=self._attempts,
+                confirmed=self._confirmed,
+                failures=self._failures,
+                last_error_type=self._last_error_type,
+            )
+
+    def __repr__(self) -> str:
+        values = self.as_dict()
+        return (
+            "StreamCleanupOutcome("
+            f"attempts={values['attempts']}, "
+            f"confirmed={values['confirmed']}, "
+            f"failures={values['failures']}, "
+            f"last_error_type={values['last_error_type']!r})"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class StreamControl:
+    """One internally identified upstream replay session.
+
+    The connection is deliberately private and excluded from ``repr`` because it
+    can contain resolved authentication material.  Every call to :meth:`delete`
+    performs the exact idempotent upstream DELETE using a fresh HTTP client, so a
+    browser cancellation route can run concurrently with the generation stream.
+    """
+
+    connection: ConnectionConfig = field(repr=False, compare=False)
+    conversation_id: uuid.UUID
+    delete_timeout: float = STREAM_CONTROL_DELETE_TIMEOUT
+    _delete: StreamDeleteCallback | None = field(default=None, repr=False, compare=False)
+    cleanup: StreamCleanupOutcome = field(
+        default_factory=StreamCleanupOutcome,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _delete_lock: threading.Lock = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.conversation_id, uuid.UUID):
+            raise TypeError("conversation_id must be a UUID")
+        if self.conversation_id.version != 4:
+            raise ValueError("conversation_id must be an internally generated UUID4")
+        if self.delete_timeout <= 0 or not math.isfinite(self.delete_timeout):
+            raise ValueError("stream control delete timeout must be positive")
+
+    def delete(self) -> bool:
+        with self._delete_lock:
+            self.cleanup._begin()
+            try:
+                if self._delete is not None:
+                    confirmed = bool(self._delete(self.conversation_id, self.delete_timeout))
+                else:
+                    with LlamaServerClient(self.connection) as client:
+                        confirmed = client.delete_stream(
+                            self.conversation_id,
+                            timeout=self.delete_timeout,
+                        )
+            except BaseException as exc:
+                self.cleanup._fail(exc)
+                raise
+            self.cleanup._complete(confirmed)
+            return confirmed
+
+
+_STREAM_CONTROL_CACHE: dict[str, tuple[float, StreamControlProbe]] = {}
+_STREAM_CONTROL_CACHE_LOCK = threading.Lock()
+
+
+def clear_stream_control_cache() -> None:
+    """Clear the short-lived endpoint capability cache, primarily for tests."""
+
+    with _STREAM_CONTROL_CACHE_LOCK:
+        _STREAM_CONTROL_CACHE.clear()
+
+
 def parse_router_model(data: Mapping[str, Any]) -> RouterModel:
     model_id = data.get("id") or data.get("model") or data.get("name")
     if not isinstance(model_id, str) or not model_id:
@@ -403,31 +636,33 @@ class LlamaServerClient:
         duration = self.connection.default_deadline if timeout is None else timeout
         return Deadline(duration, self._clock)
 
-    def _response_json(self, response: Any) -> Any:
+    def _response_json(self, response: Any, *, path: str, deadline: Deadline) -> Any:
         try:
-            return response.json()
-        except (ValueError, json.JSONDecodeError):
-            text = getattr(response, "text", "") or ""
-            try:
-                return json.loads(text)
-            except (TypeError, ValueError, json.JSONDecodeError):
-                return text
-
-    def _error_message(self, status_code: int, data: Any) -> str:
-        message: str | None = None
-        if isinstance(data, Mapping):
-            error = data.get("error")
-            if isinstance(error, Mapping):
-                candidate = error.get("message")
-                message = candidate if isinstance(candidate, str) else None
-            elif isinstance(error, str):
-                message = error
-            if message is None and isinstance(data.get("message"), str):
-                message = data["message"]
-        elif isinstance(data, str):
-            message = data.strip()
-        detail = message or "request failed"
-        return redact_secrets(f"HTTP {status_code}: {detail[:500]}", self.connection.secrets)
+            body, _ = _read_bounded_response_bytes(
+                response,
+                JSON_RESPONSE_MAX_BYTES,
+                check=lambda: deadline.raise_if_expired(f"reading {path}"),
+            )
+        except LlamaClientError as exc:
+            if exc.endpoint is None:
+                exc.endpoint = path
+            raise
+        if not body:
+            return ""
+        try:
+            text = body.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ResponseProtocolError(
+                "response body was not valid UTF-8",
+                endpoint=path,
+            ) from exc
+        try:
+            return json.loads(text)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ResponseProtocolError(
+                "response body was not valid JSON",
+                endpoint=path,
+            ) from exc
 
     def _request_json(
         self,
@@ -448,6 +683,8 @@ class LlamaServerClient:
                 self.connection.read_timeout,
             ),
             "verify": self.connection.tls.verify,
+            "stream": True,
+            "allow_redirects": False,
         }
         if self.connection.tls.cert is not None:
             kwargs["cert"] = self.connection.tls.cert
@@ -465,24 +702,40 @@ class LlamaServerClient:
             ) from exc
         except requests.RequestException as exc:
             raise LlamaClientError(
-                redact_secrets(f"{method} {path} failed: {exc}", self.connection.secrets),
+                f"{method} {path} failed",
                 endpoint=path,
             ) from exc
 
         try:
             status_code = int(response.status_code)
-            data = self._response_json(response)
             headers = dict(getattr(response, "headers", {}) or {})
             if status_code not in expected:
-                message = self._error_message(status_code, data)
-                body_text = redact_secrets(str(data)[:1000], self.connection.secrets)
+                try:
+                    _read_bounded_response_bytes(
+                        response,
+                        ERROR_RESPONSE_MAX_BYTES,
+                        truncate=True,
+                        check=lambda: deadline.raise_if_expired(f"reading {path}"),
+                    )
+                except (LlamaClientError, requests.RequestException):
+                    pass
                 raise LlamaClientError(
-                    message,
+                    f"HTTP {status_code}: request failed",
                     status_code=status_code,
                     endpoint=path,
-                    body=body_text,
                 )
+            data = self._response_json(response, path=path, deadline=deadline)
             return status_code, data, headers
+        except requests.Timeout as exc:
+            raise DeadlineExceeded(
+                f"{method} {path} timed out",
+                endpoint=path,
+            ) from exc
+        except requests.RequestException as exc:
+            raise LlamaClientError(
+                f"{method} {path} failed",
+                endpoint=path,
+            ) from exc
         finally:
             response.close()
 
@@ -526,10 +779,11 @@ class LlamaServerClient:
             raise LlamaClientError("/props returned a non-object response", endpoint="/props")
         modalities_raw = data.get("modalities")
         modalities = (
-            {str(key): bool(value) for key, value in modalities_raw.items()}
+            {str(key): value for key, value in modalities_raw.items() if isinstance(value, bool)}
             if isinstance(modalities_raw, Mapping)
             else {}
         )
+        sleeping_raw = data.get("is_sleeping", False)
         return ServerProps(
             role=data.get("role") if isinstance(data.get("role"), str) else None,
             build_info=data.get("build_info") if isinstance(data.get("build_info"), str) else None,
@@ -537,9 +791,25 @@ class LlamaServerClient:
             model_alias=data.get("model_alias")
             if isinstance(data.get("model_alias"), str)
             else None,
-            is_sleeping=bool(data.get("is_sleeping", False)),
+            is_sleeping=sleeping_raw if isinstance(sleeping_raw, bool) else False,
             modalities=modalities,
             raw=dict(data),
+        )
+
+    def passive_props(
+        self,
+        model: str | None = None,
+        *,
+        deadline: Deadline | None = None,
+        timeout: float | None = None,
+    ) -> ServerProps:
+        """Read props without permitting router autoload side effects."""
+
+        return self.props(
+            model,
+            autoload=False,
+            deadline=deadline,
+            timeout=timeout,
         )
 
     def models(
@@ -607,6 +877,127 @@ class LlamaServerClient:
         if not isinstance(data, Mapping) or not isinstance(data.get("tokens"), list):
             raise LlamaClientError("/tokenize returned an invalid token list", endpoint="/tokenize")
         return TokenizeResult(tuple(data["tokens"]), dict(data))
+
+    def probe_stream_control(
+        self,
+        *,
+        timeout: float = STREAM_CONTROL_DELETE_TIMEOUT,
+        force: bool = False,
+    ) -> StreamControlProbe:
+        """Probe llama.cpp's optional replay/cancel API without creating a session.
+
+        A well-formed list response is the only positive result.  Current
+        llama.cpp returns 404/405 when the internal interface is absent.  Auth
+        failures remain real configuration errors; other transport, timeout, or
+        server failures are an honest Unknown so generation can use whole-job
+        cancellation without mislabelling it as node-local.
+        """
+
+        if timeout <= 0 or not math.isfinite(timeout):
+            raise ValueError("stream control probe timeout must be positive")
+
+        fingerprint = self.connection.fingerprint
+        now = self._clock()
+        if not force:
+            with _STREAM_CONTROL_CACHE_LOCK:
+                expired = [
+                    key
+                    for key, (expires_at, _) in _STREAM_CONTROL_CACHE.items()
+                    if expires_at <= now
+                ]
+                for key in expired:
+                    _STREAM_CONTROL_CACHE.pop(key, None)
+                cached = _STREAM_CONTROL_CACHE.get(fingerprint)
+                if cached is not None and cached[0] > now:
+                    return cached[1]
+
+        probe_id = str(uuid.uuid4())
+        active = Deadline(timeout, self._clock)
+        try:
+            status, data, _ = self._request_json(
+                "POST",
+                "/v1/streams/lookup",
+                deadline=active,
+                expected=(200, 404, 405),
+                body={"conversation_ids": [probe_id]},
+            )
+            if status == 200:
+                result = (
+                    StreamControlProbe(StreamControlSupport.SUPPORTED)
+                    if isinstance(data, list)
+                    else StreamControlProbe(
+                        StreamControlSupport.UNKNOWN,
+                        "invalid_response",
+                    )
+                )
+            else:
+                result = StreamControlProbe(
+                    StreamControlSupport.UNSUPPORTED,
+                    f"http_{status}",
+                )
+        except LlamaClientError as exc:
+            if exc.status_code in {401, 403}:
+                raise
+            if isinstance(exc, DeadlineExceeded):
+                reason = "timeout"
+            elif exc.status_code is not None:
+                reason = f"http_{exc.status_code}"
+            else:
+                reason = "transport"
+            result = StreamControlProbe(StreamControlSupport.UNKNOWN, reason)
+
+        with _STREAM_CONTROL_CACHE_LOCK:
+            if (
+                fingerprint not in _STREAM_CONTROL_CACHE
+                and len(_STREAM_CONTROL_CACHE) >= STREAM_CONTROL_CACHE_MAX_ENTRIES
+            ):
+                oldest = min(_STREAM_CONTROL_CACHE, key=lambda key: _STREAM_CONTROL_CACHE[key][0])
+                _STREAM_CONTROL_CACHE.pop(oldest, None)
+            _STREAM_CONTROL_CACHE[fingerprint] = (
+                now + STREAM_CONTROL_CACHE_SECONDS,
+                result,
+            )
+        return result
+
+    def prepare_stream_control(
+        self,
+        *,
+        probe_timeout: float = STREAM_CONTROL_DELETE_TIMEOUT,
+        delete_timeout: float = STREAM_CONTROL_DELETE_TIMEOUT,
+        force_probe: bool = False,
+    ) -> tuple[StreamControlProbe, StreamControl | None]:
+        """Return an internally generated control only after a positive probe."""
+
+        probe = self.probe_stream_control(timeout=probe_timeout, force=force_probe)
+        if not probe.supported:
+            return probe, None
+        return probe, StreamControl(
+            connection=self.connection,
+            conversation_id=uuid.uuid4(),
+            delete_timeout=delete_timeout,
+        )
+
+    def delete_stream(
+        self,
+        conversation_id: uuid.UUID,
+        *,
+        timeout: float = STREAM_CONTROL_DELETE_TIMEOUT,
+    ) -> bool:
+        """Delete one exact replay session; upstream treats unknown IDs idempotently."""
+
+        if not isinstance(conversation_id, uuid.UUID):
+            raise TypeError("conversation_id must be a UUID")
+        if conversation_id.version != 4:
+            raise ValueError("conversation_id must be an internally generated UUID4")
+        if timeout <= 0 or not math.isfinite(timeout):
+            raise ValueError("stream control delete timeout must be positive")
+        status, _, _ = self._request_json(
+            "DELETE",
+            f"/v1/stream/{conversation_id}",
+            deadline=Deadline(timeout, self._clock),
+            expected=(200, 204),
+        )
+        return status in {200, 204}
 
     def request_load(
         self,
@@ -808,9 +1199,20 @@ class LlamaServerClient:
         deadline: Deadline | None = None,
         chunk_timeout: float | None = None,
         on_chunk: Callable[[str, str], None] | None = None,
+        on_update: Callable[[StreamUpdate], None] | None = None,
         cancel: CancelCheck | None = None,
+        stream_control: StreamControl | None = None,
     ) -> StreamResult:
-        from .streaming import stream_chat
+        from .streaming import (
+            DEFAULT_MAX_FINISH_REASON_BYTES,
+            DEFAULT_MAX_ID_BYTES,
+            DEFAULT_MAX_MODEL_BYTES,
+            DEFAULT_MAX_RESPONSE_BYTES,
+            DEFAULT_MAX_SSE_EVENT_BYTES,
+            DEFAULT_MAX_SSE_LINE_BYTES,
+            DEFAULT_MAX_THINKING_BYTES,
+            stream_chat,
+        )
 
         return stream_chat(
             self.connection,
@@ -820,8 +1222,18 @@ class LlamaServerClient:
             deadline=deadline,
             chunk_timeout=chunk_timeout,
             on_chunk=on_chunk,
+            on_update=on_update,
             cancel=cancel,
+            stream_control=stream_control,
             session=self._session,
+            strict_protocol=True,
+            max_line_bytes=DEFAULT_MAX_SSE_LINE_BYTES,
+            max_event_bytes=DEFAULT_MAX_SSE_EVENT_BYTES,
+            max_response_bytes=DEFAULT_MAX_RESPONSE_BYTES,
+            max_thinking_bytes=DEFAULT_MAX_THINKING_BYTES,
+            max_model_bytes=DEFAULT_MAX_MODEL_BYTES,
+            max_id_bytes=DEFAULT_MAX_ID_BYTES,
+            max_finish_reason_bytes=DEFAULT_MAX_FINISH_REASON_BYTES,
         )
 
 
@@ -840,10 +1252,18 @@ __all__ = [
     "ModelOperationResult",
     "ModelState",
     "OperationCancelled",
+    "ResponseBodyLimitError",
+    "ResponseProtocolError",
     "RouterModel",
     "ServerProps",
+    "StreamCleanupOutcome",
+    "StreamCleanupSnapshot",
+    "StreamControl",
+    "StreamControlProbe",
+    "StreamControlSupport",
     "TLSConfig",
     "TokenizeResult",
+    "clear_stream_control_cache",
     "parse_router_model",
     "redact_secrets",
 ]

@@ -10,9 +10,16 @@ only the `llama-server` process tree it started. ComfyUI's native **Unload
 Models** action also releases this pack's owned runtime. The existing explicit
 stop and unload nodes remain available.
 
+Post-0.3 development adds one recommended **llama.cpp Generate** node instead
+of another family of overlapping prompt nodes. It covers text, vision,
+structured output, token bans, live preview, truthful cancellation, portable
+task profiles, strict failures, and optional terminal release. All 17 nodes
+from 0.3 remain registered with their released workflow contracts.
+
 The stable release is `0.3.0`. It is available from the Comfy Registry and the
-`master` branch. Post-0.3 development remains on `dev` until it passes the
-maintainer's hands-on acceptance gate.
+`master` branch. The additive `0.4.0` candidate remains on `dev` until it passes
+the maintainer's hands-on acceptance gate. It has not been published to the
+Registry.
 
 New installation? Follow [Start Here](docs/start-here.md), then load **Setup
 Check** and **Quick Text** from ComfyUI's workflow template browser.
@@ -30,6 +37,15 @@ Check** and **Quick Text** from ComfyUI's workflow template browser.
 - Token counting and live model/server properties.
 - Reusable local connection profiles with API-key environment variables, TLS
   verification, and request deadlines.
+- One canonical Generate surface with Default or Custom sampling, Auto or
+  explicit thinking control, strict partial-output policy, bounded live preview,
+  and a versioned result.
+- Small user-owned task profiles that are explicitly copied into portable
+  workflow snapshots. Freeform is the only bundled profile.
+- Passive managed model discovery that never autoloads a router model and keeps
+  missing saved selections visible.
+- Optional release-after-generation that withholds outputs until exact managed
+  direct or router cleanup reaches a terminal result.
 - Positively owned process trees, bounded redacted logs, and deterministic stop
   barriers. Linux adds kernel-backed abrupt-owner cleanup; Windows uses Job
   Objects when available. It never sweeps processes by name.
@@ -91,6 +107,8 @@ python -m pip install -r requirements.txt
 ```
 
 Restart ComfyUI. Startup should report version `0.3.0` and 17 registered nodes.
+The post-0.3 `dev` line reports 19 nodes because Generate and Task Profile are
+strictly additive.
 
 ### Update an existing checkout
 
@@ -186,6 +204,25 @@ The start node is idempotent for the same full configuration. A changed binary
 or effective setting performs a coordinated restart. A failed replacement
 preflight does not tear down a healthy existing server.
 
+### Canonical Generate workflow
+
+For a new workflow on the post-0.3 line, prefer **llama.cpp Generate**:
+
+1. Add **Start llama.cpp Server** and select a GGUF.
+2. Convert Generate's advanced `Server URL` widget to an input and connect the
+   Start node's existing `server_url` output, or omit the URL to use the current
+   managed runtime.
+3. Enter the prompt. Leave Thinking on Auto and Sampling on Default unless the
+   model or task needs an explicit override.
+4. Optionally connect images, Structured Output, Token Ban, or a Task Profile.
+5. Queue the workflow. The node shows bounded live response and thinking text
+   and returns response, thinking, and a typed result.
+
+A typed **llama.cpp Connection** can be connected instead of `Server URL`.
+Supplying both is rejected before generation. See
+[Canonical Generate](docs/canonical-generate.md) for cancellation, profiles,
+passive discovery, strict failure, and release-after behavior.
+
 ### Router workflow
 
 1. Add **Start llama.cpp Router**.
@@ -260,6 +297,8 @@ complete released surface.
 | Release llama.cpp VRAM | Release direct or router model VRAM while retaining the router when safe. |
 | llama.cpp Server Status | Show mode, lifecycle, ownership, PID/group/job state, capabilities, errors, and bounded logs. |
 | llama.cpp Connection | Reuse a URL, model, API-key environment name, TLS policy, and deadline. |
+| llama.cpp Generate | Recommended strict text, vision, constrained, and prompt generation with live state and a typed result. |
+| llama.cpp Task Profile | Store one portable, explicit snapshot of a small user-owned prompt profile. |
 | llama.cpp Basic Prompt | Freeform text generation with the common sampling controls. |
 | llama.cpp ADV Prompt | Text plus 0 to 10 image sockets and optional full Comfy image batches. |
 | llama.cpp ADV++ Prompt | ADV prompting plus templates, token bans, and structured output. |
@@ -294,6 +333,12 @@ complete released surface.
 - A generation succeeds only after a valid stream terminal marker. Partial text
   is preserved and labelled when a stream times out, is cancelled, or ends
   without completion.
+- Canonical Generate raises on total failure and, by default, on partial output.
+  Only `return_marked_partial` lets partial text reach its sockets, and the typed
+  result still marks the incomplete state.
+- Canonical Default sampling omits the complete sampler group so the selected
+  model and server retain their own defaults. Custom sends every displayed
+  expert sampler together. Thinking Auto likewise omits an override.
 
 ## Authentication and TLS
 
@@ -308,6 +353,29 @@ export LLAMACPP_API_KEY='your-local-key'
 $env:LLAMACPP_API_KEY = 'your-local-key'
 ```
 
+Canonical Generate accepts only `LLAMACPP_API_KEY` or a namespaced
+`LLAMACPP_API_KEY_<UPPERCASE_SUFFIX>` variable name from a workflow. If that
+variable resolves to a key, plain HTTP is accepted only for loopback hosts;
+authenticated non-loopback endpoints require HTTPS, certificate verification,
+and an exact local origin-to-key allowlist:
+
+```bash
+# Linux or macOS
+export LLAMACPP_API_KEY_LAN='your-remote-key'
+export LLAMACPP_REMOTE_AUTH_BINDINGS='{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+
+# Windows PowerShell, set before launching ComfyUI
+$env:LLAMACPP_API_KEY_LAN = 'your-remote-key'
+$env:LLAMACPP_REMOTE_AUTH_BINDINGS = '{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+```
+
+The JSON key is the exact `scheme://host:port` origin. The value is the one
+allowed API-key environment name for that origin. A workflow cannot provide or
+change this binding. This prevents an imported canonical workflow from selecting
+an unrelated environment secret, sending a key over cleartext LAN transport, or
+redirecting it to another HTTPS host. Loopback credentials do not need a binding.
+Legacy node contracts remain unchanged.
+
 For an owned server, point `api_key_file` at the llama.cpp key file and set
 `api_key_env` to the environment variable containing the matching client key.
 Connection and prompt nodes also expose `verify_tls` and an overall request
@@ -320,6 +388,13 @@ Status can include local executable, model, and working-directory paths plus a
 redacted log tail, and release can stop this pack's owned runtime. Keep ComfyUI
 on loopback or behind authentication that you control when the host is not a
 trusted network.
+
+Canonical profile, passive discovery, live restoration, and exact cancellation
+routes use the same boundary. Live events target the initiating Comfy client.
+Cancellation also checks the live websocket client ID, execution UUID, prompt,
+and node identity. This prevents ordinary cross-tab mistakes, but the client ID
+is not a separate authentication mechanism. Keep the normal ComfyUI boundary
+private or authenticated.
 
 ## Templates
 
@@ -345,12 +420,15 @@ explicit replace/reset action.
 ComfyUI discovers the curated workflows in
 [`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
 the first-run paths; the direct, router, vision, structured-output, and VRAM
-handoff workflows retain the deeper validation examples. The
-[user acceptance checklist](docs/user-acceptance.md) covers upgrade
-compatibility, direct and router release, Windows ownership, VLMs, structured
-output, attached endpoints, and the final diffusion-to-LLM-to-diffusion GPU
-handoff. The pre-handoff and post-deployment evidence is recorded in the
-[0.3 validation report](docs/validation-0.3.md).
+handoff workflows retain the released 0.3 examples. Canonical text, vision,
+structured, and App Mode examples demonstrate the post-0.3 Generate surface. The
+[0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
+workflow compatibility, direct and scoped router release, live Stop, profiles,
+App Mode, VLMs, structured output, and the final
+diffusion-to-LLM-to-diffusion GPU handoff. The accepted stable evidence remains
+in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
+recorded separately in the
+[canonical Generate validation report](docs/validation-0.4.md).
 
 For failures, start with **llama.cpp Server Status** and
 [Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
@@ -372,8 +450,10 @@ git diff --check
 
 The test suite contains immutable v0.2.1 and complete 0.3 node/widget contracts,
 historical workflow fixtures, current router/client contracts, lifecycle race
-tests, process-tree tests, frontend helper tests, and package-build checks. CI covers Python 3.10
-through 3.14 on Linux plus Python 3.13 on Windows. Real ComfyUI, current
+tests, canonical request/result/profile round trips, scoped release races,
+stream cleanup, live-event bounds, process-tree tests, frontend helper tests,
+and package-build checks. CI covers Python 3.10 through 3.14 on Linux plus
+Python 3.13 on Windows. Real ComfyUI, current
 llama.cpp, Windows Job Object, VLM, and GPU handoff evidence is recorded during
 release validation.
 
@@ -381,10 +461,14 @@ release validation.
 
 - [Start Here](docs/start-here.md)
 - [0.3 migration guide](docs/migration-0.3.md)
+- [Post-0.3 migration guide](docs/migration-0.4.md)
+- [Canonical Generate](docs/canonical-generate.md)
 - [Lifecycle and VRAM ownership](docs/lifecycle.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [0.3 validation report](docs/validation-0.3.md)
+- [Canonical Generate validation report](docs/validation-0.4.md)
 - [User acceptance checklist](docs/user-acceptance.md)
+- [0.4 canonical user acceptance](docs/user-acceptance-0.4.md)
 - [0.3 changelog](CHANGELOG.md)
 - [Research and ecosystem analysis](docs/research/)
 

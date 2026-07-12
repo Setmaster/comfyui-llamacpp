@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import unittest
+import uuid
+from unittest import mock
 
+import runtime.client as client_module
 from runtime.client import (
     AmbiguousModelError,
     AuthConfig,
@@ -12,8 +15,12 @@ from runtime.client import (
     LlamaServerClient,
     ModelNotFoundError,
     ModelState,
+    ResponseBodyLimitError,
+    ResponseProtocolError,
     RouterModel,
+    StreamControlSupport,
     TLSConfig,
+    clear_stream_control_cache,
     parse_router_model,
     redact_secrets,
 )
@@ -31,17 +38,40 @@ class FakeClock:
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, payload=None, *, text=None, headers=None) -> None:
+    def __init__(
+        self,
+        status_code=200,
+        payload=None,
+        *,
+        text=None,
+        headers=None,
+        content_chunks=None,
+    ) -> None:
         self.status_code = status_code
         self.payload = payload
         self.text = json.dumps(payload) if text is None and payload is not None else (text or "")
         self.headers = headers or {}
+        self.content_chunks = list(content_chunks) if content_chunks is not None else None
+        self.iter_content_calls: list[int] = []
+        self.content_chunks_yielded = 0
         self.closed = False
 
     def json(self):
         if self.payload is None:
             raise ValueError("no JSON")
         return self.payload
+
+    def iter_content(self, chunk_size=1):
+        self.iter_content_calls.append(chunk_size)
+        chunks = self.content_chunks
+        if chunks is None:
+            encoded = self.text.encode("utf-8")
+            chunks = [
+                encoded[index : index + chunk_size] for index in range(0, len(encoded), chunk_size)
+            ]
+        for chunk in chunks:
+            self.content_chunks_yielded += 1
+            yield chunk
 
     def close(self) -> None:
         self.closed = True
@@ -131,6 +161,9 @@ class ConnectionContractTests(unittest.TestCase):
 
 
 class TypedClientTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_stream_control_cache()
+
     def make_client(self, session: FakeSession, *, api_key="secret"):
         clock = FakeClock()
         connection = ConnectionConfig(
@@ -167,6 +200,8 @@ class TypedClientTests(unittest.TestCase):
         for _, _, kwargs in session.calls:
             self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret")
             self.assertFalse(kwargs["verify"])
+            self.assertTrue(kwargs["stream"])
+            self.assertFalse(kwargs["allow_redirects"])
 
     def test_health_503_is_typed_loading_not_transport_failure(self) -> None:
         session = FakeSession(FakeResponse(503, {"error": {"message": "Loading model"}}))
@@ -181,6 +216,34 @@ class TypedClientTests(unittest.TestCase):
         client.props("model/id", autoload=False)
         _, _, kwargs = session.calls[0]
         self.assertEqual(kwargs["params"], {"model": "model/id", "autoload": "false"})
+
+    def test_passive_props_is_an_exact_no_autoload_wrapper(self) -> None:
+        session = FakeSession(FakeResponse(200, {"model_path": "m.gguf"}))
+        client, _ = self.make_client(session)
+        result = client.passive_props("model/id")
+        self.assertEqual(result.model_path, "m.gguf")
+        method, url, kwargs = session.calls[0]
+        self.assertEqual((method, url), ("GET", "https://127.0.0.1:8080/props"))
+        self.assertEqual(kwargs["params"], {"model": "model/id", "autoload": "false"})
+
+    def test_props_accept_only_literal_json_booleans(self) -> None:
+        payload = {
+            "is_sleeping": "false",
+            "modalities": {
+                "text": True,
+                "audio": False,
+                "vision": "false",
+                "tools": 1,
+            },
+        }
+        client, _ = self.make_client(FakeSession(FakeResponse(200, payload)))
+
+        props = client.props()
+
+        self.assertFalse(props.is_sleeping)
+        self.assertEqual(props.modalities, {"text": True, "audio": False})
+        self.assertEqual(props.raw["is_sleeping"], "false")
+        self.assertEqual(props.raw["modalities"]["vision"], "false")
 
     def test_router_state_parser_normalizes_failure_and_modalities(self) -> None:
         model = parse_router_model(model_payload("unloaded", failed=True, exit_code=9)["data"][0])
@@ -314,7 +377,184 @@ class TypedClientTests(unittest.TestCase):
         with self.assertRaises(LlamaClientError) as caught:
             client.props()
         self.assertNotIn("secret", str(caught.exception))
+        self.assertIsNone(caught.exception.body)
         self.assertTrue(response.closed)
+
+    def test_redirects_are_disabled_for_credential_bearing_requests(self) -> None:
+        response = FakeResponse(302, text="cross-origin-sentinel")
+        session = FakeSession(response)
+        client, _ = self.make_client(session)
+
+        with self.assertRaises(LlamaClientError) as caught:
+            client.props()
+
+        self.assertEqual(len(session.calls), 1)
+        self.assertFalse(session.calls[0][2]["allow_redirects"])
+        self.assertNotIn("cross-origin-sentinel", str(caught.exception))
+
+    def test_success_json_body_is_bounded_before_materialization(self) -> None:
+        response = FakeResponse(
+            200,
+            content_chunks=[b'{"value":"', b"x" * 40, b'"}'],
+        )
+        client, _ = self.make_client(FakeSession(response))
+
+        with (
+            mock.patch.object(client_module, "JSON_RESPONSE_MAX_BYTES", 24),
+            self.assertRaises(ResponseBodyLimitError) as caught,
+        ):
+            client.props()
+
+        self.assertEqual(caught.exception.endpoint, "/props")
+        self.assertEqual(response.content_chunks_yielded, 2)
+        self.assertTrue(response.closed)
+
+    def test_malformed_json_and_error_bodies_never_escape_raw_sentinels(self) -> None:
+        malformed = FakeResponse(200, text="malformed-json-sentinel")
+        client, _ = self.make_client(FakeSession(malformed))
+        with self.assertRaises(ResponseProtocolError) as malformed_error:
+            client.props()
+        self.assertNotIn("malformed-json-sentinel", str(malformed_error.exception))
+
+        error = FakeResponse(
+            500,
+            content_chunks=[b"private-error-sentinel" * 8, b"must-not-be-read"],
+        )
+        client, _ = self.make_client(FakeSession(error))
+        with (
+            mock.patch.object(client_module, "ERROR_RESPONSE_MAX_BYTES", 16),
+            self.assertRaises(LlamaClientError) as http_error,
+        ):
+            client.props()
+        self.assertNotIn("private-error-sentinel", str(http_error.exception))
+        self.assertIsNone(http_error.exception.body)
+        self.assertEqual(error.content_chunks_yielded, 1)
+
+    def test_stream_control_probe_requires_list_and_caches_by_fingerprint(self) -> None:
+        first = FakeResponse(200, [])
+        second = FakeResponse(200, [])
+        session = FakeSession(first, second)
+        client, clock = self.make_client(session)
+
+        initial = client.probe_stream_control()
+        cached = client.probe_stream_control()
+
+        self.assertEqual(initial.support, StreamControlSupport.SUPPORTED)
+        self.assertIs(cached, initial)
+        self.assertEqual(len(session.calls), 1)
+        method, url, kwargs = session.calls[0]
+        self.assertEqual((method, url), ("POST", "https://127.0.0.1:8080/v1/streams/lookup"))
+        probe_id = kwargs["json"]["conversation_ids"][0]
+        self.assertEqual(str(uuid.UUID(probe_id)), probe_id)
+        self.assertTrue(first.closed)
+
+        clock.now = 61.0
+        refreshed = client.probe_stream_control()
+        self.assertEqual(refreshed.support, StreamControlSupport.SUPPORTED)
+        self.assertEqual(len(session.calls), 2)
+
+    def test_stream_control_probe_distinguishes_unsupported_unknown_and_auth(self) -> None:
+        unsupported_client, _ = self.make_client(FakeSession(FakeResponse(404, {})))
+        unsupported = unsupported_client.probe_stream_control()
+        self.assertEqual(unsupported.support, StreamControlSupport.UNSUPPORTED)
+        self.assertEqual(unsupported.reason, "http_404")
+
+        clear_stream_control_cache()
+        malformed_client, _ = self.make_client(FakeSession(FakeResponse(200, {"data": []})))
+        malformed = malformed_client.probe_stream_control()
+        self.assertEqual(malformed.support, StreamControlSupport.UNKNOWN)
+        self.assertEqual(malformed.reason, "invalid_response")
+
+        clear_stream_control_cache()
+        unknown_client, _ = self.make_client(
+            FakeSession(FakeResponse(500, {"error": {"message": "temporary"}}))
+        )
+        unknown = unknown_client.probe_stream_control()
+        self.assertEqual(unknown.support, StreamControlSupport.UNKNOWN)
+        self.assertEqual(unknown.reason, "http_500")
+
+        clear_stream_control_cache()
+        auth_response = FakeResponse(401, {"error": {"message": "bad secret"}})
+        auth_client, _ = self.make_client(FakeSession(auth_response))
+        with self.assertRaises(LlamaClientError) as caught:
+            auth_client.probe_stream_control()
+        self.assertEqual(caught.exception.status_code, 401)
+        self.assertNotIn("secret", str(caught.exception))
+        self.assertTrue(auth_response.closed)
+
+    def test_stream_control_probe_cache_is_bounded(self) -> None:
+        for index in range(client_module.STREAM_CONTROL_CACHE_MAX_ENTRIES + 5):
+            connection = ConnectionConfig(f"http://127.0.0.1:{8000 + index}")
+            client = LlamaServerClient(
+                connection,
+                session=FakeSession(FakeResponse(200, [])),
+            )
+            self.assertTrue(client.probe_stream_control().supported)
+        self.assertLessEqual(
+            len(client_module._STREAM_CONTROL_CACHE),
+            client_module.STREAM_CONTROL_CACHE_MAX_ENTRIES,
+        )
+
+    def test_positive_probe_prepares_uuid4_control_but_unknown_does_not(self) -> None:
+        supported_client, _ = self.make_client(FakeSession(FakeResponse(200, [])))
+        probe, control = supported_client.prepare_stream_control()
+        self.assertTrue(probe.supported)
+        self.assertIsNotNone(control)
+        self.assertEqual(control.conversation_id.version, 4)
+        self.assertNotIn("secret", repr(control))
+
+        clear_stream_control_cache()
+        unknown_client, _ = self.make_client(FakeSession(FakeResponse(200, {})))
+        probe, control = unknown_client.prepare_stream_control()
+        self.assertEqual(probe.support, StreamControlSupport.UNKNOWN)
+        self.assertIsNone(control)
+
+    def test_delete_stream_is_exact_idempotent_contract_and_rejects_strings(self) -> None:
+        response = FakeResponse(204)
+        session = FakeSession(response)
+        client, _ = self.make_client(session)
+        conversation_id = uuid.uuid4()
+
+        self.assertTrue(client.delete_stream(conversation_id))
+        method, url, kwargs = session.calls[0]
+        self.assertEqual(method, "DELETE")
+        self.assertEqual(url, f"https://127.0.0.1:8080/v1/stream/{conversation_id}")
+        self.assertNotIn("json", kwargs)
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret")
+        self.assertTrue(response.closed)
+
+        with self.assertRaises(TypeError):
+            client.delete_stream(str(conversation_id))  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            client.delete_stream(uuid.uuid1())
+
+    def test_stream_control_cleanup_outcome_is_redacted_and_accumulates_retries(self) -> None:
+        calls = 0
+        client, _ = self.make_client(FakeSession(FakeResponse(200, [])))
+        _, control = client.prepare_stream_control()
+        self.assertIsNotNone(control)
+
+        def delete(_identity, _timeout):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("secret backend URL")
+            return True
+
+        object.__setattr__(control, "_delete", delete)
+        with self.assertRaises(RuntimeError):
+            control.delete()
+        self.assertTrue(control.delete())
+        self.assertEqual(
+            control.cleanup.as_dict(),
+            {
+                "attempts": 2,
+                "confirmed": True,
+                "failures": 1,
+                "last_error_type": "RuntimeError",
+            },
+        )
+        self.assertNotIn("secret", repr(control.cleanup))
 
 
 if __name__ == "__main__":

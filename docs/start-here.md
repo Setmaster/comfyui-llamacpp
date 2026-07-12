@@ -12,7 +12,9 @@ Install `comfyui-llamacpp` from the Comfy Registry, then restart ComfyUI:
 comfy node install comfyui-llamacpp
 ```
 
-Startup should report 17 registered llama.cpp nodes.
+Stable 0.3 startup reports 17 registered llama.cpp nodes. The post-0.3 `dev`
+line reports 19 because **llama.cpp Generate** and **llama.cpp Task Profile** are
+additive.
 
 ## 2. Make `llama-server` available
 
@@ -66,6 +68,12 @@ The three-node workflow starts one owned server, sends the prompt, and displays
 the response. Use **Show Advanced** only when the defaults do not fit the model or
 machine.
 
+For a new post-0.3 workflow, load **Canonical Text** or replace Basic Prompt and
+Prompt Output with one **llama.cpp Generate** node. Convert Generate's advanced
+`Server URL` widget to an input before connecting the Start node URL, or leave it
+empty to use the currently owned runtime. Generate provides its own live preview
+and terminal output, so a Prompt Output node is optional.
+
 ## 6. Release GPU memory
 
 Use either of these after generation:
@@ -81,6 +89,8 @@ unload behavior.
 ## Next steps
 
 - [README](../README.md) for every node and prompt option.
+- [Canonical Generate](canonical-generate.md) for the recommended post-0.3 node,
+  task profiles, live Stop, passive discovery, and terminal release.
 - [Lifecycle and VRAM ownership](lifecycle.md) for release guarantees.
 - [Troubleshooting](troubleshooting.md) for setup and runtime failures.
 - [Example workflows](../example_workflows/) for router, vision, structured

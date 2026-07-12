@@ -16,8 +16,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 if "." in __package__:
+    from ..models.catalog import ModelCatalog
     from ..models.identity import RouterIdentityError, resolve_router_model
 else:  # standalone runtime tests
+    from models.catalog import ModelCatalog
     from models.identity import RouterIdentityError, resolve_router_model
 from .capabilities import ServerCapabilities, probe_server_binary
 from .client import (
@@ -27,13 +29,20 @@ from .client import (
     LlamaServerClient,
     RouterModel,
     TLSConfig,
+    clear_stream_control_cache,
 )
 from .comfy_bridge import evict_comfy_models
 from .config import LaunchConfig, RouterConfig, ServerConfig
+from .discovery import (
+    RuntimeDiscoverySnapshot,
+    RuntimeEndpointSnapshot,
+    discover_runtime,
+)
 from .process import OwnedProcessController, ProcessLifecycle
 from .service import (
     ReleaseResult,
     ReleaseStatus,
+    RuntimeMode,
     RuntimeOperationBusy,
     RuntimeService,
     get_runtime_service,
@@ -143,14 +152,15 @@ def _canonical_endpoint(url: str) -> tuple[str, str, int, str]:
         port = parsed.port
     except ValueError as exc:
         raise ValueError(f"invalid server URL port: {exc}") from exc
-    port = port or (443 if scheme == "https" else 80)
+    if port is None:
+        port = 443 if scheme == "https" else 80
     normalized_host = host.rstrip(".").lower()
     try:
         address = ipaddress.ip_address(normalized_host)
     except ValueError:
-        host_key = "loopback" if normalized_host == "localhost" else normalized_host
+        host_key = normalized_host
     else:
-        host_key = "loopback" if address.is_loopback else address.compressed
+        host_key = address.compressed
     path = parsed.path.rstrip("/")
     return scheme, host_key, port, path
 
@@ -339,6 +349,87 @@ class LlamaCppServerManager:
             return self._client, True
         return self._client_factory(connection), managed
 
+    def _discovery_endpoint(
+        self,
+    ) -> tuple[RuntimeEndpointSnapshot, ConnectionConfig | None]:
+        """Capture one immutable view of the currently owned endpoint."""
+
+        with self._lock:
+            if not self.is_running or self._connection is None or self._config is None:
+                return (
+                    RuntimeEndpointSnapshot(
+                        mode=RuntimeMode.NONE,
+                        owned=False,
+                        runtime_epoch=self._runtime.runtime_epoch,
+                        endpoint="",
+                    ),
+                    None,
+                )
+
+            config = self._config
+            runtime_mode = (
+                self._runtime.mode
+                if self._runtime.mode in {RuntimeMode.DIRECT, RuntimeMode.ROUTER}
+                else RuntimeMode.ROUTER
+                if self._mode == ServerMode.ROUTER
+                else RuntimeMode.DIRECT
+            )
+            return (
+                RuntimeEndpointSnapshot(
+                    mode=runtime_mode,
+                    owned=self._runtime.is_owned,
+                    runtime_epoch=self._runtime.runtime_epoch,
+                    endpoint=self._connection.base_url,
+                    active_router_root=(
+                        config.models_dir if isinstance(config, RouterConfig) else None
+                    ),
+                    configured_context=config.context_size,
+                    configured_model_path=(
+                        config.model_path if isinstance(config, ServerConfig) else None
+                    ),
+                    configured_projector_path=config.mmproj_path,
+                ),
+                self._connection,
+            )
+
+    def discover_models(
+        self,
+        saved_model: str = "",
+        *,
+        catalog: ModelCatalog | None = None,
+    ) -> RuntimeDiscoverySnapshot:
+        """Passively inspect the managed runtime, retrying one epoch race.
+
+        This surface deliberately accepts no endpoint URL or credential. Attached
+        endpoints remain usable by execution nodes but are not browser-probed by
+        the managed discovery route.
+        """
+
+        active_catalog = catalog or ModelCatalog()
+        for attempt in range(2):
+            snapshot, connection = self._discovery_endpoint()
+            client: LlamaServerClient | None = None
+            try:
+                if connection is not None:
+                    client = self._client_factory(connection)
+                result = discover_runtime(
+                    snapshot,
+                    client,
+                    saved_model=saved_model,
+                    catalog=active_catalog,
+                )
+            finally:
+                if client is not None and client is not self._client:
+                    client.close()
+
+            if self._runtime.runtime_epoch == snapshot.runtime_epoch:
+                return result
+            if attempt == 0:
+                continue
+            raise RuntimeError("llama.cpp runtime changed during passive discovery")
+
+        raise AssertionError("unreachable")  # pragma: no cover
+
     @contextlib.contextmanager
     def generation_lease(self, *, managed: bool) -> Iterator[None]:
         if managed:
@@ -494,6 +585,7 @@ class LlamaCppServerManager:
                     self._runtime.configure_router_owned(client)
                 else:
                     self._runtime.configure_direct_owned()
+                clear_stream_control_cache()
                 self._status = ServerStatus.RUNNING
                 return True, None
             except Exception as exc:
@@ -523,6 +615,7 @@ class LlamaCppServerManager:
                     self._runtime.clear_runtime()
                 except RuntimeError:
                     pass
+                clear_stream_control_cache()
                 return False, self._last_error
 
     def _validate_launch(
@@ -646,6 +739,7 @@ class LlamaCppServerManager:
                 self._runtime.clear_runtime()
             except RuntimeError:
                 pass
+            clear_stream_control_cache()
             return True, None
 
         self._status = ServerStatus.STOPPING
@@ -659,6 +753,7 @@ class LlamaCppServerManager:
             self._connection = None
             self._close_client()
             self._runtime.clear_runtime()
+            clear_stream_control_cache()
             return True, None
         self._status = ServerStatus.ERROR
         self._last_error = result.error or f"Owned processes remain: {result.remaining_pids}"
@@ -700,10 +795,10 @@ class LlamaCppServerManager:
         result.setdefault("status", {"value": model.state.value})
         return result
 
-    def resolve_model_id(self, model_name: str) -> str:
+    def resolve_model_id(self, model_name: str, timeout: float | None = None) -> str:
         if not self.is_router_mode or self._client is None:
             return model_name
-        records = [self._model_dict(model) for model in self._client.models()]
+        records = [self._model_dict(model) for model in self._client.models(timeout=timeout)]
         return resolve_router_model(model_name, records)
 
     def load_model(self, model_name: str, timeout: float | None = 300) -> tuple[bool, str | None]:
@@ -787,6 +882,7 @@ class LlamaCppServerManager:
             self._capabilities = None
             self._connection = None
             self._close_client()
+            clear_stream_control_cache()
 
     def _close_client(self) -> None:
         client, self._client = self._client, None
