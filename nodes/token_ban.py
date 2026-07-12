@@ -1,6 +1,7 @@
 """Workflow node for llama-server text-form logit bias entries."""
 
 from ..generation.types import parse_text_list
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 
 
 class LlamaCppTokenBan:
@@ -8,7 +9,8 @@ class LlamaCppTokenBan:
         "Builds a llama-server token-ban list from newline, JSON-array, or legacy "
         "comma-separated text entries."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppTokenBan"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppTokenBan"]
     RETURN_TYPES = ("LOGIT_BIAS",)
     RETURN_NAMES = ("logit_bias",)
     OUTPUT_TOOLTIPS = ("Token-ban entries for an ADV++ Prompt node.",)
@@ -16,7 +18,7 @@ class LlamaCppTokenBan:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {
                 "banned_tokens": (
                     "STRING",
@@ -36,6 +38,7 @@ class LlamaCppTokenBan:
                 ),
             }
         }
+        return apply_input_presentation("LlamaCppTokenBan", schema)
 
     def create_ban_list(self, banned_tokens: str, enable: bool):
         if not enable or not banned_tokens.strip():

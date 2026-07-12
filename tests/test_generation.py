@@ -87,12 +87,35 @@ def test_image_conversion_rejects_invalid_channels():
         image_tensor_to_data_url(np.zeros((2, 2, 2), dtype=np.float32))
 
 
-def test_template_backend_fills_only_blank_fields(tmp_path):
+@pytest.mark.parametrize(
+    ("prompt", "system_prompt", "expected"),
+    (
+        ("", "", ("prompt", "system")),
+        ("custom", "", ("custom", "system")),
+        ("", "mine", ("prompt", "mine")),
+        ("custom", "mine", ("custom", "mine")),
+        ("   ", "\n", ("   ", "\n")),
+    ),
+)
+def test_template_backend_fills_exact_empty_fields_only(tmp_path, prompt, system_prompt, expected):
     path = tmp_path / "templates.json"
     path.write_text(
         json.dumps({"Example": {"system_prompt": "system", "prompt": "prompt"}}),
         encoding="utf-8",
     )
     assert "Empty" in load_templates(path)
-    assert apply_template("Example", "", "", path=path) == ("prompt", "system")
-    assert apply_template("Example", "custom", "mine", path=path) == ("custom", "mine")
+    assert apply_template("Example", prompt, system_prompt, path=path) == expected
+
+
+@pytest.mark.parametrize("template_name", ("Empty", "Missing"))
+def test_empty_and_missing_templates_are_noops(tmp_path, template_name):
+    path = tmp_path / "templates.json"
+    path.write_text(
+        json.dumps({"Example": {"system_prompt": "system", "prompt": "prompt"}}),
+        encoding="utf-8",
+    )
+    assert apply_template(template_name, "custom", "mine", path=path) == ("custom", "mine")
+
+
+def test_bundled_template_names_and_order_remain_stable():
+    assert list(load_templates()) == ["Empty", "Image2Prompt", "Prompt Enhancer"]

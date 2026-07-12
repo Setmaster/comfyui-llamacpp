@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
+
 
 class LlamaCppStructuredOutput:
     DESCRIPTION = (
         "Builds a JSON Schema, JSON object, or GBNF grammar constraint for ADV++ generation."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppStructuredOutput"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppStructuredOutput"]
     RETURN_TYPES = ("STRUCTURED_OUTPUT",)
     RETURN_NAMES = ("structured_output",)
     OUTPUT_TOOLTIPS = ("Validated structured-output constraint for an ADV++ Prompt node.",)
@@ -18,7 +21,7 @@ class LlamaCppStructuredOutput:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {
                 "mode": (
                     ["json_schema", "json_object", "grammar"],
@@ -55,6 +58,7 @@ class LlamaCppStructuredOutput:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppStructuredOutput", schema)
 
     def create_constraint(
         self,

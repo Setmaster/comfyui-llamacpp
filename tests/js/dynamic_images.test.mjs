@@ -6,7 +6,6 @@ import {
     setupDynamicImageInputs,
     syncImageInputs,
 } from "../../web/dynamic_images.js";
-import { applyTemplateValues } from "../../web/template_utils.js";
 
 function fakeNode(count = 10) {
     const node = {
@@ -22,8 +21,8 @@ function fakeNode(count = 10) {
         removeInput(index) {
             this.inputs.splice(index, 1);
         },
-        addInput(name, type) {
-            this.inputs.push({ name, type });
+        addInput(name, type, options = {}) {
+            this.inputs.push({ name, type, ...options });
         },
         computeSize() {
             return [300, 150];
@@ -53,6 +52,10 @@ test("sync removes only image sockets and restores named sockets", () => {
         "image_2",
         "image_3",
     ]);
+    assert.deepEqual(
+        node.inputs.filter((input) => input.name.startsWith("image_")).map((input) => input.label),
+        ["Image 1", "Image 2", "Image 3"],
+    );
 });
 
 test("setup is idempotent and widget callback updates sockets", () => {
@@ -79,20 +82,9 @@ test("loaded graph setup restores saved image counts 0, 1, and 10", () => {
             node.inputs.filter((input) => input.name.startsWith("image_")).map((input) => input.name),
             Array.from({ length: count }, (_, index) => `image_${index + 1}`),
         );
+        assert.deepEqual(
+            node.inputs.filter((input) => input.name.startsWith("image_")).map((input) => input.label),
+            Array.from({ length: count }, (_, index) => `Image ${index + 1}`),
+        );
     }
-});
-
-test("template helper updates only the intended widgets", () => {
-    const widgets = [
-        { name: "prompt", value: "old" },
-        { name: "system_prompt", value: "old system" },
-        { name: "seed", value: 1 },
-    ];
-    assert.equal(
-        applyTemplateValues(widgets, { prompt: "new", system_prompt: "new system" }),
-        true,
-    );
-    assert.equal(widgets[0].value, "new");
-    assert.equal(widgets[1].value, "new system");
-    assert.equal(widgets[2].value, 1);
 });

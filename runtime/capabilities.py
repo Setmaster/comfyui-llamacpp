@@ -253,6 +253,38 @@ def probe_server_binary(
     return result
 
 
+def probe_server_devices(
+    binary: os.PathLike[str] | str | None = None,
+    *,
+    timeout: float = 5.0,
+    env: Mapping[str, str] | None = None,
+    runner: ProbeRunner | None = None,
+    max_lines: int = 16,
+    max_line_length: int = 300,
+) -> tuple[str, ...]:
+    """Return a bounded snapshot from llama-server ``--list-devices``.
+
+    Device availability can change while ComfyUI is running, so this optional
+    probe is intentionally separate from the cached version/help capability
+    probe used for every managed launch.
+    """
+
+    if timeout <= 0:
+        raise ValueError("probe timeout must be positive")
+    if max_lines <= 0:
+        raise ValueError("max_lines must be positive")
+    if max_line_length <= 0:
+        raise ValueError("max_line_length must be positive")
+
+    path = resolve_server_binary(binary, env=env)
+    run = subprocess.run if runner is None else runner
+    output = _run_probe(run, path, "--list-devices", timeout)
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if lines and lines[0].casefold().rstrip(":") == "available devices":
+        lines.pop(0)
+    return tuple(line[:max_line_length] for line in lines[:max_lines])
+
+
 def clear_capability_cache() -> None:
     with _CACHE_LOCK:
         _CAPABILITY_CACHE.clear()
@@ -264,5 +296,6 @@ __all__ = [
     "ServerCapabilities",
     "clear_capability_cache",
     "probe_server_binary",
+    "probe_server_devices",
     "resolve_server_binary",
 ]

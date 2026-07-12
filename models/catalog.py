@@ -230,6 +230,11 @@ class ModelCatalog:
             (candidate for candidate in self.roots if candidate.is_dir()), self.default_root
         )
 
+    def count_router_presets(self) -> int:
+        """Count safe presets visible across the configured one-level router roots."""
+
+        return sum(self._router_preset_count(root) for root in self.roots)
+
     def resolve_router_root(self, selection: str | os.PathLike[str] | None = None) -> Path:
         """Resolve an optional configured router root, or select the best populated root."""
 

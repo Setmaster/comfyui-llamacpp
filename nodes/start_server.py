@@ -7,6 +7,7 @@ from ..model_manager import (
     validate_model,
 )
 from ..server_manager import ServerConfig, get_server_manager
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 from .server_utils import (
     optional_path,
     parse_extra_args,
@@ -21,7 +22,8 @@ class StartLlamaCppServer:
         "Launches and owns a local single-model llama-server process with "
         "capability-checked modern options."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["StartLlamaCppServer"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["StartLlamaCppServer"]
     RETURN_TYPES = ("STRING", "BOOLEAN")
     RETURN_NAMES = ("server_url", "success")
     OUTPUT_TOOLTIPS = (
@@ -34,7 +36,7 @@ class StartLlamaCppServer:
     def INPUT_TYPES(cls):
         models = get_local_models() or ["No models found - add .gguf files to models/LLM/gguf/"]
         mmproj = ["(auto)", *get_local_mmproj()]
-        return {
+        schema = {
             "required": {
                 "model": (
                     models,
@@ -234,6 +236,7 @@ class StartLlamaCppServer:
                 ),
             },
         }
+        return apply_input_presentation("StartLlamaCppServer", schema)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

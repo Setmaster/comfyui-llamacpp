@@ -7,13 +7,15 @@ import json
 from ..runtime.client import LlamaServerClient
 from ..server_manager import get_server_manager
 from .connection import LlamaCppConnectionProfile
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 
 
 class LlamaCppModelInfo:
     DESCRIPTION = (
         "Reads the active model identity, context length, and server metadata from llama-server."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppModelInfo"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppModelInfo"]
     RETURN_TYPES = ("STRING", "INT", "STRING")
     RETURN_NAMES = ("model_name", "context_length", "info_json")
     OUTPUT_TOOLTIPS = (
@@ -26,7 +28,7 @@ class LlamaCppModelInfo:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {},
             "optional": {
                 "server_url": (
@@ -70,6 +72,7 @@ class LlamaCppModelInfo:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppModelInfo", schema)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

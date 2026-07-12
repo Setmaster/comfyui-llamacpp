@@ -6,13 +6,15 @@ import json
 
 from ..model_manager import get_local_models
 from ..server_manager import get_server_manager
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 
 
 class LlamaCppListModels:
     DESCRIPTION = (
         "Lists the current llama-server model catalog and normalized router residency states."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppListModels"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppListModels"]
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("models_json", "models_list")
     OUTPUT_TOOLTIPS = (
@@ -23,7 +25,7 @@ class LlamaCppListModels:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {},
             "optional": {
                 "trigger": (
@@ -44,6 +46,7 @@ class LlamaCppListModels:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppListModels", schema)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -71,7 +74,8 @@ def _model_choices() -> list[str]:
 
 class LlamaCppLoadModel:
     DESCRIPTION = "Loads one exact router model and waits for its terminal loaded state."
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppLoadModel"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppLoadModel"]
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
     OUTPUT_TOOLTIPS = (
@@ -84,7 +88,7 @@ class LlamaCppLoadModel:
     @classmethod
     def INPUT_TYPES(cls):
         models = _model_choices()
-        return {
+        schema = {
             "required": {
                 "model_name": (
                     models,
@@ -113,6 +117,7 @@ class LlamaCppLoadModel:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppLoadModel", schema)
 
     def load_model(self, model_name: str, trigger=None, operation_timeout: int = 300):
         del trigger
@@ -123,7 +128,8 @@ class LlamaCppLoadModel:
 
 class LlamaCppUnloadModel:
     DESCRIPTION = "Unloads one exact router model and waits for its terminal unloaded state."
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppUnloadModel"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppUnloadModel"]
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
     OUTPUT_TOOLTIPS = (
@@ -136,7 +142,7 @@ class LlamaCppUnloadModel:
     @classmethod
     def INPUT_TYPES(cls):
         models = _model_choices()
-        return {
+        schema = {
             "required": {
                 "model_name": (
                     models,
@@ -165,6 +171,7 @@ class LlamaCppUnloadModel:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppUnloadModel", schema)
 
     def unload_model(self, model_name: str, trigger=None, operation_timeout: int = 300):
         del trigger

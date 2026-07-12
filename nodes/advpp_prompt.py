@@ -3,6 +3,7 @@
 from ..generation.templates import get_template_names
 from .common import collect_images, legacy_result, run_prompt
 from .connection import LlamaCppConnectionProfile
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES
 from .schemas import MAX_IMAGES, advanced_pp_prompt_inputs
 
 
@@ -11,7 +12,8 @@ class LlamaCppAdvPPPrompt:
         "Runs multimodal generation with reusable prompt templates, token bans, and "
         "structured-output constraints."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppAdvPPPrompt"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppAdvPPPrompt"]
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
     OUTPUT_TOOLTIPS = (

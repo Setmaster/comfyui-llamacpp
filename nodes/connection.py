@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
+
 
 @dataclass(frozen=True, slots=True)
 class LlamaCppConnectionProfile:
@@ -19,7 +21,8 @@ class LlamaCppConnection:
         "Creates a reusable llama-server connection profile while keeping API-key values "
         "out of saved workflows."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppConnection"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppConnection"]
     RETURN_TYPES = ("LLAMACPP_CONNECTION",)
     RETURN_NAMES = ("connection",)
     OUTPUT_TOOLTIPS = ("Reusable secret-free llama-server connection profile.",)
@@ -27,7 +30,7 @@ class LlamaCppConnection:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {
                 "server_url": (
                     "STRING",
@@ -69,6 +72,7 @@ class LlamaCppConnection:
                 ),
             },
         }
+        return apply_input_presentation("LlamaCppConnection", schema)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

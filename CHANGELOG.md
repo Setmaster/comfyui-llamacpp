@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### User experience
+
+- Added friendly input labels, focused nested categories, search aliases, and
+  progressive disclosure across the existing V1 nodes without changing released
+  node IDs, titles, inputs, outputs, defaults, or positional values.
+- Aligned frontend template selection with the backend's non-destructive
+  exact-empty fallback and added an explicit undoable replace/reset action.
+- Expanded Server Status with bounded idle setup diagnostics and a visible,
+  copyable summary while preserving its released result tuple.
+- Moved workflow templates to canonical `example_workflows`, added Setup Check
+  and Quick Text first-run paths, and added a compact Start Here guide.
+- Added complete immutable 0.3 contract characterization alongside the existing
+  0.2.1 workflow fixtures.
+
 ## 0.3.0 - 2026-07-11
 
 ### Runtime and lifecycle

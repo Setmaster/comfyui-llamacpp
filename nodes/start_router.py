@@ -2,6 +2,7 @@
 
 from ..model_manager import get_model_directories, get_router_models_directory
 from ..server_manager import RouterConfig, get_server_manager
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 from .server_utils import (
     optional_path,
     parse_extra_args,
@@ -16,7 +17,8 @@ class StartLlamaCppRouter:
         "Launches and owns llama-server in multi-model router mode for explicit, "
         "terminal model load and unload control."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["StartLlamaCppRouter"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["StartLlamaCppRouter"]
     RETURN_TYPES = ("STRING", "BOOLEAN")
     RETURN_NAMES = ("server_url", "success")
     OUTPUT_TOOLTIPS = (
@@ -28,7 +30,7 @@ class StartLlamaCppRouter:
     @classmethod
     def INPUT_TYPES(cls):
         router_roots = ["(auto)", *get_model_directories()]
-        return {
+        schema = {
             "required": {
                 "context_size": (
                     "INT",
@@ -238,6 +240,7 @@ class StartLlamaCppRouter:
                 ),
             },
         }
+        return apply_input_presentation("StartLlamaCppRouter", schema)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

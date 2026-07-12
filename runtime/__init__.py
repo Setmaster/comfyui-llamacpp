@@ -6,6 +6,7 @@ from .capabilities import (
     ServerCapabilities,
     clear_capability_cache,
     probe_server_binary,
+    probe_server_devices,
     resolve_server_binary,
 )
 from .client import (
@@ -131,6 +132,7 @@ __all__ = [
     "install_comfy_bridge",
     "parse_router_model",
     "probe_server_binary",
+    "probe_server_devices",
     "redact_secrets",
     "resolve_server_binary",
     "stream_chat",

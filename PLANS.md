@@ -1,4 +1,94 @@
-# Active SOTA Refactor Plan
+# Active UX Work Block A Plan
+
+Status: In progress
+Date: 2026-07-11
+Branch: `dev` (tracking `origin/dev`)
+Baseline: `40ff5d730dc27cb51d68ae53142cab9b4c91f5af`
+Immutable release: tag `0.3.0` at `365986af4a47426b5513b3cee917ebec93a4204a`
+Change bundle: `changes/2026-07-11-ux-work-block-a/`
+
+## Objective
+
+Make the existing 0.3 node surface substantially easier to discover, configure,
+diagnose, and try without changing its released execution contracts. This work
+implements only compatibility-safe UX Work Block A from the accepted post-refactor
+Frontier Review. The canonical Generate and runtime redesign remains a later goal.
+
+## Completion Contract
+
+Outcome:
+
+- A reviewable Work Block A implementation pushed only to `dev`.
+- Friendly input labels, nested categories, useful search aliases, and advanced
+  field disclosure across the existing 17-node V1 surface.
+- Non-destructive template selection with frontend/backend parity and an explicit,
+  undoable replace action.
+- A visible, actionable setup and runtime diagnostic through the existing Server
+  Status node.
+- Canonical first-run workflow templates, bounded thumbnails, and a compact Start
+  Here guide.
+
+Success checks:
+
+- Preserve all 0.2.1 and 0.3 node IDs, node display names, functions, output
+  positions and types, input names and types, defaults, call ordering, and saved
+  widget ordering.
+- Freeze the full 0.3 schema before product edits and retain the existing 0.2.1
+  compatibility fixtures unchanged.
+- Advanced controls hide by default in both LiteGraph and Nodes 2.0, retain values,
+  remain visible when linked, and do not shift the seed companion widget.
+- Ordinary searches such as GGUF, VLM, prompt enhancer, JSON, and free VRAM find
+  the intended nodes in the real frontend.
+- Template selection fills exact-empty fields only, preserves whitespace and user
+  drafts, treats Empty as a no-op, and permits an explicit replace that Ctrl+Z can
+  undo.
+- Idle Server Status reports a bounded binary, device, model-root, model, and
+  projector setup summary without starting a server or claiming projector
+  compatibility.
+- The template browser lists each workflow once, thumbnails resolve, and Quick
+  Text reaches real output on the current Windows ComfyUI and llama.cpp setup.
+- Python, JavaScript, lint, format, package, Registry, saved-workflow, and real
+  browser gates pass, followed by independent review and successful pushed `dev`
+  CI.
+
+Stop condition:
+
+- Stop only after Work Block A is fully green, documented, committed, and pushed
+  to `origin/dev`, with `master` and tag `0.3.0` unchanged.
+
+Human gate:
+
+- The user owns the later hands-on blessing and any merge to `master`.
+
+## Execution Sequence
+
+1. Freeze the complete 0.3 schema and write the implementation bundle.
+2. Add presentation metadata and the renderer compatibility helper.
+3. Align template behavior and add explicit undoable replacement.
+4. Add bounded status/setup diagnostics.
+5. Canonicalize and extend the first-run workflow surface.
+6. Run automated, package, and Registry checks.
+7. Validate both renderers and real generation in current ComfyUI.
+8. Complete independent review, final diff review, push, CI, and KB closeout.
+
+## Decisions
+
+- Keep every released node-level display name. Friendly wording is additive input
+  metadata, while nested categories and aliases improve discovery.
+- Keep V1 for this retrofit. Current V1 accepts the required metadata, and a small
+  instance-scoped frontend helper closes the classic renderer's advanced-widget
+  mismatch without prototype-wide mutation.
+- Extend Server Status rather than add an eighteenth node or a polling dashboard.
+- Rename `examples/` to the canonical `example_workflows/` directory instead of
+  creating duplicate template cards.
+- Add only Setup Check and Quick Text in this block. Reuse the five existing
+  engineering workflows and defer App Mode and richer task workflows.
+- Keep provider aggregation, agents, RAG, MCP, prompt databases, persistent
+  sessions, video, model stores, and canonical Generate work outside this goal.
+
+---
+
+# Completed SOTA Refactor Plan
 
 Status: Complete
 Date: 2026-07-10

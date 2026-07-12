@@ -99,7 +99,7 @@ def test_released_node_identity_and_outputs(node_package, released_contracts, no
     assert node_class is getattr(module, contract["class_name"])
     assert node_class.__name__ == contract["class_name"]
     assert node_package.NODE_DISPLAY_NAME_MAPPINGS[node_id] == contract["display_name"]
-    assert node_class.CATEGORY == contract["category"]
+    # Category is presentation metadata, not a saved-workflow identity contract.
     assert node_class.FUNCTION == contract["function"]
     assert callable(getattr(node_class, contract["function"]))
     assert tuple(node_class.RETURN_TYPES) == tuple(contract["return_types"])

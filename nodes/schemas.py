@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..model_manager import get_local_models
+from .presentation import apply_input_presentation
 
 MAX_IMAGES = 10
 RUNNING_MODEL = "(use running model)"
@@ -249,7 +250,8 @@ def basic_prompt_inputs() -> dict[str, dict[str, Any]]:
         "LLAMACPP_CONNECTION",
         {"tooltip": "Optional reusable local or remote connection profile."},
     )
-    return {"required": {"prompt": _prompt()}, "optional": optional}
+    schema = {"required": {"prompt": _prompt()}, "optional": optional}
+    return apply_input_presentation("LlamaCppBasicPrompt", schema)
 
 
 def advanced_prompt_inputs() -> dict[str, dict[str, Any]]:
@@ -269,10 +271,11 @@ def advanced_prompt_inputs() -> dict[str, dict[str, Any]]:
         "LLAMACPP_CONNECTION",
         {"tooltip": "Optional reusable local or remote connection profile."},
     )
-    return {
+    schema = {
         "required": {"prompt": _prompt(), "image_amount": _image_amount()},
         "optional": optional,
     }
+    return apply_input_presentation("LlamaCppAdvPrompt", schema)
 
 
 def advanced_pp_prompt_inputs(template_names: list[str]) -> dict[str, dict[str, Any]]:
@@ -302,13 +305,16 @@ def advanced_pp_prompt_inputs(template_names: list[str]) -> dict[str, dict[str, 
         "LLAMACPP_CONNECTION",
         {"tooltip": "Optional reusable local or remote connection profile."},
     )
-    return {
+    schema = {
         "required": {
             "template": (
                 template_names,
                 {
                     "default": "Empty",
-                    "tooltip": "Apply a bundled prompt template before generation.",
+                    "tooltip": (
+                        "Fill exact-empty prompt fields from the selected bundled template. "
+                        "Existing text is preserved; use Replace / Reset to overwrite it."
+                    ),
                 },
             ),
             "prompt": _prompt(),
@@ -316,3 +322,4 @@ def advanced_pp_prompt_inputs(template_names: list[str]) -> dict[str, dict[str, 
         },
         "optional": optional,
     }
+    return apply_input_presentation("LlamaCppAdvPPPrompt", schema)

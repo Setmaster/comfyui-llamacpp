@@ -11,7 +11,11 @@ Models** action also releases this pack's owned runtime. The existing explicit
 stop and unload nodes remain available.
 
 The stable release is `0.3.0`. It is available from the Comfy Registry and the
-`master` branch, while `dev` is reserved for later development.
+`master` branch. Post-0.3 development remains on `dev` until it passes the
+maintainer's hands-on acceptance gate.
+
+New installation? Follow [Start Here](docs/start-here.md), then load **Setup
+Check** and **Quick Text** from ComfyUI's workflow template browser.
 
 ## What it covers
 
@@ -21,7 +25,7 @@ The stable release is `0.3.0`. It is available from the Comfy Registry and the
 - Freeform chat completions with sampling, thinking/reasoning output, stop
   sequences, token bans, and prompt-prefix caching.
 - VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
-- Backend-applied Image2Prompt and Prompt Enhancer templates.
+- Non-destructive, backend-applied Image2Prompt and Prompt Enhancer templates.
 - JSON object, JSON Schema, and GBNF structured-output constraints.
 - Token counting and live model/server properties.
 - Reusable local connection profiles with API-key environment variables, TLS
@@ -124,7 +128,8 @@ The start nodes resolve the executable in this order:
 
 1. The node's `binary_path` input.
 2. The `LLAMA_SERVER_BINARY` environment variable.
-3. `llama-server` or `llama-server.exe` on `PATH`.
+3. The compatibility variable `LLAMA_CPP_SERVER`.
+4. `llama-server` or `llama-server.exe` on `PATH`.
 
 An explicit path is easiest when several llama.cpp builds are installed. The
 pack probes `--version` and `--help`, records the binary identity, and refuses
@@ -164,6 +169,13 @@ Files whose names contain `mmproj` are listed separately from text/model GGUFs.
 ## Quick start
 
 ### Direct text workflow
+
+The shortest path is **Workflow > Browse Templates > comfyui-llamacpp > Quick
+Text**. Select a GGUF, set the binary only when it is not already resolved, and
+queue the workflow. The companion **Setup Check** template diagnoses the binary,
+available devices, and configured model roots without starting a server.
+
+To build the same graph manually:
 
 1. Add **Start llama.cpp Server** and select a GGUF.
 2. Connect `server_url` to **llama.cpp Basic Prompt**.
@@ -234,7 +246,11 @@ limitations.
 
 ## Node catalog
 
-All nodes are in the `LlamaCpp` category.
+Nodes keep their released names and are grouped under `LlamaCpp/Runtime`,
+`LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
+include ordinary terms such as GGUF, VLM, prompt enhancer, JSON Schema, and free
+VRAM. Dense nodes show primary controls first; choose **Show Advanced** for the
+complete released surface.
 
 | Node | Purpose |
 | --- | --- |
@@ -271,7 +287,10 @@ All nodes are in the `LlamaCpp` category.
   workflows survive frontend reload. `include_image_batch` sends every item in
   a connected Comfy image batch; off preserves the legacy first-image behavior.
 - Templates are applied in Python as well as reflected in the UI, so API-format
-  and headless workflows behave consistently.
+  and headless workflows behave consistently. Selection fills exact-empty prompt
+  fields only and never overwrites a draft. Whitespace remains an intentional
+  value. Use the explicit replace/reset action when overwriting both fields is
+  intended; the action participates in Comfy undo.
 - A generation succeeds only after a valid stream terminal marker. Partial text
   is preserved and labelled when a stream times out, is cancelled, or ends
   without completion.
@@ -317,11 +336,16 @@ Each entry contains `system_prompt` and `prompt` fields:
 ```
 
 Restart ComfyUI after changing the file. Existing templates include
-`Image2Prompt` and `Prompt Enhancer`.
+`Image2Prompt` and `Prompt Enhancer`. Selecting a template is a fallback for
+blank fields. Selecting `Empty` is a no-op; it clears fields only through the
+explicit replace/reset action.
 
 ## Examples and validation
 
-Importable workflow examples live in [`examples/`](examples/). The
+ComfyUI discovers the curated workflows in
+[`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
+the first-run paths; the direct, router, vision, structured-output, and VRAM
+handoff workflows retain the deeper validation examples. The
 [user acceptance checklist](docs/user-acceptance.md) covers upgrade
 compatibility, direct and router release, Windows ownership, VLMs, structured
 output, attached endpoints, and the final diffusion-to-LLM-to-diffusion GPU
@@ -346,15 +370,16 @@ uv build
 git diff --check
 ```
 
-The test suite contains v0.2.1 node/widget contracts, historical workflow
-fixtures, current router/client contracts, lifecycle race tests, process-tree
-tests, frontend helper tests, and package-build checks. CI covers Python 3.10
+The test suite contains immutable v0.2.1 and complete 0.3 node/widget contracts,
+historical workflow fixtures, current router/client contracts, lifecycle race
+tests, process-tree tests, frontend helper tests, and package-build checks. CI covers Python 3.10
 through 3.14 on Linux plus Python 3.13 on Windows. Real ComfyUI, current
 llama.cpp, Windows Job Object, VLM, and GPU handoff evidence is recorded during
 release validation.
 
 ## Project documentation
 
+- [Start Here](docs/start-here.md)
 - [0.3 migration guide](docs/migration-0.3.md)
 - [Lifecycle and VRAM ownership](docs/lifecycle.md)
 - [Troubleshooting](docs/troubleshooting.md)

@@ -17,6 +17,14 @@ The old required, optional, primitive-widget, and Python-call sequences are
 treated as prefixes. New inputs and parameters may be appended, but must not be
 inserted into those historical sequences.
 
+`fixtures/workflows/v0_3_0_contracts.json` is anchored to immutable tag `0.3.0`
+at commit `365986af4a47426b5513b3cee917ebec93a4204a`. It freezes the complete
+17-node schema, including all 0.3 inputs, defaults, output tuples, Python call
+order, and primitive widget order. Presentation metadata may be additive, but
+the full 0.3 sequence remains an exact compatibility prefix. Current workflow
+examples also assert Comfy's serialized seed companion stays immediately after
+the released seed value.
+
 ## Standalone imports
 
 `conftest.py` provides narrow import-time stubs for ComfyUI and dependencies

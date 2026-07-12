@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from contextlib import contextmanager
 
@@ -175,3 +176,184 @@ def test_router_node_omitted_model_root_retains_auto_default(node_package, monke
     node.start_router(2048, "", 0, 1)
 
     assert selections == ["(auto)"]
+
+
+def _status_data(*, running: bool) -> dict:
+    return {
+        "status": "running" if running else "stopped",
+        "is_running": running,
+        "mode": "single_model",
+        "server_url": "http://127.0.0.1:8080" if running else None,
+        "last_error": None,
+        "process": {
+            "pid": 1234 if running else None,
+            "process_group_id": None,
+            "windows_job_assigned": running,
+            "log_tail": [],
+        },
+        "runtime": {
+            "owned": running,
+            "lifecycle": "ready" if running else "idle",
+            "active_generations": 0,
+            "release_pending": False,
+        },
+        "capabilities": (
+            {
+                "binary": "/active/llama-server",
+                "version": "version: 9999 (active123)",
+                "supports_router": True,
+            }
+            if running
+            else None
+        ),
+    }
+
+
+def test_server_status_idle_preflight_is_visible_bounded_and_machine_copyable(
+    node_package, monkeypatch, tmp_path
+):
+    node_class = node_package.NODE_CLASS_MAPPINGS["LlamaCppServerStatus"]
+    module = sys.modules[node_class.__module__]
+    node = node_class()
+    present = tmp_path / "present"
+    missing = tmp_path / "missing"
+    bundle = present / "vision"
+    bundle.mkdir(parents=True)
+    (present / "text.gguf").write_bytes(b"x")
+    (bundle / "vision.gguf").write_bytes(b"x")
+    (bundle / "mmproj-vision.gguf").write_bytes(b"x")
+    catalog_class = module.ModelCatalog
+    calls = {"binary": [], "devices": []}
+
+    class FakeManager:
+        def get_status_info(self):
+            return _status_data(running=False)
+
+    class FakeCapabilities:
+        path = "/resolved/llama-server"
+        version_line = "version: 9999 (abcdef123)"
+        build_number = 9999
+        commit = "abcdef123"
+        supports_router = True
+
+        @staticmethod
+        def supports(flag):
+            return flag == "--list-devices"
+
+    def probe_binary(path, *, timeout):
+        calls["binary"].append((path, timeout))
+        return FakeCapabilities()
+
+    def probe_devices(path, *, timeout):
+        calls["devices"].append((path, timeout))
+        return ("CUDA0: Test GPU (1024 MiB)",)
+
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(module, "ModelCatalog", lambda: catalog_class([present, missing]))
+    monkeypatch.setattr(module, "probe_server_binary", probe_binary)
+    monkeypatch.setattr(module, "probe_server_devices", probe_devices)
+
+    output = node.get_status("/chosen/llama-server")
+    result = output["result"]
+    info = result[2]
+    schema = node_class.INPUT_TYPES()
+
+    assert list(schema["optional"]) == ["binary_path"]
+    assert schema["optional"]["binary_path"][1]["default"] == ""
+    assert len(result) == 3
+    assert result[:2] == (False, "stopped")
+    assert info.startswith("Status: stopped\nMode: single_model\nOwned: False\nLifecycle: idle\n")
+    assert "Setup: warning" in info
+    assert "2 models, 1 projectors" in info
+    assert "roots 2 configured, 1 present, 1 populated" in info
+    assert "2 router presets" in info
+    assert "Projector compatibility: not inferred" in info
+    assert "Setup warning: 1 configured model root(s) do not exist" in info
+    assert output["ui"]["text"] == (info,)
+    assert calls == {
+        "binary": [("/chosen/llama-server", module._SETUP_PROBE_TIMEOUT)],
+        "devices": [("/resolved/llama-server", module._SETUP_PROBE_TIMEOUT)],
+    }
+
+    compact = info.split("Diagnostics JSON: ", 1)[1]
+    payload = json.loads(compact)
+    assert "\n" not in compact
+    assert payload["runtime"]["status"] == "stopped"
+    assert payload["setup"]["catalog"] == {
+        "entries": 3,
+        "models": 2,
+        "projectors": 1,
+        "roots_configured": 2,
+        "roots_present": 1,
+        "roots_populated": 1,
+        "router_presets": 2,
+    }
+    assert payload["setup"]["projector_compatibility_inferred"] is False
+
+
+def test_server_status_running_uses_active_binary_without_extra_probe(
+    node_package, monkeypatch, tmp_path
+):
+    node_class = node_package.NODE_CLASS_MAPPINGS["LlamaCppServerStatus"]
+    module = sys.modules[node_class.__module__]
+    node = node_class()
+    (tmp_path / "model.gguf").write_bytes(b"x")
+    catalog_class = module.ModelCatalog
+
+    class FakeManager:
+        def get_status_info(self):
+            return _status_data(running=True)
+
+    def unexpected_probe(*args, **kwargs):
+        raise AssertionError(f"active status invoked an idle probe: {args}, {kwargs}")
+
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(module, "ModelCatalog", lambda: catalog_class([tmp_path]))
+    monkeypatch.setattr(module, "probe_server_binary", unexpected_probe)
+    monkeypatch.setattr(module, "probe_server_devices", unexpected_probe)
+
+    output = node.get_status()
+    result = output["result"]
+    info = result[2]
+
+    assert result[:2] == (True, "running")
+    assert "Setup: active" in info
+    assert "Binary: /active/llama-server" in info
+    assert "Offload devices: not probed while the managed runtime is active" in info
+    assert "URL: http://127.0.0.1:8080" in info
+    assert "PID: 1234" in info
+    assert "Windows Job Object: assigned" in info
+
+
+def test_server_status_missing_binary_has_one_actionable_bounded_warning(
+    node_package, monkeypatch, tmp_path
+):
+    node_class = node_package.NODE_CLASS_MAPPINGS["LlamaCppServerStatus"]
+    module = sys.modules[node_class.__module__]
+    node = node_class()
+    (tmp_path / "model.gguf").write_bytes(b"x")
+    catalog_class = module.ModelCatalog
+
+    class FakeManager:
+        def get_status_info(self):
+            return _status_data(running=False)
+
+    def missing_binary(*args, **kwargs):
+        del args, kwargs
+        raise module.BinaryResolutionError("missing " + "x" * 1000)
+
+    monkeypatch.setattr(module, "get_server_manager", lambda: FakeManager())
+    monkeypatch.setattr(module, "ModelCatalog", lambda: catalog_class([tmp_path]))
+    monkeypatch.setattr(module, "probe_server_binary", missing_binary)
+    monkeypatch.setattr(module, "probe_server_devices", lambda *args, **kwargs: ())
+
+    info = node.get_status()["result"][2]
+    payload = json.loads(info.split("Diagnostics JSON: ", 1)[1])
+
+    assert "Setup: needs attention" in info
+    assert "Binary: not resolved" in info
+    assert payload["setup"]["warnings"] == [
+        "llama-server is not ready: set Binary Path, LLAMA_SERVER_BINARY or "
+        "LLAMA_CPP_SERVER, or add llama-server to PATH."
+    ]
+    assert len(payload["setup"]["binary"]["error"]) <= module._MAX_WARNING_LENGTH

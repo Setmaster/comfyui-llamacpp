@@ -1,0 +1,1962 @@
+{
+  "release": "0.3.0",
+  "source_commit": "365986af4a47426b5513b3cee917ebec93a4204a",
+  "nodes": {
+    "StartLlamaCppServer": {
+      "class_name": "StartLlamaCppServer",
+      "display_name": "Start llama.cpp Server",
+      "function": "start_server",
+      "parameters": [
+        "model",
+        "context_size",
+        "gpu_layers",
+        "main_gpu",
+        "port",
+        "threads",
+        "batch_size",
+        "flash_attention",
+        "timeout",
+        "binary_path",
+        "host",
+        "tensor_split",
+        "no_mmap",
+        "flash_attention_mode",
+        "mmproj",
+        "sleep_idle_seconds",
+        "api_key_file",
+        "api_key_env",
+        "media_path",
+        "fit_mode",
+        "unload_comfy_models_before_start",
+        "extra_args"
+      ],
+      "return_types": [
+        "STRING",
+        "BOOLEAN"
+      ],
+      "return_names": [
+        "server_url",
+        "success"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "model",
+          "group": "required",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "context_size",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 4096
+        },
+        {
+          "name": "gpu_layers",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "main_gpu",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "port",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 8080
+        },
+        {
+          "name": "threads",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "batch_size",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 512
+        },
+        {
+          "name": "flash_attention",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "timeout",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "60"
+        },
+        {
+          "name": "binary_path",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "host",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "127.0.0.1"
+        },
+        {
+          "name": "tensor_split",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "no_mmap",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "flash_attention_mode",
+          "group": "optional",
+          "type": {
+            "choices": [
+              "legacy",
+              "auto",
+              "on",
+              "off"
+            ]
+          },
+          "widget": true,
+          "default": "legacy"
+        },
+        {
+          "name": "mmproj",
+          "group": "optional",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "sleep_idle_seconds",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "api_key_file",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "media_path",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "fit_mode",
+          "group": "optional",
+          "type": {
+            "choices": [
+              "upstream default",
+              "on",
+              "off"
+            ]
+          },
+          "widget": true,
+          "default": "upstream default"
+        },
+        {
+          "name": "unload_comfy_models_before_start",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "extra_args",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        }
+      ],
+      "primitive_widget_order": [
+        "model",
+        "context_size",
+        "gpu_layers",
+        "main_gpu",
+        "port",
+        "threads",
+        "batch_size",
+        "flash_attention",
+        "timeout",
+        "binary_path",
+        "host",
+        "tensor_split",
+        "no_mmap",
+        "flash_attention_mode",
+        "mmproj",
+        "sleep_idle_seconds",
+        "api_key_file",
+        "api_key_env",
+        "media_path",
+        "fit_mode",
+        "unload_comfy_models_before_start",
+        "extra_args"
+      ]
+    },
+    "StopLlamaCppServer": {
+      "class_name": "StopLlamaCppServer",
+      "display_name": "Stop llama.cpp Server",
+      "function": "stop_server",
+      "parameters": [
+        "trigger"
+      ],
+      "return_types": [
+        "BOOLEAN",
+        "STRING"
+      ],
+      "return_names": [
+        "success",
+        "message"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": []
+    },
+    "LlamaCppServerStatus": {
+      "class_name": "LlamaCppServerStatus",
+      "display_name": "llama.cpp Server Status",
+      "function": "get_status",
+      "parameters": [],
+      "return_types": [
+        "BOOLEAN",
+        "STRING",
+        "STRING"
+      ],
+      "return_names": [
+        "is_running",
+        "status",
+        "info"
+      ],
+      "output_node": false,
+      "inputs": [],
+      "primitive_widget_order": []
+    },
+    "LlamaCppReleaseRuntime": {
+      "class_name": "LlamaCppReleaseRuntime",
+      "display_name": "Release llama.cpp VRAM",
+      "function": "release_runtime",
+      "parameters": [
+        "trigger"
+      ],
+      "return_types": [
+        "BOOLEAN",
+        "STRING",
+        "STRING"
+      ],
+      "return_names": [
+        "success",
+        "message",
+        "result_json"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": []
+    },
+    "LlamaCppBasicPrompt": {
+      "class_name": "LlamaCppBasicPrompt",
+      "display_name": "llama.cpp Basic Prompt",
+      "function": "generate",
+      "parameters": [
+        "prompt",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "trigger",
+        "presence_penalty",
+        "frequency_penalty",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "connection"
+      ],
+      "return_types": [
+        "STRING",
+        "STRING",
+        "BOOLEAN"
+      ],
+      "return_names": [
+        "response",
+        "thinking",
+        "success"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "prompt",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "server_url",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "system_prompt",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "enable_thinking",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "max_tokens",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 2048
+        },
+        {
+          "name": "temperature",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.7
+        },
+        {
+          "name": "top_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.9
+        },
+        {
+          "name": "top_k",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 40
+        },
+        {
+          "name": "min_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.05
+        },
+        {
+          "name": "repeat_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 1.1
+        },
+        {
+          "name": "seed",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "keep_context",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "enable_chaining",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "presence_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "frequency_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "stop_sequences",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        },
+        {
+          "name": "connection",
+          "group": "optional",
+          "type": "LLAMACPP_CONNECTION",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": [
+        "prompt",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "presence_penalty",
+        "frequency_penalty",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout"
+      ]
+    },
+    "StartLlamaCppRouter": {
+      "class_name": "StartLlamaCppRouter",
+      "display_name": "Start llama.cpp Router",
+      "function": "start_router",
+      "parameters": [
+        "context_size",
+        "gpu_layers",
+        "main_gpu",
+        "models_max",
+        "port",
+        "threads",
+        "batch_size",
+        "flash_attention",
+        "models_autoload",
+        "timeout",
+        "binary_path",
+        "host",
+        "tensor_split",
+        "no_mmap",
+        "flash_attention_mode",
+        "sleep_idle_seconds",
+        "api_key_file",
+        "api_key_env",
+        "media_path",
+        "fit_mode",
+        "unload_comfy_models_before_start",
+        "extra_args",
+        "models_directory"
+      ],
+      "return_types": [
+        "STRING",
+        "BOOLEAN"
+      ],
+      "return_names": [
+        "server_url",
+        "success"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "context_size",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 4096
+        },
+        {
+          "name": "gpu_layers",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "main_gpu",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "models_max",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 4
+        },
+        {
+          "name": "port",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 8080
+        },
+        {
+          "name": "threads",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "batch_size",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 512
+        },
+        {
+          "name": "flash_attention",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "models_autoload",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "timeout",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "60"
+        },
+        {
+          "name": "binary_path",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "host",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "127.0.0.1"
+        },
+        {
+          "name": "tensor_split",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "no_mmap",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "flash_attention_mode",
+          "group": "optional",
+          "type": {
+            "choices": [
+              "legacy",
+              "auto",
+              "on",
+              "off"
+            ]
+          },
+          "widget": true,
+          "default": "legacy"
+        },
+        {
+          "name": "sleep_idle_seconds",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "api_key_file",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "media_path",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "fit_mode",
+          "group": "optional",
+          "type": {
+            "choices": [
+              "upstream default",
+              "on",
+              "off"
+            ]
+          },
+          "widget": true,
+          "default": "upstream default"
+        },
+        {
+          "name": "unload_comfy_models_before_start",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "extra_args",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "models_directory",
+          "group": "optional",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        }
+      ],
+      "primitive_widget_order": [
+        "context_size",
+        "gpu_layers",
+        "main_gpu",
+        "models_max",
+        "port",
+        "threads",
+        "batch_size",
+        "flash_attention",
+        "models_autoload",
+        "timeout",
+        "binary_path",
+        "host",
+        "tensor_split",
+        "no_mmap",
+        "flash_attention_mode",
+        "sleep_idle_seconds",
+        "api_key_file",
+        "api_key_env",
+        "media_path",
+        "fit_mode",
+        "unload_comfy_models_before_start",
+        "extra_args",
+        "models_directory"
+      ]
+    },
+    "LlamaCppListModels": {
+      "class_name": "LlamaCppListModels",
+      "display_name": "llama.cpp List Models",
+      "function": "list_models",
+      "parameters": [
+        "trigger",
+        "reload_catalog"
+      ],
+      "return_types": [
+        "STRING",
+        "STRING"
+      ],
+      "return_names": [
+        "models_json",
+        "models_list"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "reload_catalog",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        }
+      ],
+      "primitive_widget_order": [
+        "reload_catalog"
+      ]
+    },
+    "LlamaCppLoadModel": {
+      "class_name": "LlamaCppLoadModel",
+      "display_name": "llama.cpp Load Model",
+      "function": "load_model",
+      "parameters": [
+        "model_name",
+        "trigger",
+        "operation_timeout"
+      ],
+      "return_types": [
+        "BOOLEAN",
+        "STRING"
+      ],
+      "return_names": [
+        "success",
+        "message"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "model_name",
+          "group": "required",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "operation_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        }
+      ],
+      "primitive_widget_order": [
+        "model_name",
+        "operation_timeout"
+      ]
+    },
+    "LlamaCppUnloadModel": {
+      "class_name": "LlamaCppUnloadModel",
+      "display_name": "llama.cpp Unload Model",
+      "function": "unload_model",
+      "parameters": [
+        "model_name",
+        "trigger",
+        "operation_timeout"
+      ],
+      "return_types": [
+        "BOOLEAN",
+        "STRING"
+      ],
+      "return_names": [
+        "success",
+        "message"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "model_name",
+          "group": "required",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "operation_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        }
+      ],
+      "primitive_widget_order": [
+        "model_name",
+        "operation_timeout"
+      ]
+    },
+    "LlamaCppPromptOutput": {
+      "class_name": "LlamaCppPromptOutput",
+      "display_name": "llama.cpp Prompt Output",
+      "function": "preview_text",
+      "parameters": [
+        "text",
+        "plaintext"
+      ],
+      "return_types": [
+        "STRING"
+      ],
+      "return_names": [
+        "text"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "text",
+          "group": "required",
+          "type": "STRING",
+          "widget": false,
+          "forceInput": true
+        },
+        {
+          "name": "plaintext",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        }
+      ],
+      "primitive_widget_order": [
+        "plaintext"
+      ]
+    },
+    "LlamaCppAdvPrompt": {
+      "class_name": "LlamaCppAdvPrompt",
+      "display_name": "llama.cpp ADV Prompt",
+      "function": "generate",
+      "parameters": [
+        "prompt",
+        "image_amount",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "trigger",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch",
+        "image_1",
+        "image_2",
+        "image_3",
+        "image_4",
+        "image_5",
+        "image_6",
+        "image_7",
+        "image_8",
+        "image_9",
+        "image_10",
+        "connection"
+      ],
+      "return_types": [
+        "STRING",
+        "STRING",
+        "BOOLEAN"
+      ],
+      "return_names": [
+        "response",
+        "thinking",
+        "success"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "prompt",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "image_amount",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 2
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "server_url",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "system_prompt",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "enable_thinking",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "max_tokens",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 2048
+        },
+        {
+          "name": "temperature",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.7
+        },
+        {
+          "name": "top_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.9
+        },
+        {
+          "name": "top_k",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 40
+        },
+        {
+          "name": "min_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.05
+        },
+        {
+          "name": "repeat_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 1.1
+        },
+        {
+          "name": "presence_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "frequency_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "seed",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "keep_context",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "enable_chaining",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "stop_sequences",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        },
+        {
+          "name": "include_image_batch",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "image_1",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_2",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_3",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_4",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_5",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_6",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_7",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_8",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_9",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_10",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "connection",
+          "group": "optional",
+          "type": "LLAMACPP_CONNECTION",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": [
+        "prompt",
+        "image_amount",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch"
+      ]
+    },
+    "LlamaCppAdvPPPrompt": {
+      "class_name": "LlamaCppAdvPPPrompt",
+      "display_name": "llama.cpp ADV++ Prompt",
+      "function": "generate",
+      "parameters": [
+        "template",
+        "prompt",
+        "image_amount",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "trigger",
+        "token_ban",
+        "enable_token_ban",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch",
+        "image_1",
+        "image_2",
+        "image_3",
+        "image_4",
+        "image_5",
+        "image_6",
+        "image_7",
+        "image_8",
+        "image_9",
+        "image_10",
+        "structured_output",
+        "connection"
+      ],
+      "return_types": [
+        "STRING",
+        "STRING",
+        "BOOLEAN"
+      ],
+      "return_names": [
+        "response",
+        "thinking",
+        "success"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "template",
+          "group": "required",
+          "type": {
+            "choices": [
+              "Empty",
+              "Image2Prompt",
+              "Prompt Enhancer"
+            ]
+          },
+          "widget": true,
+          "default": "Empty"
+        },
+        {
+          "name": "prompt",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "image_amount",
+          "group": "required",
+          "type": "INT",
+          "widget": true,
+          "default": 2
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": {
+            "kind": "dynamic_choices"
+          },
+          "widget": true,
+          "default": {
+            "kind": "first_choice"
+          }
+        },
+        {
+          "name": "server_url",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "system_prompt",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "enable_thinking",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "max_tokens",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 2048
+        },
+        {
+          "name": "temperature",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.7
+        },
+        {
+          "name": "top_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.9
+        },
+        {
+          "name": "top_k",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 40
+        },
+        {
+          "name": "min_p",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.05
+        },
+        {
+          "name": "repeat_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 1.1
+        },
+        {
+          "name": "presence_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "frequency_penalty",
+          "group": "optional",
+          "type": "FLOAT",
+          "widget": true,
+          "default": 0.0
+        },
+        {
+          "name": "seed",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 0
+        },
+        {
+          "name": "keep_context",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "enable_chaining",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "token_ban",
+          "group": "optional",
+          "type": "LOGIT_BIAS",
+          "widget": false
+        },
+        {
+          "name": "enable_token_ban",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "stop_sequences",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        },
+        {
+          "name": "include_image_batch",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "image_1",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_2",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_3",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_4",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_5",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_6",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_7",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_8",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_9",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "image_10",
+          "group": "optional",
+          "type": "IMAGE",
+          "widget": false
+        },
+        {
+          "name": "structured_output",
+          "group": "optional",
+          "type": "STRUCTURED_OUTPUT",
+          "widget": false
+        },
+        {
+          "name": "connection",
+          "group": "optional",
+          "type": "LLAMACPP_CONNECTION",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": [
+        "template",
+        "prompt",
+        "image_amount",
+        "model",
+        "server_url",
+        "system_prompt",
+        "enable_thinking",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "repeat_penalty",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "keep_context",
+        "enable_chaining",
+        "enable_token_ban",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch"
+      ]
+    },
+    "LlamaCppTokenBan": {
+      "class_name": "LlamaCppTokenBan",
+      "display_name": "llama.cpp Token Ban",
+      "function": "create_ban_list",
+      "parameters": [
+        "banned_tokens",
+        "enable"
+      ],
+      "return_types": [
+        "LOGIT_BIAS"
+      ],
+      "return_names": [
+        "logit_bias"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "banned_tokens",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "enable",
+          "group": "required",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        }
+      ],
+      "primitive_widget_order": [
+        "banned_tokens",
+        "enable"
+      ]
+    },
+    "LlamaCppConnection": {
+      "class_name": "LlamaCppConnection",
+      "display_name": "llama.cpp Connection",
+      "function": "create_connection",
+      "parameters": [
+        "server_url",
+        "model",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout"
+      ],
+      "return_types": [
+        "LLAMACPP_CONNECTION"
+      ],
+      "return_names": [
+        "connection"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "server_url",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 300
+        }
+      ],
+      "primitive_widget_order": [
+        "server_url",
+        "model",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout"
+      ]
+    },
+    "LlamaCppTokenCount": {
+      "class_name": "LlamaCppTokenCount",
+      "display_name": "llama.cpp Token Count",
+      "function": "count_tokens",
+      "parameters": [
+        "text",
+        "server_url",
+        "model",
+        "add_special",
+        "parse_special",
+        "with_pieces",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "connection"
+      ],
+      "return_types": [
+        "INT",
+        "STRING"
+      ],
+      "return_names": [
+        "token_count",
+        "tokens_json"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "text",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "server_url",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "add_special",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "parse_special",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "with_pieces",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": false
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 30
+        },
+        {
+          "name": "connection",
+          "group": "optional",
+          "type": "LLAMACPP_CONNECTION",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": [
+        "text",
+        "server_url",
+        "model",
+        "add_special",
+        "parse_special",
+        "with_pieces",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout"
+      ]
+    },
+    "LlamaCppModelInfo": {
+      "class_name": "LlamaCppModelInfo",
+      "display_name": "llama.cpp Model Info",
+      "function": "get_info",
+      "parameters": [
+        "server_url",
+        "trigger",
+        "model",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "connection"
+      ],
+      "return_types": [
+        "STRING",
+        "INT",
+        "STRING"
+      ],
+      "return_names": [
+        "model_name",
+        "context_length",
+        "info_json"
+      ],
+      "output_node": true,
+      "inputs": [
+        {
+          "name": "server_url",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "trigger",
+          "group": "optional",
+          "type": "*",
+          "widget": false
+        },
+        {
+          "name": "model",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "api_key_env",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "LLAMACPP_API_KEY"
+        },
+        {
+          "name": "verify_tls",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "request_timeout",
+          "group": "optional",
+          "type": "INT",
+          "widget": true,
+          "default": 30
+        },
+        {
+          "name": "connection",
+          "group": "optional",
+          "type": "LLAMACPP_CONNECTION",
+          "widget": false
+        }
+      ],
+      "primitive_widget_order": [
+        "server_url",
+        "model",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout"
+      ]
+    },
+    "LlamaCppStructuredOutput": {
+      "class_name": "LlamaCppStructuredOutput",
+      "display_name": "llama.cpp Structured Output",
+      "function": "create_constraint",
+      "parameters": [
+        "mode",
+        "constraint",
+        "enable",
+        "schema_name",
+        "strict"
+      ],
+      "return_types": [
+        "STRUCTURED_OUTPUT"
+      ],
+      "return_names": [
+        "structured_output"
+      ],
+      "output_node": false,
+      "inputs": [
+        {
+          "name": "mode",
+          "group": "required",
+          "type": {
+            "choices": [
+              "json_schema",
+              "json_object",
+              "grammar"
+            ]
+          },
+          "widget": true,
+          "default": "json_schema"
+        },
+        {
+          "name": "constraint",
+          "group": "required",
+          "type": "STRING",
+          "widget": true,
+          "default": ""
+        },
+        {
+          "name": "enable",
+          "group": "required",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        },
+        {
+          "name": "schema_name",
+          "group": "optional",
+          "type": "STRING",
+          "widget": true,
+          "default": "comfyui_output"
+        },
+        {
+          "name": "strict",
+          "group": "optional",
+          "type": "BOOLEAN",
+          "widget": true,
+          "default": true
+        }
+      ],
+      "primitive_widget_order": [
+        "mode",
+        "constraint",
+        "enable",
+        "schema_name",
+        "strict"
+      ]
+    }
+  }
+}

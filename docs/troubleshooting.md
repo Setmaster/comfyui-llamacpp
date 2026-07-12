@@ -1,14 +1,17 @@
 # Troubleshooting
 
-Start with **llama.cpp Server Status**. It reports mode, lifecycle state, owned
-PID or process group, Windows Job assignment, binary identity, supported
-capabilities, pending release, active generation count, the last error, and a
-bounded redacted server-log tail.
+Start with **llama.cpp Server Status**. While idle, it reports setup readiness,
+resolved binary and version, bounded device information, configured model roots,
+model and projector counts, and actionable warnings without starting a server.
+While running, it also reports mode, lifecycle state, owned PID or process group,
+Windows Job assignment, supported capabilities, pending release, active
+generation count, the last error, and a bounded redacted server-log tail.
 
 ## `llama-server` was not found
 
-Resolution order is the start node's `binary_path`, the
-`LLAMA_SERVER_BINARY` environment variable, then `PATH`.
+Resolution order is the node's `binary_path`, the `LLAMA_SERVER_BINARY`
+environment variable, the compatibility variable `LLAMA_CPP_SERVER`, then
+`PATH`.
 
 Verify with the same environment that starts ComfyUI:
 

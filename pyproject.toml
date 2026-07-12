@@ -54,7 +54,7 @@ Icon = ""
 path = "_version.py"
 
 [tool.setuptools]
-include-package-data = true
+include-package-data = false
 packages = [
     "comfyui_llamacpp",
     "comfyui_llamacpp.generation",
@@ -73,6 +73,7 @@ comfyui_llamacpp = "."
 "comfyui_llamacpp.web" = "web"
 
 [tool.setuptools.package-data]
+"comfyui_llamacpp" = ["example_workflows/*.json", "example_workflows/*.jpg"]
 "comfyui_llamacpp.web" = ["*.js", "*.json"]
 
 [tool.setuptools.dynamic]

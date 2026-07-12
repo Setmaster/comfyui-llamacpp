@@ -2,6 +2,7 @@
 
 from .common import collect_images, legacy_result, run_prompt
 from .connection import LlamaCppConnectionProfile
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES
 from .schemas import MAX_IMAGES, advanced_prompt_inputs
 
 
@@ -10,7 +11,8 @@ class LlamaCppAdvPrompt:
         "Runs multimodal llama-server generation with full sampling controls and up to "
         "ten ComfyUI images."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppAdvPrompt"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppAdvPrompt"]
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
     OUTPUT_TOOLTIPS = (

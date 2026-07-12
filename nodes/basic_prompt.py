@@ -2,6 +2,7 @@
 
 from .common import legacy_result, run_prompt
 from .connection import LlamaCppConnectionProfile
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES
 from .schemas import basic_prompt_inputs
 
 
@@ -10,7 +11,8 @@ class LlamaCppBasicPrompt:
         "Runs local text generation through llama-server with sampling, reasoning, "
         "and workflow-chaining controls."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppBasicPrompt"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppBasicPrompt"]
     RETURN_TYPES = ("STRING", "STRING", "BOOLEAN")
     RETURN_NAMES = ("response", "thinking", "success")
     OUTPUT_TOOLTIPS = (

@@ -17,6 +17,10 @@ export function syncImageInputs(node, requestedCount) {
         .map((input, index) => ({ input, index, number: imageNumber(input) }))
         .filter((entry) => entry.number !== null);
 
+    for (const entry of existing) {
+        entry.input.label = `Image ${entry.number}`;
+    }
+
     for (const entry of [...existing].reverse()) {
         if (entry.number > count) {
             const currentIndex = node.inputs?.findIndex(
@@ -29,7 +33,7 @@ export function syncImageInputs(node, requestedCount) {
     const names = new Set((node.inputs ?? []).map((input) => input.name));
     for (let index = 1; index <= count; index += 1) {
         const name = `image_${index}`;
-        if (!names.has(name)) node.addInput(name, "IMAGE");
+        if (!names.has(name)) node.addInput(name, "IMAGE", { label: `Image ${index}` });
     }
 
     const currentSize = node.size ?? [320, 100];

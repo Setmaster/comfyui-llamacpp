@@ -6,8 +6,17 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLE_ROOT = Path(__file__).resolve().parents[1] / "examples"
+EXAMPLE_ROOT = Path(__file__).resolve().parents[1] / "example_workflows"
 EXPECTED = {
+    "setup-check.json": {
+        "LlamaCppServerStatus",
+        "LlamaCppPromptOutput",
+    },
+    "quick-text.json": {
+        "StartLlamaCppServer",
+        "LlamaCppBasicPrompt",
+        "LlamaCppPromptOutput",
+    },
     "direct-text.json": {
         "StartLlamaCppServer",
         "LlamaCppBasicPrompt",
@@ -102,7 +111,8 @@ def test_examples_are_portable_and_secret_free(name: str) -> None:
     assert not any(re.search(r"(?i)\b[a-z]:[\\/]", value) for value in strings)
     assert not any("/home/" in value or "/mnt/" in value for value in strings)
     assert not any("bearer " in value.casefold() for value in strings)
-    assert "LLAMACPP_API_KEY" in strings
+    if "api_key_env" in strings:
+        assert "LLAMACPP_API_KEY" in strings
 
 
 def test_vlm_example_round_tripped_with_one_visible_image_socket() -> None:

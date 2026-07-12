@@ -8,9 +8,11 @@ from pathlib import Path
 from unittest import mock
 
 from runtime.capabilities import (
+    BinaryProbeError,
     BinaryResolutionError,
     clear_capability_cache,
     probe_server_binary,
+    probe_server_devices,
     resolve_server_binary,
 )
 from runtime.config import RouterConfig, ServerConfig
@@ -269,6 +271,35 @@ class CapabilityProbeTests(unittest.TestCase):
         result = probe_server_binary(self.binary, runner=run)
 
         self.assertFalse(result.supports_symbolic_gpu_layers)
+
+    def test_device_probe_is_separate_and_bounds_lines(self) -> None:
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append((command, kwargs))
+            output = "Available devices:\n" + "\n".join(
+                ["CUDA0: test device", "X" * 50, "ignored third device"]
+            )
+            return subprocess.CompletedProcess(command, 0, stdout=output)
+
+        result = probe_server_devices(
+            self.binary,
+            timeout=1.5,
+            runner=run,
+            max_lines=2,
+            max_line_length=20,
+        )
+
+        self.assertEqual(result, ("CUDA0: test device", "X" * 20))
+        self.assertEqual(calls[0][0], [str(self.binary.resolve()), "--list-devices"])
+        self.assertEqual(calls[0][1]["timeout"], 1.5)
+
+    def test_device_probe_timeout_is_actionable(self) -> None:
+        def run(command, **kwargs):
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with self.assertRaisesRegex(BinaryProbeError, r"--list-devices timed out after 2s"):
+            probe_server_devices(self.binary, timeout=2, runner=run)
 
 
 if __name__ == "__main__":

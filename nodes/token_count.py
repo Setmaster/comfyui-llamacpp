@@ -7,6 +7,7 @@ import json
 from ..runtime.client import LlamaServerClient
 from ..server_manager import get_server_manager
 from .connection import LlamaCppConnectionProfile
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
 
 
 class LlamaCppTokenCount:
@@ -14,7 +15,8 @@ class LlamaCppTokenCount:
         "Tokenizes text through llama-server and returns the token count plus optional "
         "token or piece details."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppTokenCount"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppTokenCount"]
     RETURN_TYPES = ("INT", "STRING")
     RETURN_NAMES = ("token_count", "tokens_json")
     OUTPUT_TOOLTIPS = (
@@ -25,7 +27,7 @@ class LlamaCppTokenCount:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {
                 "text": (
                     "STRING",
@@ -87,6 +89,9 @@ class LlamaCppTokenCount:
                 ),
             },
         }
+        return apply_input_presentation(
+            "LlamaCppTokenCount", schema, display_names={"text": "Text to Tokenize"}
+        )
 
     def count_tokens(
         self,

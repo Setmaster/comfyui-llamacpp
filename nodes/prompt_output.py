@@ -6,6 +6,8 @@ import html
 import re
 from html.parser import HTMLParser
 
+from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_presentation
+
 
 class _HTMLTextExtractor(HTMLParser):
     def __init__(self):
@@ -35,7 +37,8 @@ class LlamaCppPromptOutput:
         "Displays and forwards LLM text, with optional conversion of common Markdown and "
         "HTML to plaintext."
     )
-    CATEGORY = "LlamaCpp"
+    CATEGORY = NODE_CATEGORIES["LlamaCppPromptOutput"]
+    SEARCH_ALIASES = NODE_SEARCH_ALIASES["LlamaCppPromptOutput"]
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
     OUTPUT_TOOLTIPS = ("Displayed text, converted to plaintext when requested.",)
@@ -44,7 +47,7 @@ class LlamaCppPromptOutput:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        schema = {
             "required": {
                 "text": (
                     "STRING",
@@ -61,6 +64,7 @@ class LlamaCppPromptOutput:
                 )
             },
         }
+        return apply_input_presentation("LlamaCppPromptOutput", schema)
 
     def preview_text(self, text: str, plaintext: bool = False):
         output_text = self._convert_to_plaintext(text) if plaintext and text else (text or "")

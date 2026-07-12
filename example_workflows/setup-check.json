@@ -1,0 +1,94 @@
+{
+  "last_node_id": 2,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LlamaCppServerStatus",
+      "pos": [0, 0],
+      "size": [480, 420],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "llama-server Binary",
+          "name": "binary_path",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {"name": "binary_path"},
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "is_running",
+          "name": "is_running",
+          "type": "BOOLEAN",
+          "links": null
+        },
+        {
+          "localized_name": "status",
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "info",
+          "name": "info",
+          "type": "STRING",
+          "links": [1]
+        }
+      ],
+      "properties": {"Node name for S&R": "LlamaCppServerStatus"},
+      "widgets_values": [""]
+    },
+    {
+      "id": 2,
+      "type": "LlamaCppPromptOutput",
+      "pos": [560, 0],
+      "size": [480, 420],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "Text",
+          "name": "text",
+          "type": "STRING",
+          "link": 1
+        },
+        {
+          "localized_name": "Convert to Plaintext",
+          "name": "plaintext",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {"name": "plaintext"},
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {"Node name for S&R": "LlamaCppPromptOutput"},
+      "widgets_values": [false]
+    }
+  ],
+  "links": [[1, 1, 2, 2, 0, "STRING"]],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {"scale": 0.95, "offset": [360, 180]},
+    "llamacpp_example": {
+      "name": "setup-check",
+      "version": "0.3.0",
+      "note": "Run while idle. Set an explicit llama-server binary only when environment discovery fails."
+    }
+  },
+  "version": 0.4
+}
