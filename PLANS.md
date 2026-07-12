@@ -1,6 +1,6 @@
-# UX Work Block A Plan
+# Completed UX Work Block A Plan
 
-Status: Verification complete; pushed `dev` CI pending
+Status: Complete
 Date: 2026-07-11
 Branch: `dev` (tracking `origin/dev`)
 Baseline: `40ff5d730dc27cb51d68ae53142cab9b4c91f5af`
@@ -106,6 +106,10 @@ Human gate:
   real queue payloads and through Comfy serialize/reload under both renderers.
 - Independent full-diff review found and closed one P1 and four P2 findings. The
   final verdict reports no remaining P0, P1, or P2 issue.
+- GitHub Actions run `29177793143` passed all seven Linux, Windows, and quality
+  jobs for pushed verification commit `f07564a`. The final docs-only closeout
+  commit is required to pass the same matrix before handoff; its exact run and
+  rebuilt artifact hashes are recorded in the Project KB.
 
 Non-blocking boundaries:
 
@@ -115,8 +119,6 @@ Non-blocking boundaries:
   root is not strictly time-bounded.
 - The classic renderer adapter uses Comfy's legacy internal widget module and may
   need adaptation after a future frontend change.
-- Final completion still requires pushed `dev` CI, exact-head artifact rebuild,
-  installed-clone fast-forward, and Project KB closeout.
 
 ---
 

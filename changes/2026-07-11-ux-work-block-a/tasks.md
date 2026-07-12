@@ -20,7 +20,7 @@ Date: 2026-07-11
 - [x] Run targeted and full automated validation.
 - [x] Run real LiteGraph and Nodes 2.0 browser gates, real generation, and cleanup.
 - [x] Obtain independent review and close all P0/P1 findings.
-- [ ] Review final diff, commit/push `dev`, confirm CI, and update Project KB.
+- [x] Review final diff, commit/push `dev`, confirm CI, and update Project KB.
 
 ## Verification commands
 
