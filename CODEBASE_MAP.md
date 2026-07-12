@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-07-12 00:58:06Z
-Commit: 40ff5d730dc27cb51d68ae53142cab9b4c91f5af
+Generated: 2026-07-12 02:47:53Z
+Commit: 00f7df770fc5653ef1eca8c8b0cf3b00d0efc9d7
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -18,21 +18,22 @@ Source: git ls-files (tracked files)
 - `.github/workflows`
 
 ## Directory structure (depth <= 3)
-- (root files): 16
-- `tests/`: 20 files
-  - `tests/fixtures/`: 3 files
-    - `tests/fixtures/workflows/`: 2 files
-  - `tests/js/`: 2 files
-- `nodes/`: 17 files
-- `runtime/`: 10 files
-- `changes/`: 9 files
+- (root files): 17
+- `tests/`: 26 files
+  - `tests/js/`: 5 files
+  - `tests/fixtures/`: 4 files
+    - `tests/fixtures/workflows/`: 3 files
+- `nodes/`: 18 files
+- `changes/`: 14 files
   - `changes/archive/`: 9 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
     - `changes/archive/2026-07-10-lifecycle-concurrency-hardening/`: 4 files
-- `docs/`: 9 files
+  - `changes/2026-07-11-ux-work-block-a/`: 5 files
+- `web/`: 12 files
+- `docs/`: 10 files
   - `docs/research/`: 4 files
-- `web/`: 8 files
-- `examples/`: 6 files
+- `example_workflows/`: 10 files
+- `runtime/`: 10 files
 - `generation/`: 5 files
 - `models/`: 3 files
 - `.github/`: 1 files
@@ -49,21 +50,21 @@ Source: git ls-files (tracked files)
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
 - `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 49.3 KiB
 - `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 47.2 KiB
+- `tests/fixtures/workflows/v0_3_0_contracts.json`: 43.7 KiB
 - `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 43.6 KiB
 - `runtime/manager.py`: 30.2 KiB
 - `runtime/client.py`: 28.9 KiB
-- `runtime/service.py`: 28.7 KiB
 
 ## Hotspots (most lines, sampled from large files)
 - `runtime/process.py`: 2838 lines
 - `tests/test_process.py`: 2710 lines
+- `tests/fixtures/workflows/v0_3_0_contracts.json`: 1962 lines
 - `uv.lock`: 1501 lines
 - `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 1061 lines
 - `docs/research/comfyui-llamacpp-project-frontier-review-2026-07-10.md`: 976 lines
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines
 - `runtime/client.py`: 849 lines
 - `runtime/manager.py`: 818 lines
-- `runtime/service.py`: 795 lines
 - `docs/research/comfyui-local-llm-vram-unloading-audit-2026-07-10.md`: 501 lines
 
 <!-- agent-evolve:END AUTO -->
@@ -78,4 +79,5 @@ Source: git ls-files (tracked files)
 - `POST /models` downloads a model and `DELETE /models` deletes cache content. Neither endpoint is a compatibility fallback for load or unload.
 - Ten optional VLM image inputs must be declared in Python. Frontend JavaScript controls presentation only.
 - Research and implementation contract: `PLANS.md`,
+  `changes/2026-07-11-ux-work-block-a/`,
   `changes/archive/2026-07-10-sota-refactor/`, and `docs/research/`.

@@ -172,6 +172,19 @@ def test_router_root_scoring_accepts_complete_shards_and_rejects_ambiguous_bundl
     assert ModelCatalog._router_preset_count(ambiguous) == 0
 
 
+def test_router_root_scoring_classifies_projectors_case_insensitively(tmp_path):
+    projector_only = tmp_path / "projector-only"
+    bundle_root = tmp_path / "bundle-root"
+    projector_only.mkdir()
+    (bundle_root / "vision").mkdir(parents=True)
+    (projector_only / "MMPROJ-model.gguf").write_bytes(b"x")
+    (bundle_root / "vision" / "model.gguf").write_bytes(b"x")
+    (bundle_root / "vision" / "MMPROJ-model.gguf").write_bytes(b"x")
+
+    assert ModelCatalog._router_preset_count(projector_only) == 0
+    assert ModelCatalog._router_preset_count(bundle_root) == 1
+
+
 def test_router_root_scoring_rejects_symlink_escape(tmp_path):
     root = tmp_path / "root"
     outside = tmp_path / "outside"

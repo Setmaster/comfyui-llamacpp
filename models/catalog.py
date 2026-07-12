@@ -172,7 +172,7 @@ class ModelCatalog:
                     actual = child.resolve(strict=True)
                     if (
                         child.name.endswith(".gguf")
-                        and "mmproj" not in child.name
+                        and "mmproj" not in child.name.casefold()
                         and _contained(root, actual)
                     ):
                         count += 1
@@ -189,8 +189,8 @@ class ModelCatalog:
                     and candidate.name.endswith(".gguf")
                     and _contained(root, candidate.resolve(strict=True))
                 )
-                models = tuple(item for item in ggufs if "mmproj" not in item.name)
-                projectors = tuple(item for item in ggufs if "mmproj" in item.name)
+                models = tuple(item for item in ggufs if "mmproj" not in item.name.casefold())
+                projectors = tuple(item for item in ggufs if "mmproj" in item.name.casefold())
                 if len(projectors) > 1:
                     continue
                 if len(models) == 1 or ModelCatalog._is_complete_shard_bundle(models):

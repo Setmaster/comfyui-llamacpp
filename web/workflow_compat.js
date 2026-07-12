@@ -20,7 +20,9 @@ function migrateSeedCompanion(node) {
         return false;
     }
 
-    values.splice(layout.seedIndex + 1, 0, "randomize");
+    // Historical workflows had no companion, so their numeric seed stayed
+    // unchanged across queues. Current Comfy mutates it unless this is fixed.
+    values.splice(layout.seedIndex + 1, 0, "fixed");
     return true;
 }
 

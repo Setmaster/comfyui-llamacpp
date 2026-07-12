@@ -133,7 +133,7 @@ class StartLlamaCppRouter:
                         "placeholder": "empty = environment or PATH",
                         "tooltip": (
                             "Explicit llama-server executable. Empty uses "
-                            "LLAMA_SERVER_BINARY, then PATH."
+                            "LLAMA_SERVER_BINARY, LLAMA_CPP_SERVER, then PATH."
                         ),
                     },
                 ),

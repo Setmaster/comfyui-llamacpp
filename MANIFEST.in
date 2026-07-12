@@ -1,0 +1,2 @@
+include package.json
+recursive-include tests *.json *.md *.mjs *.py

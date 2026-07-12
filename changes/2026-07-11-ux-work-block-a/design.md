@@ -41,8 +41,11 @@ Date: 2026-07-11
 
 ## Migration notes
 
-- No saved-workflow migration is required. Existing values remain positional and
-  old node types remain registered.
+- No backend migration or user action is required. Existing values remain
+  positional and old node types remain registered. A narrowly guarded frontend
+  pre-configuration shim normalizes only the exact 0.2.1 browser arrays whose
+  seed companion and Prompt Output display value are reinterpreted by current
+  ComfyUI.
 - Existing custom node titles remain unchanged because display mappings stay
   fixed.
 - Direct GitHub links using `examples/` must be updated to `example_workflows/`.

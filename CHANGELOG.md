@@ -16,7 +16,7 @@
 - Added complete immutable 0.3 contract characterization alongside the existing
   0.2.1 workflow fixtures.
 - Added a narrowly guarded browser migration for historical 0.2.1 seed companion
-  and persisted Prompt Output layouts.
+  and persisted Prompt Output layouts while preserving fixed-seed behavior.
 
 ## 0.3.0 - 2026-07-11
 

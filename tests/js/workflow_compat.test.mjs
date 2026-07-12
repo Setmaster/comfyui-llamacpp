@@ -18,7 +18,7 @@ function historicalWorkflow() {
     return structuredClone(HISTORICAL_WORKFLOW);
 }
 
-test("exact 0.2.1 layouts gain the seed companion without shifting later values", () => {
+test("exact 0.2.1 layouts gain a fixed seed companion without shifting values", () => {
     const workflow = historicalWorkflow();
 
     assert.deepEqual(migrateLegacyWorkflowData(workflow), {
@@ -33,7 +33,7 @@ test("exact 0.2.1 layouts gain the seed companion without shifting later values"
         [adv, 14],
         [advpp, 15],
     ]) {
-        assert.equal(node.widgets_values[seedIndex + 1], "randomize");
+        assert.equal(node.widgets_values[seedIndex + 1], "fixed");
     }
     assert.deepEqual(basic.widgets_values.slice(13, 15), [true, true]);
     assert.deepEqual(adv.widgets_values.slice(16, 18), [true, true]);

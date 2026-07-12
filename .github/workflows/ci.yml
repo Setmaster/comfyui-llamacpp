@@ -47,6 +47,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv build
+      - run: uvx twine check dist/*
+      - run: uv run python tests/check_distribution.py dist
       - run: node --test tests/js/*.test.mjs
       - run: |
           for file in web/*.js; do

@@ -23,7 +23,8 @@ at commit `365986af4a47426b5513b3cee917ebec93a4204a`. It freezes the complete
 order, and primitive widget order. Presentation metadata may be additive, but
 the full 0.3 sequence remains an exact compatibility prefix. Current workflow
 examples also assert Comfy's serialized seed companion stays immediately after
-the released seed value.
+the released seed value. The historical browser migration inserts `fixed` so a
+saved numeric 0.2.1 seed keeps its original non-mutating behavior.
 
 ## Standalone imports
 

@@ -7,18 +7,18 @@ Date: 2026-07-11
 - [x] Release and verify immutable 0.3 baseline.
 - [x] Refresh `CODEBASE_MAP.md` and create this change bundle.
 - [x] Freeze the complete 0.3 backend schema before presentation edits.
-- [ ] Add metadata helper, categories, aliases, labels, and advanced sets.
-- [ ] Add classic-renderer advanced compatibility and dynamic image labels.
-- [ ] Narrow historical presentation assertions and add current metadata tests.
-- [ ] Implement template merge, validation, stale guard, explicit replace, and undo.
-- [ ] Correct existing template defects without expanding the template set.
-- [ ] Add bounded device probing and idle setup diagnostics to Server Status.
-- [ ] Move workflows to `example_workflows/`; add Setup Check and Quick Text.
-- [ ] Capture matching thumbnails and README screenshot in current ComfyUI.
-- [ ] Add Start Here and update README, troubleshooting, migration, packaging, and
-  test documentation.
-- [ ] Run targeted and full automated validation.
-- [ ] Run real LiteGraph and Nodes 2.0 browser gates, real generation, and cleanup.
+- [x] Add metadata helper, categories, aliases, labels, and advanced sets.
+- [x] Add classic-renderer advanced compatibility and dynamic image labels.
+- [x] Narrow historical presentation assertions and add current metadata tests.
+- [x] Implement template merge, validation, stale guard, explicit replace, and undo.
+- [x] Correct existing template defects without expanding the template set.
+- [x] Add bounded device probing and idle setup diagnostics to Server Status.
+- [x] Move workflows to `example_workflows/`; add Setup Check and Quick Text.
+- [x] Capture matching first-run thumbnails and browser evidence in current ComfyUI.
+- [x] Add Start Here and update README, troubleshooting, packaging, and test
+  documentation.
+- [x] Run targeted and full automated validation.
+- [x] Run real LiteGraph and Nodes 2.0 browser gates, real generation, and cleanup.
 - [ ] Obtain independent review and close all P0/P1 findings.
 - [ ] Review final diff, commit/push `dev`, confirm CI, and update Project KB.
 
@@ -31,6 +31,7 @@ Date: 2026-07-11
 - `for file in web/*.js; do node --check "$file"; done`
 - `uv build`
 - `uvx twine check dist/*`
+- `uv run python tests/check_distribution.py dist`
 - `COMFY_NO_TELEMETRY=1 uvx --from comfy-cli==1.12.0 comfy node validate`
 - Inspect wheel and sdist manifests for workflows and thumbnails.
 - Real ComfyUI 0.27.0, frontend 1.45.20, LiteGraph, Nodes 2.0, template,
