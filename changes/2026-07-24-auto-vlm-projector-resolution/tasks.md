@@ -22,7 +22,7 @@ Date: 2026-07-24
 - [x] Validate auto, explicit, text-only, ambiguity, diagnostics, and release in
   real Windows ComfyUI with the installed model corpus.
 - [x] Complete independent final review and resolve findings.
-- [ ] Review the full diff, commit and push `dev`, update the installed clone,
+- [x] Review the full diff, commit and push `dev`, update the installed clone,
   document Project KB evidence, and close the native goal.
 
 ## Verification commands

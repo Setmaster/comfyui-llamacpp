@@ -350,6 +350,15 @@ handle-to-path replacement detection.
 
 ## CI and installed clone
 
+Automatic-projector GitHub Actions run `30145923811` passed all seven jobs at
+exact revision `a25346ae5d01fcfa3b4618943d189f8f5a95988a`. Linux Python 3.10,
+3.11, 3.12, 3.13, and 3.14 each passed 912 tests and 66 subtests. Windows
+Python 3.13 passed 868 tests and 66 subtests with 44 expected platform skips.
+The quality job repeated Ruff, formatting, wheel and source builds, Twine,
+distribution manifests, all 59 frontend tests, and JavaScript syntax. The
+maintained Windows clone was then clean on `dev` at that exact revision before
+the final evidence-only closeout.
+
 GitHub Actions run `29195799658` passed all seven jobs at exact revision
 `e22518094af183e8f311dedda0739ebeb42f8526`:
 
