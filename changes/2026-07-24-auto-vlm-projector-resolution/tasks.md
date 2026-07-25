@@ -19,7 +19,7 @@ Date: 2026-07-24
   workflow, and compatibility tests.
 - [x] Run full Python and JavaScript suites, Ruff, format, package, extracted
   artifact, and Registry checks.
-- [ ] Validate auto, explicit, text-only, ambiguity, diagnostics, and release in
+- [x] Validate auto, explicit, text-only, ambiguity, diagnostics, and release in
   real Windows ComfyUI with the installed model corpus.
 - [x] Complete independent final review and resolve findings.
 - [ ] Review the full diff, commit and push `dev`, update the installed clone,

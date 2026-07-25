@@ -1,18 +1,19 @@
 # Canonical Generate Validation
 
-Date: 2026-07-12
+Date: 2026-07-25
 
-This report records the post-0.3 Work Block B validation. It is separate from
-the accepted [0.3 report](validation-0.3.md), whose immutable tag remains the
-rollback baseline.
+This report records the post-0.3 Work Block B validation and the subsequent
+automatic local VLM projector follow-up. It is separate from the accepted
+[0.3 report](validation-0.3.md), whose immutable tag remains the rollback
+baseline.
 
 ## Candidate identity
 
 - Branch: `dev`
 - Validated executable revision:
-  `e22518094af183e8f311dedda0739ebeb42f8526`
+  `8b8f1cd0ea3eaf0df715a6837127d4a9e044a368`
 - Validated package-source revision:
-  `af09ccb51b4e7a2b6ad351bb0b9d7cebebffaa97`
+  `a92c9a9d45d776a806d180278b8fbf5ca313aaa6`
 - Package version: `0.4.0` candidate
 - Stable rollback: tag `0.3.0` at
   `365986af4a47426b5513b3cee917ebec93a4204a`
@@ -20,12 +21,12 @@ rollback baseline.
   `40ff5d730dc27cb51d68ae53142cab9b4c91f5af`
 - Registry publication: not performed
 
-Package-source revision `af09ccb` changes packaged README metadata but does not
-change executable runtime source after `e225180`. Its final evidence-only
-successor changes only `CODEBASE_MAP.md`, `PLANS.md`, the Work Block B task file,
-and this validation report; all four are excluded from both distributions. The
-exact final repository and installed-clone SHA is recorded in the Project KB
-closeout and final handoff.
+Executable revision `8b8f1cd` is the exact Windows runtime candidate used for
+the automatic projector and release gates. Package-source revision `a92c9a9`
+adds only the refreshed canonical VLM JPEG thumbnail. Historical sections below
+name the earlier exact Work Block B revisions where their evidence was
+captured. The exact final repository and installed-clone SHA is recorded in the
+Project KB closeout and final handoff.
 
 ## Test environment
 
@@ -41,8 +42,69 @@ closeout and final handoff.
 | llama-server | `C:\llama\llama-server.exe` |
 | Direct text model | Qwen3.5 4B Q5_K_M GGUF |
 | Router models | Qwen3-VL 4B Q8_0 and Qwen3-VL 8B Q6_K GGUF bundles |
-| VLM model | Qwen3-VL 4B Q5_K_M with its f16 projector |
+| VLM models | Qwen3-VL 4B Q5_K_M and MiniCPM-V 4.5 Q5_K_M |
 | Diffusion handoff | SDXL checkpoint at 512 by 512, 4 steps |
+
+## Automatic local projector follow-up
+
+The default `Vision Projector` choice now performs local, metadata-backed
+resolution. The selector order is `(auto)`, `(none - text only)`, then the
+installed exact projector paths. A concrete path remains authoritative, while
+text-only mode launches with `--no-mmproj` and no inherited projector-specific
+llama.cpp environment variables.
+
+The bounded GGUF corpus gate parsed all 32 installed model and projector files.
+It resolved every supported installed Gemma 3, MiniCPM-V, Qwen3-VL, and
+Qwen3.5 bundle with compatible metadata. Ordinary text models resolved
+text-only. Installed Gemma 4 and Qwen3.5 9B models without a compatible
+projector failed closed before lifecycle mutation. Equivalent Qwen3-VL
+projectors were grouped by proven identity, so the local Q8_0 copy won over an
+equivalent adjacent F16 copy according to the documented resource policy.
+
+The first Windows parse exposed a platform-specific filesystem detail: NTFS
+path-stat and open-handle stat calls can report different ctime semantics for
+the same unchanged GGUF. Revision `8b8f1cd` keeps ctime in each same-surface
+before/after mutation check but compares device, inode, size, and mtime across
+the path and handle surfaces. The real Qwen model then parsed as GGUF v3 and
+`qwen3vl` after a bounded scan of 5,958,048 bytes. Focused parser tests and an
+independent review confirmed that replacement detection remained intact.
+
+The maintained Windows clone was clean at `8b8f1cd` for these live gates:
+
+1. `/object_info/StartLlamaCppServer` exposed `(auto)` first and
+   `(none - text only)` second, with `(auto)` as the default.
+2. Qwen3-VL 4B auto-selected
+   `qwen-vl-4B-Instruct/Qwen3-VL-4B-Instruct-abliterated-v1-mmproj-Q8_0.gguf`.
+   Prompt `75ccb2b7-10eb-4dea-aa81-10a25364ad78` consumed a real connected
+   image and described the masked, caped central figure, yellow or gold energy,
+   and the visible speech bubble. Passive `/props?autoload=false` reported
+   vision support, and discovery recorded launch-config evidence without
+   requesting confirmation.
+3. Selecting that exact Q8_0 path reused process 143568 and runtime epoch 1
+   instead of restarting it. Server Status changed only the provenance label to
+   `explicit`.
+4. Starting the installed Gemma 4 26B model with `(auto)` failed with the
+   actionable no-compatible-projector error under prompt
+   `4d9827a9-eac8-4be8-8f63-709801d108ac`. The healthy Qwen process, epoch, and
+   projector status were preserved.
+5. `(none - text only)` restarted Qwen with `--no-mmproj`, no `--mmproj`,
+   vision disabled, and returned exactly `TEXT_ONLY_OK` under prompt
+   `2abc566a-59ef-48bf-8ec3-4fc362343221`. Connecting an image failed locally
+   as `capability_unsupported` with instructions to select `(auto)` or an exact
+   projector, while the text-only server remained healthy.
+6. MiniCPM-V 4.5 auto-selected
+   `minicpm-v-4_5-bakeoff/mmproj-model-f16.gguf`, reported vision support, and
+   answered `Yellow` for a real image request under prompt
+   `65aff2f0-280b-455d-aff3-19947e74af24`.
+7. Native Comfy `POST /free` returned HTTP 200 with
+   `X-ComfyUI-LlamaCpp-Release: complete`. Discovery returned to `mode=none`,
+   `owned=false`, the child process and port 18080 disappeared, and
+   driver-visible GPU use returned from 11,358 MiB resident to the 5,932 MiB
+   pre-test baseline.
+
+The refreshed 768 by 768 RGB canonical VLM thumbnail visibly shows `(auto)` and
+the connected five-node image workflow. It is 49,334 bytes and passed the exact
+stem and bounded-image tests.
 
 ## Automated gates
 
@@ -60,10 +122,10 @@ git diff --check
 
 Results:
 
-- Python: 779 tests and 54 subtests passed.
-- Frontend: 56 tests passed.
+- Python: 912 tests and 66 subtests passed.
+- Frontend: 59 tests passed.
 - Ruff, format, JavaScript syntax, and whitespace checks passed. Ruff reported
-  all 72 Python files already formatted.
+  all 76 Python files already formatted.
 - Immutable 0.2.1 and complete 0.3 node, schema, behavior, and workflow fixtures
   remained green.
 - The focused router identity suite covers target mismatch, Windows drive and
@@ -76,10 +138,10 @@ Results:
 The package and Registry-validation commands passed:
 
 ```bash
-uv build --out-dir /tmp/comfyui-llamacpp-0.4.0-final-af09ccb
-uvx twine check /tmp/comfyui-llamacpp-0.4.0-final-af09ccb/*
+uv build --out-dir /tmp/comfyui-llamacpp-auto-vlm-a92c9a9.4bqlyt
+uvx twine check /tmp/comfyui-llamacpp-auto-vlm-a92c9a9.4bqlyt/*
 .venv/bin/python tests/check_distribution.py \
-  /tmp/comfyui-llamacpp-0.4.0-final-af09ccb
+  /tmp/comfyui-llamacpp-auto-vlm-a92c9a9.4bqlyt
 COMFY_NO_TELEMETRY=1 uvx --from comfy-cli==1.12.0 comfy node validate
 uvx pip-audit --requirement requirements.txt --progress-spinner off --strict
 ```
@@ -87,15 +149,15 @@ uvx pip-audit --requirement requirements.txt --progress-spinner off --strict
 Results:
 
 - The wheel and source archive passed metadata validation.
-- Distribution manifests contained 17 workflow assets and 35 source-test files,
+- Distribution manifests contained 17 workflow assets and 37 source-test files,
   with no duplicate archive members. The 17 assets are 11 workflow JSON files
   and six JPEG thumbnails.
 - Registry configuration and security validation passed without publishing.
 - `pip-audit` reported no known dependency vulnerabilities.
 - The validated wheel SHA-256 was
-  `6d88ae54d9e645804329091a8b672dc8c14b0a88bce32acf64366278e7e94343`.
+  `d5738172d942def530e1df3ece09ec328c38aa5fbf57850c77629039cf03ec8e`.
 - The validated source archive SHA-256 was
-  `71cbbb2bb54bb6f55b4da5c89f8c6b4a1f340f3f7c88897643464ba31da09219`.
+  `6c420a6f634e3dafe1bfc40aa494080240d5236292711fcb05ca35274dbfbdf0`.
 
 Fresh extraction also passed:
 
@@ -112,8 +174,9 @@ node --test tests/js/*.test.mjs
 ```
 
 The extracted wheel reported version 0.4.0, registered 19 nodes, and contained
-17 workflow assets. The extracted source archive repeated all 779 Python tests,
-54 subtests, and 56 frontend tests, then passed Ruff and formatting.
+17 workflow assets. The extracted source archive repeated all 912 Python tests,
+66 subtests, and 59 frontend tests, then passed Ruff, formatting, and JavaScript
+syntax checks.
 
 ## Windows byte-exact checkout
 
@@ -279,6 +342,12 @@ catalog callers retain resolved paths, only managed router identity uses lexical
 anchoring, aliases cannot bypass anchoring, and metadata-free older routers
 retain compatibility.
 
+The automatic-projector follow-up received a separate full-diff review after
+the Windows stat correction. It reported no P0, P1, or P2 findings. A focused
+second review confirmed that the stat change removed only invalid cross-surface
+ctime equality while retaining same-surface before/after checks and
+handle-to-path replacement detection.
+
 ## CI and installed clone
 
 GitHub Actions run `29195799658` passed all seven jobs at exact revision
@@ -323,7 +392,9 @@ the Project KB and final handoff.
 
 The validated candidate provides one strict, local-only text, vision, prompt,
 and structured generation surface without changing the 17 released nodes. Its
-direct and router release promises reached terminal state, exact cancellation
-was truthful, current router target mismatch failed closed, current Comfy classic
-and Nodes 2.0 passed, package and Registry validation passed, and all seven CI
-jobs passed. Promotion still waits for the maintainer's hands-on acceptance.
+default direct VLM path now selects only a confidently compatible installed
+projector, concrete choices remain exact, and explicit text-only mode is
+unambiguous. Direct and router release promises reached terminal state, exact
+cancellation was truthful, current router target mismatch failed closed,
+current Comfy classic and Nodes 2.0 passed, and package and Registry validation
+passed. Promotion still waits for the maintainer's hands-on acceptance.
