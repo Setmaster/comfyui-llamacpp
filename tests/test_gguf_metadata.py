@@ -438,6 +438,35 @@ def test_cache_reuses_stat_stable_result_and_invalidates_replacement(tmp_path):
     assert replacement.string("general.name") == "After replacement with a different file size"
 
 
+def test_path_and_handle_ctime_may_differ_without_claiming_file_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    path = write_gguf(
+        tmp_path / "windows-ctime.gguf",
+        {"general.name": "Stable across Windows stat surfaces"},
+    )
+    real_fstat = gguf_metadata.os.fstat
+
+    class HandleStat:
+        def __init__(self, source):
+            self.st_dev = source.st_dev
+            self.st_ino = source.st_ino
+            self.st_size = source.st_size
+            self.st_mtime_ns = source.st_mtime_ns
+            self.st_ctime_ns = source.st_ctime_ns + 1_000_000_000
+
+    monkeypatch.setattr(
+        gguf_metadata.os,
+        "fstat",
+        lambda descriptor: HandleStat(real_fstat(descriptor)),
+    )
+
+    result = read_gguf_metadata(path)
+
+    assert result.string("general.name") == "Stable across Windows stat surfaces"
+
+
 def test_cache_is_bounded_lru(tmp_path):
     for index in range(gguf_metadata.METADATA_CACHE_SIZE + 5):
         path = write_gguf(

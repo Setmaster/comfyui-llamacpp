@@ -592,6 +592,7 @@ def _parse_file(
 
 
 _StatSignature: TypeAlias = tuple[int, int, int, int, int]
+_CrossStatSignature: TypeAlias = tuple[int, int, int, int]
 _CacheKey: TypeAlias = tuple[str, _StatSignature]
 _CACHE: OrderedDict[_CacheKey, GGUFMetadata] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
@@ -605,6 +606,17 @@ def _stat_signature(stat: os.stat_result) -> _StatSignature:
         int(stat.st_size),
         int(stat.st_mtime_ns),
         int(stat.st_ctime_ns),
+    )
+
+
+def _cross_stat_signature(stat: os.stat_result) -> _CrossStatSignature:
+    """Return fields whose path-stat and handle-stat meanings agree cross-platform."""
+
+    return (
+        int(stat.st_dev),
+        int(stat.st_ino),
+        int(stat.st_size),
+        int(stat.st_mtime_ns),
     )
 
 
@@ -657,8 +669,9 @@ def read_gguf_metadata(
 
     try:
         with resolved.open("rb") as handle:
-            opened_signature = _stat_signature(os.fstat(handle.fileno()))
-            if opened_signature != signature:
+            opened_stat = os.fstat(handle.fileno())
+            opened_signature = _stat_signature(opened_stat)
+            if _cross_stat_signature(opened_stat) != _cross_stat_signature(before):
                 raise GGUFChangedError("GGUF file changed before inspection")
             try:
                 result = _parse_file(
@@ -689,7 +702,11 @@ def read_gguf_metadata(
         changed = GGUFChangedError("GGUF file disappeared during inspection")
         changed.scanned_bytes = result.scanned_bytes
         raise changed from exc
-    if after_handle != signature or after_path != signature:
+    if (
+        after_handle != opened_signature
+        or after_path != signature
+        or after_handle[:4] != after_path[:4]
+    ):
         changed = GGUFChangedError("GGUF file changed during inspection")
         changed.scanned_bytes = result.scanned_bytes
         raise changed
