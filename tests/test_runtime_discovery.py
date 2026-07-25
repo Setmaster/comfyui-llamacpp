@@ -360,6 +360,73 @@ def test_live_direct_projector_uses_proven_model_path_without_a_saved_hint(tmp_p
     assert result.models[0].projector.requires_confirmation is True
 
 
+def test_live_direct_projector_reports_exact_launch_configuration(tmp_path):
+    bundle = tmp_path / "vision"
+    bundle.mkdir()
+    model_path = bundle / "model.gguf"
+    projector_path = bundle / "mmproj-model.gguf"
+    model_path.write_bytes(b"model")
+    projector_path.write_bytes(b"projector")
+    direct_props = ServerProps(
+        role=None,
+        build_info="b9957",
+        model_path=str(model_path),
+        model_alias="friendly-running-model",
+        is_sleeping=False,
+        modalities={"vision": True},
+        raw={"model_path": str(model_path), "modalities": {"vision": True}},
+    )
+    snapshot = RuntimeEndpointSnapshot(
+        mode=RuntimeMode.DIRECT,
+        owned=True,
+        runtime_epoch=7,
+        endpoint="http://127.0.0.1:8080",
+        configured_model_path=str(model_path),
+        configured_projector_path=str(projector_path),
+    )
+
+    result = discover_runtime(
+        snapshot,
+        FakeClient(props=direct_props),
+        catalog=ModelCatalog([tmp_path]),
+    )
+
+    projector = result.models[0].projector
+    assert projector is not None
+    assert projector.projector_name == "vision/mmproj-model.gguf"
+    assert projector.compatibility.state == KnowledgeState.UNKNOWN
+    assert projector.requires_confirmation is False
+    assert projector.evidence == "launch_config"
+    assert str(tmp_path) not in result.public_dict()["models"][0]["projector"]["projector_name"]
+
+
+def test_live_direct_unmapped_projector_does_not_leak_or_substitute(tmp_path):
+    bundle = tmp_path / "vision"
+    bundle.mkdir()
+    model_path = bundle / "model.gguf"
+    model_path.write_bytes(b"model")
+    (bundle / "mmproj-suggestion.gguf").write_bytes(b"projector")
+    outside = tmp_path.parent / "outside-mmproj.gguf"
+    outside.write_bytes(b"projector")
+    snapshot = RuntimeEndpointSnapshot(
+        mode=RuntimeMode.DIRECT,
+        owned=True,
+        runtime_epoch=7,
+        endpoint="http://127.0.0.1:8080",
+        configured_model_path=str(model_path),
+        configured_projector_path=str(outside),
+    )
+
+    result = discover_runtime(
+        snapshot,
+        FakeClient(props=props(model=str(model_path))),
+        catalog=ModelCatalog([tmp_path]),
+    )
+
+    assert result.models[0].projector is None
+    assert str(outside) not in str(result.public_dict())
+
+
 def test_live_router_projector_uses_canonical_id_when_saved_value_is_an_alias(tmp_path):
     bundle = tmp_path / "vision"
     bundle.mkdir()

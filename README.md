@@ -32,6 +32,8 @@ Check** and **Quick Text** from ComfyUI's workflow template browser.
 - Freeform chat completions with sampling, thinking/reasoning output, stop
   sequences, token bans, and prompt-prefix caching.
 - VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
+- Metadata-backed local projector selection for known VLM families, with an
+  explicit text-only mode and fail-closed ambiguity handling.
 - Non-destructive, backend-applied Image2Prompt and Prompt Enhancer templates.
 - JSON object, JSON Schema, and GBNF structured-output constraints.
 - Token counting and live model/server properties.
@@ -177,12 +179,27 @@ Files whose names contain `mmproj` are listed separately from text/model GGUFs.
 
 ### VLM pairing
 
-- Direct mode: select the matching projector in the `mmproj` widget. `(auto)`
-  means this pack does not pass an explicit `--mmproj`; it does not promise
-  discovery of an arbitrary adjacent local projector.
+- Direct mode: leave **Vision Projector** on `(auto)`. The pack reads bounded
+  GGUF header metadata and selects one confidently compatible local projector.
+  It does not use filenames or folder adjacency alone as compatibility proof.
+- If the model is text-only or has no projector candidates and is not known to
+  require one, `(auto)` starts explicitly without a projector. If a known VLM
+  has no compatible projector, or several distinct projector identities remain
+  valid, startup fails before changing the current server and asks for an
+  explicit choice. Strong equivalent matches across configured roots are
+  grouped and ranked Q8_0, BF16, F16, then F32; an adjacent lower-ranked copy
+  does not override that order.
+- Select `(none - text only)` to disable vision deliberately. Selecting a
+  projector filename uses that exact contained file without substitution.
 - Router mode: put each VLM and its matching projector in one dedicated
   subdirectory. The router controls the exact model ID and projector pairing.
 - Never pair projectors from a different model size or architecture.
+
+Current automatic matching recognizes projector interfaces it can prove from
+local GGUF metadata, including current Gemma 3, Gemma 4, Qwen3-VL, Qwen3.5, and
+narrowly identified MiniCPM-V layouts. Unknown metadata never becomes a guess.
+The running projector and selection mode are visible in **llama.cpp Server
+Status**.
 
 ## Quick start
 

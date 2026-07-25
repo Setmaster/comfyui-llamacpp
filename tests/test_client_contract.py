@@ -430,6 +430,24 @@ class TypedClientTests(unittest.TestCase):
         self.assertIsNone(http_error.exception.body)
         self.assertEqual(error.content_chunks_yielded, 1)
 
+    def test_recursive_json_is_a_sanitized_protocol_error(self) -> None:
+        response = FakeResponse(200, text='{"modalities":{}}')
+        client, _ = self.make_client(FakeSession(response))
+
+        with (
+            mock.patch.object(
+                client_module.json,
+                "loads",
+                side_effect=RecursionError("private-recursion-sentinel"),
+            ),
+            self.assertRaises(ResponseProtocolError) as caught,
+        ):
+            client.props()
+
+        self.assertEqual(caught.exception.endpoint, "/props")
+        self.assertNotIn("private-recursion-sentinel", str(caught.exception))
+        self.assertTrue(response.closed)
+
     def test_stream_control_probe_requires_list_and_caches_by_fingerprint(self) -> None:
         first = FakeResponse(200, [])
         second = FakeResponse(200, [])

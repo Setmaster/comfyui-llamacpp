@@ -148,6 +148,7 @@ def _append_common_args(
     flash_attention_mode: str | None,
     no_mmap: bool,
     mmproj_path: str | None,
+    no_mmproj: bool,
     sleep_idle_seconds: int | None,
     api_key_file: str | None,
     media_path: str | None,
@@ -171,6 +172,8 @@ def _append_common_args(
         args.append("--no-mmap")
     if mmproj_path:
         args.extend(("--mmproj", mmproj_path))
+    elif no_mmproj:
+        args.append("--no-mmproj")
     if sleep_idle_seconds is not None:
         args.extend(("--sleep-idle-seconds", str(sleep_idle_seconds)))
     if api_key_file:
@@ -209,6 +212,7 @@ class ServerConfig:
     flash_attention_mode: str | None = None
     fit: bool | None = None
     extra_args: tuple[str, ...] = field(default_factory=tuple)
+    no_mmproj: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "model_path", _path_text(self.model_path))
@@ -219,8 +223,14 @@ class ServerConfig:
                 object.__setattr__(self, name, _path_text(value))
         if not self.model_path:
             raise ValueError("model_path must not be empty")
+        if self.mmproj_path is not None and not self.mmproj_path.strip():
+            raise ValueError("mmproj_path must not be empty when set")
         if not all(isinstance(argument, str) for argument in self.extra_args):
             raise TypeError("extra_args must contain only strings")
+        if type(self.no_mmproj) is not bool:
+            raise TypeError("no_mmproj must be a Boolean")
+        if self.mmproj_path is not None and self.no_mmproj:
+            raise ValueError("set either mmproj_path or no_mmproj, not both")
         _validate_extra_args(self.extra_args)
         if self.flash_attention and self.flash_attention_mode is not None:
             raise ValueError("set either flash_attention or flash_attention_mode, not both")
@@ -264,6 +274,7 @@ class ServerConfig:
             flash_attention_mode=self.flash_attention_mode,
             no_mmap=self.no_mmap,
             mmproj_path=self.mmproj_path,
+            no_mmproj=self.no_mmproj,
             sleep_idle_seconds=self.sleep_idle_seconds,
             api_key_file=self.api_key_file,
             media_path=self.media_path,
@@ -378,6 +389,7 @@ class RouterConfig:
             flash_attention_mode=self.flash_attention_mode,
             no_mmap=self.no_mmap,
             mmproj_path=self.mmproj_path,
+            no_mmproj=False,
             sleep_idle_seconds=self.sleep_idle_seconds,
             api_key_file=self.api_key_file,
             media_path=self.media_path,

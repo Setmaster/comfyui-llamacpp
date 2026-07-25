@@ -86,6 +86,15 @@ _CUSTOM_SAMPLER_FIELDS = (
 _REMOTE_AUTH_BINDINGS_ENV = "LLAMACPP_REMOTE_AUTH_BINDINGS"
 _MAX_REMOTE_AUTH_BINDINGS_BYTES = 65_536
 _MAX_REMOTE_AUTH_BINDINGS = 128
+_IMAGE_CAPABILITY_PROBE_SECONDS = 2.0
+_VISION_UNAVAILABLE_MESSAGE = (
+    "the selected llama.cpp model reports that vision is unavailable; "
+    "use a vision-capable model with its matching projector before connecting an image"
+)
+_EXPLICIT_TEXT_ONLY_IMAGE_MESSAGE = (
+    "image input is connected, but Vision Projector is '(none - text only)'; "
+    "select '(auto)' or an exact matching projector, or disconnect the image"
+)
 
 
 def _reject_json_constant(value: str) -> None:
@@ -203,10 +212,14 @@ def _classify_exception(
 def _stream_error(
     result: StreamResult,
     connection: ConnectionConfig,
+    *,
+    image_unsupported_message: str = _VISION_UNAVAILABLE_MESSAGE,
 ) -> CanonicalGenerationError:
     message = (result.error_message or "").casefold()
     if result.status_code in {401, 403}:
         category = ErrorCategory.AUTHENTICATION
+    elif result.error_type == "image_unsupported":
+        category = ErrorCategory.CAPABILITY_UNSUPPORTED
     elif result.error_type == "model_missing" or (result.status_code == 404 and "model" in message):
         category = ErrorCategory.MODEL_MISSING
     elif result.error_type == "timeout":
@@ -226,6 +239,7 @@ def _stream_error(
             "llama-server rejected local authentication; check the configured API key "
             "environment variable"
         ),
+        ErrorCategory.CAPABILITY_UNSUPPORTED: image_unsupported_message,
         ErrorCategory.MODEL_MISSING: (
             "the requested model was not found by the selected llama.cpp runtime"
         ),
@@ -882,6 +896,7 @@ class CanonicalGenerationExecutor:
             generation_started = self.clock()
             first_update: float | None = None
             stream_control: Any = None
+            image_unsupported_message = _VISION_UNAVAILABLE_MESSAGE
 
             def on_update(update: Any) -> None:
                 nonlocal first_update
@@ -964,6 +979,16 @@ class CanonicalGenerationExecutor:
                     token_ban=normalized_token_ban,
                 )
                 client = self.client_factory(resolved_connection)
+                if managed and not router_mode:
+                    try:
+                        projector_status = getattr(self.manager, "projector_status", None)
+                    except Exception:
+                        projector_status = None
+                    if (
+                        isinstance(projector_status, Mapping)
+                        and projector_status.get("mode") == "none"
+                    ):
+                        image_unsupported_message = _EXPLICIT_TEXT_ONLY_IMAGE_MESSAGE
                 if identity is not None and self.live_registry is not None:
                     try:
                         live = self.live_registry.begin(
@@ -978,6 +1003,28 @@ class CanonicalGenerationExecutor:
                         # Live state is observability. Capacity or UI integration
                         # failure must not change headless generation.
                         live = None
+
+                if normalized_images:
+                    capability_budget = min(
+                        _IMAGE_CAPABILITY_PROBE_SECONDS,
+                        remaining(require_positive=True, stage="image capability probe"),
+                    )
+                    props_model = exact_model if router_mode or not managed else None
+                    try:
+                        props = client.passive_props(
+                            props_model,
+                            timeout=capability_budget,
+                        )
+                    except LlamaClientError:
+                        props = None
+                    modalities = getattr(props, "modalities", None)
+                    if isinstance(modalities, Mapping) and modalities.get("vision") is False:
+                        raise _error(
+                            ErrorCategory.CAPABILITY_UNSUPPORTED,
+                            image_unsupported_message,
+                            connection=resolved_connection,
+                            fallback=_VISION_UNAVAILABLE_MESSAGE,
+                        )
 
                 probe_budget = min(
                     2.0,
@@ -1086,7 +1133,11 @@ class CanonicalGenerationExecutor:
                     stream_failure = (
                         None
                         if stream_result.success
-                        else _stream_error(stream_result, resolved_connection)
+                        else _stream_error(
+                            stream_result,
+                            resolved_connection,
+                            image_unsupported_message=image_unsupported_message,
+                        )
                     )
                     partial_policy = PartialOutputPolicy(partial_output_policy)
                     if stream_failure is not None and not (

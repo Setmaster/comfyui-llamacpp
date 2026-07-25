@@ -151,6 +151,7 @@ class RuntimeEndpointSnapshot:
     configured_context: int | None = None
     configured_model_path: str | None = None
     configured_projector_path: str | None = None
+    projector_disabled: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mode", _enum_value(RuntimeMode, self.mode, "runtime mode"))
@@ -179,6 +180,12 @@ class RuntimeEndpointSnapshot:
             type(self.configured_context) is not int or self.configured_context <= 0
         ):
             raise ValueError("configured_context must be a positive integer or null")
+        if type(self.projector_disabled) is not bool:
+            raise TypeError("projector_disabled must be a Boolean")
+        if self.configured_projector_path is not None and self.projector_disabled:
+            raise ValueError(
+                "configured_projector_path and projector_disabled are mutually exclusive"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -433,6 +440,33 @@ def _projector_suggestion(
     )
 
 
+def _configured_projector(
+    catalog: ModelCatalog | None,
+    model_name: str,
+    configured_path: str | None,
+) -> ProjectorSuggestion | None:
+    """Map a configured projector path back to its safe catalog-relative name."""
+
+    if catalog is None or not model_name or not configured_path:
+        return None
+    try:
+        resolved = Path(configured_path).expanduser().resolve()
+        matches = [
+            entry for entry in catalog.entries() if entry.is_mmproj and entry.path == resolved
+        ]
+    except (OSError, ValueError):
+        return None
+    if len(matches) != 1:
+        return None
+    return ProjectorSuggestion(
+        model_name=model_name,
+        projector_name=matches[0].name,
+        compatibility=Fact.unknown(),
+        requires_confirmation=False,
+        evidence="launch_config",
+    )
+
+
 def _catalog_model_identity(
     catalog: ModelCatalog | None,
     *candidates: str | None,
@@ -591,6 +625,22 @@ def discover_runtime(
             saved_state = (
                 SavedModelState.AVAILABLE if saved_model in candidates else SavedModelState.MISSING
             )
+        catalog_model_name = _catalog_model_identity(
+            catalog,
+            props.model_path,
+            snapshot.configured_model_path,
+            model_id,
+        )
+        if snapshot.configured_projector_path:
+            projector = _configured_projector(
+                catalog,
+                catalog_model_name or model_id,
+                snapshot.configured_projector_path,
+            )
+        elif snapshot.projector_disabled:
+            projector = None
+        else:
+            projector = _projector_suggestion(catalog, catalog_model_name)
         descriptor = RuntimeModelDescriptor(
             model_id=model_id,
             aliases=(),
@@ -601,15 +651,7 @@ def discover_runtime(
             model_path=props.model_path or snapshot.configured_model_path,
             ownership=ownership,
             release_scope="direct_runtime" if snapshot.owned else "attached",
-            projector=_projector_suggestion(
-                catalog,
-                _catalog_model_identity(
-                    catalog,
-                    props.model_path,
-                    snapshot.configured_model_path,
-                    model_id,
-                ),
-            ),
+            projector=projector,
             source=DiscoverySource.PROPS,
         )
         return RuntimeDiscoverySnapshot(

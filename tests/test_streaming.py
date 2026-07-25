@@ -4,6 +4,7 @@ import json
 import unittest
 import uuid
 from dataclasses import asdict
+from unittest.mock import patch
 
 from runtime.client import (
     AuthConfig,
@@ -15,11 +16,16 @@ from runtime.client import (
     TLSConfig,
 )
 from runtime.streaming import (
+    PROTOCOL_FAILURE_MESSAGE,
     PromptProgress,
     StreamUpdate,
     iter_model_events,
     iter_sse_events,
     stream_chat,
+)
+
+_PINNED_IMAGE_UNSUPPORTED_MESSAGE = (
+    "image input is not supported - hint: if this is unexpected, you may need to provide the mmproj"
 )
 
 
@@ -406,6 +412,121 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertNotIn("top-secret", result.error_message)
         self.assertTrue(response.closed)
 
+    def test_exact_bounded_unsupported_image_http_error_is_safely_classified(self) -> None:
+        response = FakeResponse(
+            status_code=400,
+            payload={
+                "error": {
+                    "code": 400,
+                    "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE,
+                    "type": "invalid_request_error",
+                }
+            },
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status_code, 400)
+        self.assertEqual(result.error_type, "image_unsupported")
+        self.assertEqual(result.error_message, "llama-server rejected image input")
+        self.assertNotIn("provide the mmproj", result.error_message)
+        self.assertTrue(response.closed)
+
+    def test_unmatched_unsupported_image_http_bodies_remain_generic(self) -> None:
+        exact_error = {
+            "code": 400,
+            "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE,
+            "type": "invalid_request_error",
+        }
+        cases = (
+            (
+                "wrong status",
+                FakeResponse(status_code=500, payload={"error": exact_error}),
+            ),
+            (
+                "wrong code",
+                FakeResponse(
+                    status_code=400,
+                    payload={"error": {**exact_error, "code": 500}},
+                ),
+            ),
+            (
+                "wrong type",
+                FakeResponse(
+                    status_code=400,
+                    payload={"error": {**exact_error, "type": "server_error"}},
+                ),
+            ),
+            (
+                "wrong message case",
+                FakeResponse(
+                    status_code=400,
+                    payload={
+                        "error": {
+                            **exact_error,
+                            "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE.capitalize(),
+                        }
+                    },
+                ),
+            ),
+            (
+                "same prefix but different message",
+                FakeResponse(
+                    status_code=400,
+                    payload={
+                        "error": {
+                            **exact_error,
+                            "message": ("image input is not supported: hostile-body-sentinel"),
+                        }
+                    },
+                ),
+            ),
+            (
+                "extra field",
+                FakeResponse(
+                    status_code=400,
+                    payload={"error": {**exact_error, "body": "hostile-body-sentinel"}},
+                ),
+            ),
+            (
+                "duplicate key",
+                FakeResponse(
+                    status_code=400,
+                    content_chunks=[
+                        (
+                            b'{"error":{"code":400,"code":400,'
+                            b'"message":"image input is not supported - hint: if this is '
+                            b'unexpected, you may need to provide the mmproj",'
+                            b'"type":"invalid_request_error"}}'
+                        )
+                    ],
+                ),
+            ),
+            (
+                "invalid utf8",
+                FakeResponse(status_code=400, content_chunks=[b"\xffhostile-body-sentinel"]),
+            ),
+        )
+
+        for label, response in cases:
+            with self.subTest(label=label):
+                result = stream_chat(
+                    self.connection(),
+                    {"stream": True},
+                    session=FakeSession(response),
+                    strict_protocol=True,
+                )
+                self.assertFalse(result.success)
+                self.assertEqual(result.error_type, "http")
+                self.assertNotIn("hostile-body-sentinel", result.error_message)
+                self.assertTrue(response.closed)
+
     def test_http_error_body_is_bounded_and_never_exposes_raw_sentinel(self) -> None:
         response = FakeResponse(
             status_code=500,
@@ -420,6 +541,47 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertNotIn("raw-http-error-sentinel", result.error_message)
         self.assertEqual(response.content_chunks_yielded, 1)
         self.assertFalse(session.calls[0][2]["allow_redirects"])
+
+    def test_oversized_unsupported_image_shape_is_never_classified_or_exposed(self) -> None:
+        response = FakeResponse(
+            status_code=400,
+            content_chunks=[
+                (
+                    b'{"error":{"code":400,"message":"image input is not supported: '
+                    + (b"oversized-image-error-sentinel" * 4096)
+                    + b'","type":"invalid_request_error"}}'
+                ),
+                b"must-not-be-read",
+            ],
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "http")
+        self.assertNotIn("oversized-image-error-sentinel", result.error_message)
+        self.assertEqual(response.content_chunks_yielded, 1)
+
+    def test_deeply_nested_http_error_body_remains_generic(self) -> None:
+        response = FakeResponse(status_code=400, content_chunks=[b'{"error":{}}'])
+
+        with patch("runtime.streaming.json.loads", side_effect=RecursionError):
+            result = stream_chat(
+                self.connection(),
+                {"stream": True},
+                session=FakeSession(response),
+                strict_protocol=True,
+            )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "http")
+        self.assertEqual(result.error_message, "HTTP 400: stream request failed")
+        self.assertTrue(response.closed)
 
     def test_strict_chat_404_has_typed_missing_model_context_without_raw_body(self) -> None:
         response = FakeResponse(
@@ -438,6 +600,151 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertEqual(result.status_code, 404)
         self.assertEqual(result.error_type, "model_missing")
         self.assertNotIn("raw-model-and-secret-sentinel", result.error_message)
+
+    def test_legacy_http_image_error_keeps_the_generic_contract(self) -> None:
+        response = FakeResponse(
+            status_code=400,
+            payload={
+                "error": {
+                    "code": 400,
+                    "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE,
+                    "type": "invalid_request_error",
+                }
+            },
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=False,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "http")
+        self.assertEqual(result.error_message, "HTTP 400: stream request failed")
+
+    def test_exact_bounded_unsupported_image_sse_error_is_safely_classified(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "error": {
+                            "code": 400,
+                            "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE,
+                            "type": "invalid_request_error",
+                        }
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "image_unsupported")
+        self.assertEqual(result.error_message, "llama-server rejected image input")
+        self.assertNotIn("provide the mmproj", result.error_message)
+
+    def test_legacy_sse_image_error_keeps_the_generic_contract(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "error": {
+                            "code": 400,
+                            "message": _PINNED_IMAGE_UNSUPPORTED_MESSAGE,
+                            "type": "invalid_request_error",
+                        }
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=False,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "server")
+        self.assertEqual(result.error_message, "server returned an error")
+
+    def test_unmatched_sse_error_never_exposes_body_text(self) -> None:
+        response = FakeResponse(
+            [
+                data_line(
+                    {
+                        "error": {
+                            "code": 400,
+                            "message": "hostile-stream-error-sentinel",
+                            "type": "invalid_request_error",
+                        }
+                    }
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "server")
+        self.assertEqual(result.error_message, "server returned an error")
+        self.assertNotIn("hostile-stream-error-sentinel", result.error_message)
+
+    def test_duplicate_sse_error_keys_are_protocol_failure_not_capability(self) -> None:
+        response = FakeResponse(
+            [
+                (
+                    'data: {"error":{"code":400,"code":400,'
+                    '"message":"image input is not supported - hint: if this is unexpected, '
+                    'you may need to provide the mmproj",'
+                    '"type":"invalid_request_error"}}'
+                ),
+                "",
+            ]
+        )
+
+        result = stream_chat(
+            self.connection(),
+            {"stream": True},
+            session=FakeSession(response),
+            strict_protocol=True,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "protocol")
+        self.assertEqual(result.error_message, PROTOCOL_FAILURE_MESSAGE)
+
+    def test_deeply_nested_sse_json_is_a_bounded_protocol_failure(self) -> None:
+        response = FakeResponse(['data: {"error":{}}', ""])
+
+        with patch("runtime.streaming.json.loads", side_effect=RecursionError):
+            result = stream_chat(
+                self.connection(),
+                {"stream": True},
+                session=FakeSession(response),
+                strict_protocol=True,
+            )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_type, "protocol")
+        self.assertEqual(result.error_message, PROTOCOL_FAILURE_MESSAGE)
 
     def test_strict_wire_line_and_event_limits_cleanup_exact_stream(self) -> None:
         cases = (

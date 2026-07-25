@@ -6,12 +6,13 @@ import atexit
 import contextlib
 import ipaddress
 import os
+import re
 import socket
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -68,6 +69,138 @@ class ServerMode(str, Enum):
 
 
 _UNIX_HOST_PREFIXES = ("unix:", "http+unix:", "https+unix:")
+_PROJECTOR_ENVIRONMENT_VARIABLES = frozenset(
+    {
+        "LLAMA_ARG_MMPROJ",
+        "LLAMA_ARG_MMPROJ_URL",
+        "LLAMA_ARG_MMPROJ_AUTO",
+    }
+)
+_PROJECTOR_STATUS_MODES = frozenset({"auto", "explicit", "none"})
+_PROJECTOR_STATUS_OUTCOMES = frozenset({"selected", "text_only"})
+_MAX_PROJECTOR_NAME_LENGTH = 512
+_MAX_PROJECTOR_DETAIL_LENGTH = 240
+_ABSOLUTE_DETAIL_PATH = re.compile(
+    r"""(?ix)
+    (?:
+        [a-z]:[\\/]
+        |
+        (?<![\w.-])/[^\s/]
+        |
+        \\\\[^\s\\]+[\\/][^\s\\]+
+    )
+    """
+)
+
+
+def _catalog_relative_projector(value: object) -> str:
+    if not isinstance(value, str):
+        raise TypeError("projector_status projector must be a string")
+    raw_parts = value.split("/")
+    if (
+        not value
+        or value != value.strip()
+        or len(value) > _MAX_PROJECTOR_NAME_LENGTH
+        or any(ord(character) < 32 for character in value)
+        or "\\" in value
+        or ":" in value
+        or any(part in {"", ".", ".."} for part in raw_parts)
+        or not value.casefold().endswith(".gguf")
+    ):
+        raise ValueError("projector_status projector must be a bounded catalog-relative name")
+    posix = PurePosixPath(value)
+    windows = PureWindowsPath(value)
+    if (
+        posix.is_absolute()
+        or windows.is_absolute()
+        or bool(windows.drive)
+        or any(part in {".", ".."} for part in posix.parts)
+    ):
+        raise ValueError("projector_status projector must be a catalog-relative name")
+    return value
+
+
+def _public_projector_detail(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError("projector_status detail must be a string")
+    rendered = " ".join(value.split())
+    if not rendered:
+        return None
+    if "://" in rendered or _ABSOLUTE_DETAIL_PATH.search(rendered):
+        return None
+    if len(rendered) > _MAX_PROJECTOR_DETAIL_LENGTH:
+        rendered = rendered[: _MAX_PROJECTOR_DETAIL_LENGTH - 3].rstrip() + "..."
+    return rendered
+
+
+def _sanitize_projector_status(
+    projector_status: Mapping[str, Any] | None,
+) -> dict[str, str] | None:
+    if projector_status is None:
+        return None
+    if not isinstance(projector_status, Mapping):
+        raise TypeError("projector_status must be a mapping or None")
+
+    mode = projector_status.get("mode")
+    outcome = projector_status.get("outcome")
+    if not isinstance(mode, str) or mode not in _PROJECTOR_STATUS_MODES:
+        raise ValueError("projector_status mode must be auto, explicit, or none")
+    if not isinstance(outcome, str) or outcome not in _PROJECTOR_STATUS_OUTCOMES:
+        raise ValueError("projector_status outcome must be selected or text_only")
+    if mode == "none" and outcome != "text_only":
+        raise ValueError("projector_status none mode must have a text_only outcome")
+    if mode == "explicit" and outcome != "selected":
+        raise ValueError("projector_status explicit mode must have a selected outcome")
+
+    sanitized = {"mode": mode, "outcome": outcome}
+    projector = projector_status.get("projector")
+    if outcome == "selected":
+        sanitized["projector"] = _catalog_relative_projector(projector)
+    elif projector is not None and projector != "":
+        raise ValueError("projector_status text_only outcome must not name a projector")
+
+    detail = _public_projector_detail(projector_status.get("detail"))
+    if detail is not None:
+        sanitized["detail"] = detail
+    return sanitized
+
+
+def _validate_projector_status_config(
+    config: ServerConfig,
+    projector_status: Mapping[str, str] | None,
+) -> None:
+    if projector_status is None:
+        return
+    if projector_status["outcome"] == "selected":
+        if config.mmproj_path is None:
+            raise ValueError("selected projector_status requires mmproj_path")
+        public_parts = PurePosixPath(projector_status["projector"]).parts
+        configured_parts = PurePosixPath(config.mmproj_path.replace("\\", "/")).parts
+        case_insensitive = os.name == "nt" or bool(PureWindowsPath(config.mmproj_path).drive)
+        if len(configured_parts) < len(public_parts):
+            matches = False
+        else:
+            configured_suffix = configured_parts[-len(public_parts) :]
+            if case_insensitive:
+                matches = tuple(part.casefold() for part in configured_suffix) == tuple(
+                    part.casefold() for part in public_parts
+                )
+            else:
+                matches = configured_suffix == public_parts
+        if not matches:
+            raise ValueError("projector_status projector must match the configured projector path")
+    if projector_status["outcome"] == "text_only" and not config.no_mmproj:
+        raise ValueError("text_only projector_status requires no_mmproj")
+
+
+def _projector_safe_environment() -> dict[str, str]:
+    environment = dict(os.environ)
+    for name in tuple(environment):
+        if name.upper() in _PROJECTOR_ENVIRONMENT_VARIABLES:
+            del environment[name]
+    return environment
 
 
 def _validate_bind_host(host: str) -> str:
@@ -239,6 +372,7 @@ class LlamaCppServerManager:
 
             self._config: LaunchConfig | None = None
             self._config_fingerprint: str | None = None
+            self._projector_status: dict[str, str] | None = None
             self._capabilities: ServerCapabilities | None = None
             self._connection: ConnectionConfig | None = None
             self._client: LlamaServerClient | None = None
@@ -263,6 +397,7 @@ class LlamaCppServerManager:
                     in {ProcessLifecycle.RUNTIME_FAILED, ProcessLifecycle.INCOMPLETE_STOP}
                     else ServerStatus.STOPPED
                 )
+                self._projector_status = None
                 snapshot = self._process.snapshot()
                 if self._status == ServerStatus.ERROR:
                     self._last_error = snapshot.last_error or (
@@ -309,6 +444,15 @@ class LlamaCppServerManager:
     @property
     def runtime_service(self) -> RuntimeService:
         return self._runtime
+
+    @property
+    def projector_status(self) -> dict[str, str] | None:
+        """Return a detached public snapshot of the active direct projector policy."""
+
+        with self._lock:
+            if not self.is_running or self._projector_status is None:
+                return None
+            return dict(self._projector_status)
 
     def connection_for(
         self,
@@ -388,6 +532,7 @@ class LlamaCppServerManager:
                         config.model_path if isinstance(config, ServerConfig) else None
                     ),
                     configured_projector_path=config.mmproj_path,
+                    projector_disabled=(isinstance(config, ServerConfig) and config.no_mmproj),
                 ),
                 self._connection,
             )
@@ -457,6 +602,7 @@ class LlamaCppServerManager:
         api_key_env: str = "LLAMACPP_API_KEY",
         verify_tls: bool = True,
         unload_comfy_models_before_start: bool = False,
+        projector_status: Mapping[str, Any] | None = None,
     ) -> tuple[bool, str | None]:
         return self._start(
             config,
@@ -466,6 +612,7 @@ class LlamaCppServerManager:
             api_key_env=api_key_env,
             verify_tls=verify_tls,
             unload_comfy_models_before_start=unload_comfy_models_before_start,
+            projector_status=projector_status,
         )
 
     def start_router(
@@ -486,6 +633,7 @@ class LlamaCppServerManager:
             api_key_env=api_key_env,
             verify_tls=verify_tls,
             unload_comfy_models_before_start=unload_comfy_models_before_start,
+            projector_status=None,
         )
 
     def _start(
@@ -498,6 +646,7 @@ class LlamaCppServerManager:
         api_key_env: str,
         verify_tls: bool,
         unload_comfy_models_before_start: bool,
+        projector_status: Mapping[str, Any] | None,
     ) -> tuple[bool, str | None]:
         try:
             with self._runtime.serialized_operation(
@@ -512,6 +661,7 @@ class LlamaCppServerManager:
                     api_key_env=api_key_env,
                     verify_tls=verify_tls,
                     unload_comfy_models_before_start=unload_comfy_models_before_start,
+                    projector_status=projector_status,
                 )
         except RuntimeOperationBusy as exc:
             return False, str(exc)
@@ -526,6 +676,7 @@ class LlamaCppServerManager:
         api_key_env: str,
         verify_tls: bool,
         unload_comfy_models_before_start: bool,
+        projector_status: Mapping[str, Any] | None,
     ) -> tuple[bool, str | None]:
         with self._lock:
             prior_status = self.status
@@ -533,6 +684,11 @@ class LlamaCppServerManager:
             destructive_start = False
             self._last_error = None
             try:
+                if mode != ServerMode.SINGLE_MODEL and projector_status is not None:
+                    raise TypeError("projector_status is supported only for direct mode")
+                sanitized_projector_status = _sanitize_projector_status(projector_status)
+                if isinstance(config, ServerConfig):
+                    _validate_projector_status_config(config, sanitized_projector_status)
                 capabilities = self._probe_binary(binary_path)
                 self._validate_launch(config, mode, capabilities)
                 fingerprint = config.fingerprint(capabilities.identity)
@@ -542,6 +698,7 @@ class LlamaCppServerManager:
                     and self._config_fingerprint == fingerprint
                     and self.health_check()
                 ):
+                    self._projector_status = sanitized_projector_status
                     return True, None
 
                 if self._process.has_owned_process:
@@ -571,7 +728,16 @@ class LlamaCppServerManager:
                 )
                 client = self._client_factory(connection)
                 command = config.command(capabilities.path)
-                self._process.start(command, secret_values=(api_key,) if api_key else ())
+                launch_options: dict[str, Any] = {
+                    "secret_values": (api_key,) if api_key else (),
+                }
+                if (
+                    mode == ServerMode.SINGLE_MODEL
+                    and isinstance(config, ServerConfig)
+                    and (config.mmproj_path is not None or config.no_mmproj)
+                ):
+                    launch_options["env"] = _projector_safe_environment()
+                self._process.start(command, **launch_options)
 
                 self._config = config
                 self._config_fingerprint = fingerprint
@@ -587,6 +753,7 @@ class LlamaCppServerManager:
                     self._runtime.configure_direct_owned()
                 clear_stream_control_cache()
                 self._status = ServerStatus.RUNNING
+                self._projector_status = sanitized_projector_status
                 return True, None
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
@@ -609,6 +776,7 @@ class LlamaCppServerManager:
                 self._mode = ServerMode.SINGLE_MODEL
                 self._config = None
                 self._config_fingerprint = None
+                self._projector_status = None
                 self._capabilities = None
                 self._connection = None
                 try:
@@ -650,12 +818,18 @@ class LlamaCppServerManager:
                 raise TypeError("direct mode requires ServerConfig")
             if not Path(config.model_path).is_file():
                 raise FileNotFoundError(f"Model file not found: {config.model_path}")
+        if config.mmproj_path is not None and not Path(config.mmproj_path).is_file():
+            raise FileNotFoundError(f"Projector file not found: {config.mmproj_path}")
 
         optional_flags = (
             (config.sleep_idle_seconds is not None, "--sleep-idle-seconds"),
             (config.api_key_file is not None, "--api-key-file"),
             (config.media_path is not None, "--media-path"),
             (config.mmproj_path is not None, "--mmproj"),
+            (
+                isinstance(config, ServerConfig) and config.no_mmproj,
+                "--no-mmproj",
+            ),
             (config.fit is not None, "--fit"),
             (config.flash_attention_mode is not None, "--flash-attn"),
         )
@@ -732,6 +906,7 @@ class LlamaCppServerManager:
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
             self._config_fingerprint = None
+            self._projector_status = None
             self._capabilities = None
             self._connection = None
             self._close_client()
@@ -749,6 +924,7 @@ class LlamaCppServerManager:
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
             self._config_fingerprint = None
+            self._projector_status = None
             self._capabilities = None
             self._connection = None
             self._close_client()
@@ -880,6 +1056,9 @@ class LlamaCppServerManager:
             info["config"] = self._config.effective_values()
             if isinstance(self._config, ServerConfig):
                 info["config"]["model"] = Path(self._config.model_path).name
+        projector_status = self.projector_status
+        if projector_status is not None:
+            info["projector"] = projector_status
         if process.get("pid") is not None:
             info["pid"] = process["pid"]
         return info
@@ -897,6 +1076,7 @@ class LlamaCppServerManager:
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
             self._config_fingerprint = None
+            self._projector_status = None
             self._capabilities = None
             self._connection = None
             self._close_client()

@@ -114,6 +114,23 @@ canonical live router ID remains authoritative when it is not a local file.
 Routers without target evidence retain ID-only compatibility, so one base GGUF
 per bundle remains the portable layout.
 
+## Image capability preflight
+
+When at least one image is connected, Generate performs a small passive
+`/props` check after exact model resolution and before submitting the
+generation. The check never autoloads a router model.
+
+- An explicit `vision: false` response stops locally as
+  `capability_unsupported`.
+- An unavailable or unknown passive response continues so attached endpoints
+  and unloaded router models keep working.
+- A structured llama.cpp `image input is not supported` response maps to the
+  same fixed local category. Arbitrary upstream response bodies are not exposed
+  in the workflow error.
+
+Selecting `(none - text only)` on the managed direct server produces a specific
+message when an image is connected.
+
 ## Release after generation
 
 `Release After Generation` is available only for a runtime positively owned by

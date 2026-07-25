@@ -81,6 +81,7 @@ class FakeProcess:
         self.start_gate = None
         self.stop_entered = None
         self.stop_gate = None
+        self.start_kwargs = {}
 
     @property
     def is_running(self):
@@ -96,6 +97,7 @@ class FakeProcess:
         if self.start_gate is not None:
             assert _wait_for_event(self.start_gate, timeout=5)
         self.command = list(command)
+        self.start_kwargs = dict(kwargs)
         self.running = True
         self.owned = True
         self.state = ProcessLifecycle.RUNNING
@@ -199,6 +201,7 @@ def capabilities(tmp_path):
                 "--api-key-file",
                 "--media-path",
                 "--mmproj",
+                "--no-mmproj",
                 "--fit",
                 "--flash-attn",
             }
@@ -246,7 +249,9 @@ def test_dependency_injected_manager_construction_remains_independent():
 
 def test_direct_start_native_release_and_status(tmp_path, monkeypatch):
     model = tmp_path / "model.gguf"
+    projector = tmp_path / "mmproj-model.gguf"
     model.write_bytes(b"fixture")
+    projector.write_bytes(b"projector")
     process = FakeProcess()
     service = RuntimeService(process)  # type: ignore[arg-type]
     clients = []
@@ -263,16 +268,257 @@ def test_direct_start_native_release_and_status(tmp_path, monkeypatch):
         client_factory=client_factory,
     )
 
-    success, error = manager.start(ServerConfig(str(model)), timeout=2)
+    success, error = manager.start(
+        ServerConfig(str(model), no_mmproj=True),
+        timeout=2,
+        projector_status={"mode": "auto", "outcome": "text_only"},
+    )
     assert (success, error) == (True, None)
     assert manager.status == ServerStatus.RUNNING
+    assert manager.projector_status == {"mode": "auto", "outcome": "text_only"}
     assert service.mode == RuntimeMode.DIRECT
     assert process.command[1:3] == ["-m", str(model)]
+    discovery = manager.discover_models(catalog=ModelCatalog((tmp_path,)))
+    assert discovery.models[0].projector is None
 
     release = service.request_release(source="comfy_free")
     assert release.status == ReleaseStatus.COMPLETE
     assert manager.status == ServerStatus.STOPPED
+    assert manager.projector_status is None
     assert clients[0].closed is True
+
+
+@pytest.mark.parametrize("policy", ["explicit", "none"])
+def test_direct_projector_policy_scrubs_only_projector_environment(
+    tmp_path,
+    monkeypatch,
+    policy,
+):
+    model = tmp_path / "model.gguf"
+    projector = tmp_path / "mmproj-model.gguf"
+    model.write_bytes(b"fixture")
+    projector.write_bytes(b"projector")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    monkeypatch.setenv("LLAMA_ARG_MMPROJ", "/inherited/wrong.gguf")
+    monkeypatch.setenv("LLAMA_ARG_MMPROJ_URL", "https://example.invalid/projector")
+    monkeypatch.setenv("LLAMA_ARG_MMPROJ_AUTO", "true")
+    monkeypatch.setenv("COMFY_LLAMA_KEEP", "retained")
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    if policy == "explicit":
+        config = ServerConfig(str(model), mmproj_path=str(projector))
+        projector_status = {
+            "mode": "explicit",
+            "outcome": "selected",
+            "projector": projector.name,
+        }
+        expected_flag = "--mmproj"
+    else:
+        config = ServerConfig(str(model), no_mmproj=True)
+        projector_status = {"mode": "none", "outcome": "text_only"}
+        expected_flag = "--no-mmproj"
+
+    assert manager.start(config, timeout=2, projector_status=projector_status) == (True, None)
+
+    environment = process.start_kwargs["env"]
+    assert (
+        not {
+            "LLAMA_ARG_MMPROJ",
+            "LLAMA_ARG_MMPROJ_URL",
+            "LLAMA_ARG_MMPROJ_AUTO",
+        }
+        & environment.keys()
+    )
+    assert environment["COMFY_LLAMA_KEEP"] == "retained"
+    assert expected_flag in process.command
+
+
+def test_direct_legacy_projector_omission_preserves_inherited_environment(
+    tmp_path,
+    monkeypatch,
+):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    monkeypatch.setenv("LLAMA_ARG_MMPROJ", "/legacy/inherited.gguf")
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    assert manager.start(ServerConfig(str(model)), timeout=2) == (True, None)
+
+    assert "env" not in process.start_kwargs
+
+
+def test_projector_status_is_sanitized_copied_and_refreshed_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    model = tmp_path / "model.gguf"
+    projector = tmp_path / "bundle" / "mmproj-model.gguf"
+    model.write_bytes(b"fixture")
+    projector.parent.mkdir()
+    projector.write_bytes(b"projector")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    config = ServerConfig(str(model), mmproj_path=str(projector))
+    requested = {
+        "mode": "auto",
+        "outcome": "selected",
+        "projector": "bundle/mmproj-model.gguf",
+        "detail": f"resolved from {tmp_path}",
+        "private": str(projector),
+    }
+
+    assert manager.start(config, timeout=2, projector_status=requested) == (True, None)
+    requested["projector"] = "/private/changed.gguf"
+
+    expected = {
+        "mode": "auto",
+        "outcome": "selected",
+        "projector": "bundle/mmproj-model.gguf",
+    }
+    assert manager.projector_status == expected
+    assert manager.get_status_info()["projector"] == expected
+    detached = manager.projector_status
+    assert detached is not None
+    detached["mode"] = "none"
+    assert manager.projector_status == expected
+
+    explicit = {
+        "mode": "explicit",
+        "outcome": "selected",
+        "projector": "bundle/mmproj-model.gguf",
+        "detail": "selected by user",
+    }
+    assert manager.start(config, timeout=2, projector_status=explicit) == (True, None)
+    assert process.stop_calls == 0
+    assert manager.projector_status == {**explicit}
+
+    assert manager.stop() == (True, None)
+    assert manager.projector_status is None
+    assert "projector" not in manager.get_status_info()
+
+
+@pytest.mark.parametrize(
+    "projector_status",
+    [
+        {
+            "mode": "auto",
+            "outcome": "selected",
+            "projector": "/private/mmproj.gguf",
+        },
+        {
+            "mode": "auto",
+            "outcome": "selected",
+            "projector": r"C:\private\mmproj.gguf",
+        },
+        {"mode": "none", "outcome": "selected", "projector": "mmproj.gguf"},
+        {"mode": "explicit", "outcome": "text_only"},
+    ],
+)
+def test_invalid_projector_status_fails_before_spawn(tmp_path, monkeypatch, projector_status):
+    model = tmp_path / "model.gguf"
+    projector = tmp_path / "mmproj.gguf"
+    model.write_bytes(b"fixture")
+    projector.write_bytes(b"projector")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(
+        ServerConfig(str(model), mmproj_path=str(projector)),
+        timeout=2,
+        projector_status=projector_status,
+    )
+
+    assert success is False
+    assert "projector_status" in error
+    assert process.has_owned_process is False
+
+
+@pytest.mark.parametrize(
+    "projector_status",
+    [
+        {"mode": "auto", "outcome": "selected", "projector": "mmproj.gguf"},
+        {"mode": "auto", "outcome": "text_only"},
+    ],
+)
+def test_projector_status_must_match_the_command_config(
+    tmp_path,
+    monkeypatch,
+    projector_status,
+):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(
+        ServerConfig(str(model)),
+        timeout=2,
+        projector_status=projector_status,
+    )
+
+    assert success is False
+    assert "projector_status requires" in error
+    assert process.has_owned_process is False
+
+
+def test_projector_status_path_mismatch_fails_before_spawn(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    projector = tmp_path / "bundle" / "mmproj-a.gguf"
+    model.write_bytes(b"fixture")
+    projector.parent.mkdir()
+    projector.write_bytes(b"projector")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(
+        ServerConfig(str(model), mmproj_path=str(projector)),
+        timeout=2,
+        projector_status={
+            "mode": "explicit",
+            "outcome": "selected",
+            "projector": "bundle/mmproj-b.gguf",
+        },
+    )
+
+    assert success is False
+    assert "must match the configured projector path" in error
+    assert process.has_owned_process is False
 
 
 def test_managed_restart_boundaries_clear_stream_capability_cache(tmp_path, monkeypatch):
@@ -415,6 +661,79 @@ def test_failed_replacement_preflight_preserves_healthy_owned_server(tmp_path, m
     assert manager.current_config == ServerConfig(str(model))
     assert manager.client is original_client
     assert original_client.closed is False
+
+
+def test_missing_projector_preflight_preserves_healthy_owned_server(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    missing_projector = tmp_path / "missing-mmproj.gguf"
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    text_only_status = {"mode": "auto", "outcome": "text_only"}
+    assert manager.start(
+        ServerConfig(str(model), no_mmproj=True),
+        timeout=2,
+        projector_status=text_only_status,
+    ) == (True, None)
+    original_client = manager.client
+
+    success, error = manager.start(
+        ServerConfig(str(model), mmproj_path=str(missing_projector)),
+        timeout=2,
+        projector_status={
+            "mode": "explicit",
+            "outcome": "selected",
+            "projector": missing_projector.name,
+        },
+    )
+
+    assert success is False
+    assert "Projector file not found" in error
+    assert process.stop_calls == 0
+    assert process.is_running is True
+    assert manager.status == ServerStatus.RUNNING
+    assert manager.projector_status == text_only_status
+    assert manager.client is original_client
+    assert original_client.closed is False
+
+
+def test_text_only_requires_binary_no_projector_capability(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    available = capabilities(tmp_path)
+    unsupported = ServerCapabilities(
+        path=available.path,
+        version_output=available.version_output,
+        help_output=available.help_output,
+        flags=available.flags - {"--no-mmproj"},
+        identity=available.identity,
+        build_number=available.build_number,
+        commit=available.commit,
+    )
+    monkeypatch.setattr(manager_module, "_port_is_bound", lambda host, port: False)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: unsupported,
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+
+    success, error = manager.start(
+        ServerConfig(str(model), no_mmproj=True),
+        timeout=2,
+        projector_status={"mode": "none", "outcome": "text_only"},
+    )
+
+    assert success is False
+    assert "does not support requested options: --no-mmproj" in error
+    assert process.has_owned_process is False
 
 
 @pytest.mark.parametrize(

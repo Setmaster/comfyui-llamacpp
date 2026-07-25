@@ -58,8 +58,21 @@ The accepted 0.3 checklist remains available in
 
 ## Vision and structured output
 
-- [ ] Send one image through a compatible VLM and verify the response refers to
-  visible evidence from that image.
+- [ ] Leave Vision Projector on `(auto)` for one known compatible VLM bundle.
+  Confirm Server Status names the auto-selected relative projector, `/props`
+  reports vision, and the response refers to visible evidence from the image.
+- [ ] Select the same projector explicitly. Confirm the same server PID is
+  reused and Status changes only the selection provenance to explicit.
+- [ ] Select `(none - text only)`. Confirm text generation works, no projector
+  is loaded, and a connected image fails locally with the specific
+  capability-unsupported message.
+- [ ] Put equivalent Q8_0 and F16 projector quantizations beside a test model.
+  Confirm `(auto)` selects Q8_0 deterministically.
+- [ ] Present two distinct compatible projector identities. Confirm `(auto)`
+  fails before replacing a healthy current server and asks for an explicit
+  selection.
+- [ ] Confirm a mixed-size model folder never pairs a projector whose effective
+  embedding interface belongs to the other model size.
 - [ ] Test a full Comfy IMAGE batch and confirm every intended frame is sent.
 - [ ] Generate one JSON object and one nested JSON Schema result, then parse each
   response as JSON.

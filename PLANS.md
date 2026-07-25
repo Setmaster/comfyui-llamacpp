@@ -1,3 +1,105 @@
+# Active Auto VLM Projector Resolution Plan
+
+Status: In progress
+Date: 2026-07-24
+Branch: `dev` (tracking `origin/dev`)
+Baseline: `60ae2bfa686298edb80cad8280f1b0092af811c0`
+Preserved release: tag `0.3.0` at `365986af4a47426b5513b3cee917ebec93a4204a`
+Change bundle: `changes/2026-07-24-auto-vlm-projector-resolution/`
+
+## Objective
+
+Make the default direct-server `Vision Projector` setting perform safe, local,
+automatic projector resolution while preserving exact explicit selection and
+adding an explicit text-only mode. Diagnose unsupported image requests before
+generation, keep runtime ownership and release behavior intact, and validate the
+result through real Windows ComfyUI before handing `dev` back for user testing.
+
+## Completion Contract
+
+Outcome:
+
+- One selector means exactly auto, text-only, or one concrete projector.
+- Auto uses bounded GGUF metadata and selected tensor descriptors. It never
+  downloads, guesses from adjacency alone, or allocates model/projector tensors.
+- Confident matches launch with exact `--mmproj`; text-only launches use
+  `--no-mmproj` and a projector-scrubbed child environment.
+- Ambiguity and known missing-VLM projectors fail on Start before lifecycle
+  mutation. Image capability failures are fixed, actionable, and non-leaking.
+- Status, workflow migration, canonical example, and documentation describe the
+  effective behavior.
+
+Success checks:
+
+- Gemma 3, Gemma 4, Qwen3-VL, Qwen3.5, and guarded MiniCPM metadata cases pass,
+  including Qwen deepstack and mixed-size Gemma 4.
+- Strong identity may resolve across configured roots. Same-width, weak, corrupt,
+  escaped, or distinct candidates never auto-pair.
+- Equivalent projector quantizations resolve deterministically to Q8_0, while a
+  concrete selection remains exact.
+- Released node positions and complete 0.2.1/0.3 contracts remain unchanged.
+- Canonical Generate passive props blocks known-unsupported image requests
+  before POST. Unknown attached/router capability remains compatible, and
+  released legacy prompt nodes retain their contracts. Exact llama.cpp
+  structured image errors map without retaining raw bodies.
+- Existing process reuse/restart, native unload, explicit release, owned process,
+  and RTX 5090 VRAM handoff behavior do not regress.
+- Full automated, package, real Windows ComfyUI, independent review, remote
+  `dev`, installed-clone, diff, and Project KB gates pass.
+
+Stop condition:
+
+- Stop only after the reviewed implementation is pushed to `origin/dev`, the
+  maintained Windows clone matches the validated commit, no owned test runtime
+  remains, and evidence is recorded, or at a genuine human/external gate.
+
+Human gate:
+
+- The user owns final hands-on blessing and any later merge or publication.
+
+## Decision Log
+
+- 2026-07-24: Supersede Work Block B's conservative "no automatic projector
+  selection" decision because live acceptance proved that `(auto)` currently
+  misrepresents behavior. Retain its original safety principle by requiring
+  metadata-backed confidence and failing closed.
+- 2026-07-24: Do not use llama.cpp `--mmproj-auto`; it controls Hugging Face
+  downloads and does not scan local direct `-m` models.
+- 2026-07-24: Use a dependency-free bounded GGUF reader. Do not add `gguf` to
+  the Comfy environment.
+- 2026-07-24: Allow catalog-wide fallback only for strong normalized name or
+  base-lineage identity. Dimension or adjacency alone is insufficient.
+- 2026-07-24: Group semantic quant variants and prefer Q8_0, then BF16, F16, and
+  F32. This is a local resource policy, not a compatibility claim.
+- 2026-07-25: Apply quantization preference across every strongly proven
+  equivalent candidate, not only adjacent files. The installed Qwen3-VL 4B
+  bakeoff therefore selects the lineage-linked global Q8_0 projector over its
+  adjacent F16 copy.
+- 2026-07-25: Cross-check modern projector metadata against the exact
+  pinned-runtime output tensor interface before lifecycle mutation. Unknown
+  families with a strongly plausible local projector require explicit
+  selection instead of silently becoming text-only.
+- 2026-07-25: Reject credential-bearing lineage repository URLs as identity
+  evidence. They must never appear in errors, evidence, or browser-facing
+  status.
+- 2026-07-24: Keep router pairing unchanged.
+- 2026-07-24: Preserve `master`, immutable 0.3.0, and unreleased 0.4.0 state.
+
+## Execution Sequence
+
+1. Implement and adversarially test the bounded GGUF reader.
+2. Implement and corpus-test the typed resolver.
+3. Wire direct config, child environment, status, and transactional manager
+   behavior.
+4. Add passive image capability and safe structured-error diagnostics.
+5. Migrate the canonical workflow and update user documentation.
+6. Run focused and full automated/package gates.
+7. Run real Windows ComfyUI and GPU lifecycle gates.
+8. Complete fresh-eyes review, fix findings, push `dev`, update the installed
+   clone, and close the Project KB and native goal.
+
+---
+
 # Completed Canonical Generate Work Block B Plan
 
 Status: Complete

@@ -39,8 +39,11 @@ ComfyUI/models/LLM/gguf/
 Configured `LLM` or `llm` roots from `extra_model_paths.yaml` are also supported.
 Restart ComfyUI after changing model-root configuration.
 
-For a vision model, keep the matching projector separate and select it explicitly.
-A projector filename does not prove that it is compatible with a model.
+For a vision model, install its matching `mmproj` GGUF under a configured model
+root. Leave **Vision Projector** on `(auto)` to select one match only when local
+GGUF metadata proves compatibility. Folder adjacency and filenames alone do not
+prove a match. You can also choose one exact projector file, or select
+`(none - text only)` to disable vision.
 
 ## 4. Run Setup Check
 

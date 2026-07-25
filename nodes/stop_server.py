@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 from ..models.catalog import ModelCatalog
@@ -18,6 +20,8 @@ from .presentation import NODE_CATEGORIES, NODE_SEARCH_ALIASES, apply_input_pres
 _SETUP_PROBE_TIMEOUT = 3.0
 _MAX_WARNING_COUNT = 6
 _MAX_WARNING_LENGTH = 240
+_PROJECTOR_MODES = frozenset({"auto", "explicit", "none"})
+_PROJECTOR_OUTCOMES = frozenset({"selected", "text_only"})
 
 
 def _bounded_message(value: object, limit: int = _MAX_WARNING_LENGTH) -> str:
@@ -25,6 +29,54 @@ def _bounded_message(value: object, limit: int = _MAX_WARNING_LENGTH) -> str:
     if len(rendered) <= limit:
         return rendered
     return rendered[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _safe_projector_status(value: object) -> dict[str, str | None] | None:
+    if not isinstance(value, Mapping):
+        return None
+    mode = value.get("mode")
+    outcome = value.get("outcome")
+    if mode not in _PROJECTOR_MODES or outcome not in _PROJECTOR_OUTCOMES:
+        return None
+    projector = value.get("projector")
+    if projector is not None:
+        if (
+            not isinstance(projector, str)
+            or not projector
+            or len(projector) > 4096
+            or "\x00" in projector
+        ):
+            return None
+        normalized = projector.replace("\\", "/")
+        path = PurePosixPath(normalized)
+        windows_path = PureWindowsPath(projector)
+        if (
+            ":" in projector
+            or path.is_absolute()
+            or windows_path.is_absolute()
+            or bool(windows_path.drive)
+            or any(part in ("", ".", "..") for part in path.parts)
+        ):
+            return None
+        projector = normalized
+    return {"mode": mode, "outcome": outcome, "projector": projector}
+
+
+def _projector_status_line(value: object) -> str | None:
+    status = _safe_projector_status(value)
+    if status is None:
+        return None
+    mode = status["mode"]
+    outcome = status["outcome"]
+    projector = status["projector"]
+    if outcome == "selected" and projector:
+        qualifier = "auto-selected" if mode == "auto" else "explicit"
+        return f"Vision projector: {projector} ({qualifier})"
+    if mode == "none":
+        return "Vision projector: none (text-only selected)"
+    if mode == "auto":
+        return "Vision projector: none (auto resolved to text-only)"
+    return None
 
 
 def _catalog_diagnostics() -> tuple[dict[str, Any], list[str]]:
@@ -178,7 +230,11 @@ def _setup_diagnostics(status_data: dict[str, Any], binary_path: str) -> dict[st
         "state": state,
         "binary": binary,
         "catalog": catalog,
-        "projector_compatibility_inferred": False,
+        "projector_auto_detection": {
+            "supported": True,
+            "strategy": "gguf_metadata",
+            "ambiguous_requires_selection": True,
+        },
         "warnings": warnings,
     }
 
@@ -332,6 +388,9 @@ class LlamaCppServerStatus:
             lines.append("Release pending: yes")
         if data.get("capabilities"):
             lines.append(f"llama-server: {data['capabilities'].get('version', 'unknown')}")
+        projector_line = _projector_status_line(data.get("projector"))
+        if projector_line:
+            lines.append(projector_line)
         binary = setup["binary"]
         catalog = setup["catalog"]
         lines.append(f"Setup: {setup['state'].replace('_', ' ')}")
@@ -356,8 +415,8 @@ class LlamaCppServerStatus:
             f"{catalog['router_presets']} router presets"
         )
         lines.append(
-            "Projector compatibility: not inferred from filenames; select an exact matching "
-            "projector for direct VLM use."
+            "Projector auto-detection: compatible local pairs are selected automatically; "
+            "ambiguous matches require an explicit choice."
         )
         lines.extend(f"Setup warning: {warning}" for warning in setup["warnings"])
         if data.get("last_error"):
@@ -375,6 +434,7 @@ class LlamaCppServerStatus:
                 "owned": bool(runtime.get("owned", False)),
                 "lifecycle": runtime.get("lifecycle", "idle"),
                 "pid": process.get("pid"),
+                "projector": _safe_projector_status(data.get("projector")),
             },
             "setup": setup,
         }

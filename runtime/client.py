@@ -658,7 +658,7 @@ class LlamaServerClient:
             ) from exc
         try:
             return json.loads(text)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (TypeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
             raise ResponseProtocolError(
                 "response body was not valid JSON",
                 endpoint=path,

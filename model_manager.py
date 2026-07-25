@@ -5,6 +5,13 @@ from __future__ import annotations
 from .models import catalog as catalog_module
 from .models.catalog import ModelCatalog, ModelCatalogError
 from .models.identity import RouterIdentityError, resolve_router_model
+from .models.projectors import (
+    AUTO_PROJECTOR,
+    NONE_PROJECTOR,
+    ProjectorResolution,
+    ProjectorResolutionError,
+    resolve_direct_projector,
+)
 
 
 def _catalog() -> ModelCatalog:
@@ -78,6 +85,10 @@ def validate_model(model_name: str) -> tuple[bool, str | None]:
 
 __all__ = [
     "ModelCatalogError",
+    "AUTO_PROJECTOR",
+    "NONE_PROJECTOR",
+    "ProjectorResolution",
+    "ProjectorResolutionError",
     "RouterIdentityError",
     "get_comfyui_root",
     "get_local_mmproj",
@@ -88,6 +99,7 @@ __all__ = [
     "get_models_directory",
     "get_router_models_directory",
     "is_model_local",
+    "resolve_direct_projector",
     "resolve_router_model",
     "validate_model",
 ]

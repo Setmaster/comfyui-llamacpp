@@ -102,6 +102,12 @@ class ConfigContractTests(unittest.TestCase):
         self.assertEqual(args[args.index("--sleep-idle-seconds") + 1], "60")
         self.assertEqual(args[-2:], ["--cache-ram", "0"])
 
+    def test_text_only_mode_emits_an_explicit_no_projector_flag(self) -> None:
+        args = ServerConfig("model.gguf", no_mmproj=True).to_command_args()
+
+        self.assertIn("--no-mmproj", args)
+        self.assertNotIn("--mmproj", args)
+
     def test_configs_are_immutable_and_copy_mutable_inputs(self) -> None:
         extra = ["--metrics"]
         config = ServerConfig("model.gguf", extra_args=extra)
@@ -124,6 +130,9 @@ class ConfigContractTests(unittest.TestCase):
             "--ssl-key-file=key.pem",
             "--ssl-cert-file",
             "--sleep-idle-seconds=1",
+            "--mmproj=other.gguf",
+            "--mmproj-auto",
+            "--no-mmproj",
             "--models-dir",
             "--models-max=9",
         )
@@ -160,6 +169,7 @@ class ConfigContractTests(unittest.TestCase):
             "flash_attention_mode": "auto",
             "fit": False,
             "extra_args": ("--metrics",),
+            "no_mmproj": True,
         }
         self.assertEqual(set(replacements), {item.name for item in fields(base)})
         for name, value in replacements.items():
@@ -192,6 +202,12 @@ class ConfigContractTests(unittest.TestCase):
             ServerConfig("model.gguf", flash_attention=True, flash_attention_mode="on")
         with self.assertRaises(TypeError):
             ServerConfig("model.gguf", extra_args=(1,))  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            ServerConfig("model.gguf", no_mmproj=1)  # type: ignore[arg-type]
+        with self.assertRaisesRegex(ValueError, "either mmproj_path or no_mmproj"):
+            ServerConfig("model.gguf", mmproj_path="mmproj.gguf", no_mmproj=True)
+        with self.assertRaisesRegex(ValueError, "mmproj_path must not be empty"):
+            ServerConfig("model.gguf", mmproj_path=" ")
 
 
 class CapabilityProbeTests(unittest.TestCase):

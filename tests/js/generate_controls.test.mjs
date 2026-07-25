@@ -113,6 +113,64 @@ test("discovery exposes Known and Unknown selected facts without auto-confirming
     assert.equal(result.choices.includes("mmproj-vision.gguf"), false);
 });
 
+test("discovery labels the configured projector without asking for confirmation", () => {
+    const result = normalizeDiscovery(
+        {
+            schema_version: 1,
+            mode: "direct",
+            owned: true,
+            saved_model_state: "available",
+            warnings: [],
+            models: [
+                {
+                    model_id: "vision.gguf",
+                    aliases: [],
+                    residency: "loaded",
+                    context_length: { state: "unknown", value: null },
+                    input_capabilities: {
+                        image: { state: "known", value: true },
+                    },
+                    projector: {
+                        projector_name: "bundle/mmproj-vision.gguf",
+                        requires_confirmation: false,
+                    },
+                },
+            ],
+        },
+        "vision.gguf",
+    );
+
+    assert.match(result.status, /projector bundle\/mmproj-vision\.gguf \(configured\)/);
+    assert.doesNotMatch(result.status, /suggestion|confirm/);
+});
+
+test("text-only direct discovery does not invent a projector status", () => {
+    const result = normalizeDiscovery(
+        {
+            schema_version: 1,
+            mode: "direct",
+            owned: true,
+            saved_model_state: "available",
+            warnings: [],
+            models: [
+                {
+                    model_id: "text.gguf",
+                    aliases: [],
+                    residency: "loaded",
+                    context_length: { state: "known", value: 4096 },
+                    input_capabilities: {
+                        image: { state: "known", value: false },
+                    },
+                    projector: null,
+                },
+            ],
+        },
+        "text.gguf",
+    );
+
+    assert.doesNotMatch(result.status, /projector|suggestion|confirm/);
+});
+
 test("invalid discovery stays unknown and still retains the saved value", () => {
     assert.deepEqual(normalizeDiscovery({}, "raw.gguf").choices, [RUNNING_MODEL, "raw.gguf"]);
     assert.equal(normalizeDiscovery({}, "raw.gguf").state, "unknown");

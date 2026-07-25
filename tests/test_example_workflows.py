@@ -289,11 +289,7 @@ def test_canonical_examples_use_portable_placeholders_and_no_credentials(name: s
     assert start["binary_path"] == ""
     assert start["api_key_file"] == ""
     assert start["api_key_env"] == "LLAMACPP_API_KEY"
-    assert start["mmproj"] == (
-        "(select an installed projector)"
-        if name == "canonical-vlm-image-understanding.json"
-        else "(auto)"
-    )
+    assert start["mmproj"] == "(auto)"
     assert generate["server_url"] == ""
     assert generate["model"] == "(use running model)"
     assert generate["api_key_env"] == "LLAMACPP_API_KEY"

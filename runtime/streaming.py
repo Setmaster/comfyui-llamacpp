@@ -39,6 +39,13 @@ DEFAULT_MAX_ID_BYTES = 1024
 DEFAULT_MAX_FINISH_REASON_BYTES = 256
 PROTOCOL_FAILURE_MESSAGE = "stream response violated the expected protocol"
 RESOURCE_FAILURE_MESSAGE = "stream response exceeded a configured safety limit"
+_IMAGE_UNSUPPORTED_ERROR_TYPE = "image_unsupported"
+_IMAGE_UNSUPPORTED_STREAM_MESSAGE = "llama-server rejected image input"
+_IMAGE_UNSUPPORTED_MESSAGE = (
+    "image input is not supported - hint: if this is unexpected, you may need to provide the mmproj"
+)
+_IMAGE_UNSUPPORTED_ERROR_FIELDS = frozenset({"code", "message", "type"})
+_IMAGE_UNSUPPORTED_MESSAGE_MAX_BYTES = 4096
 _MISSING = object()
 
 
@@ -151,6 +158,85 @@ class StreamProtocolError(LlamaClientError):
 
 class StreamResourceLimit(LlamaClientError):
     """The streaming peer exceeded a bounded wire or output resource."""
+
+
+class _StreamResponseError(LlamaClientError):
+    """One sanitized HTTP stream failure with an optional allowlisted token."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        error_type: str | None = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code)
+        self.error_type = error_type
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
+def _structured_error_type(
+    payload: object,
+    *,
+    http_status: int | None,
+) -> str | None:
+    """Recognize only the pinned llama.cpp unsupported-image error contract."""
+
+    if http_status is not None and http_status != 400:
+        return None
+    if not isinstance(payload, Mapping) or set(payload) != {"error"}:
+        return None
+    error = payload.get("error")
+    if not isinstance(error, Mapping) or set(error) != _IMAGE_UNSUPPORTED_ERROR_FIELDS:
+        return None
+    code = error.get("code")
+    error_type = error.get("type")
+    message = error.get("message")
+    if type(code) is not int or code != 400:
+        return None
+    if error_type != "invalid_request_error" or not isinstance(message, str):
+        return None
+    try:
+        encoded = message.encode("utf-8", errors="strict")
+    except UnicodeEncodeError:
+        return None
+    if len(encoded) > _IMAGE_UNSUPPORTED_MESSAGE_MAX_BYTES:
+        return None
+    if message != _IMAGE_UNSUPPORTED_MESSAGE:
+        return None
+    return _IMAGE_UNSUPPORTED_ERROR_TYPE
+
+
+def _structured_error_bytes_type(
+    body: bytes,
+    *,
+    http_status: int,
+    truncated: bool,
+) -> str | None:
+    if truncated or not body:
+        return None
+    try:
+        text = body.decode("utf-8", errors="strict")
+        payload = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, TypeError, ValueError, json.JSONDecodeError, RecursionError):
+        return None
+    return _structured_error_type(payload, http_status=http_status)
 
 
 def _validate_limit(name: str, value: int | None) -> None:
@@ -340,18 +426,32 @@ def _request_kwargs(
     return kwargs
 
 
-def _response_error(response: Any, connection: ConnectionConfig) -> LlamaClientError:
+def _response_error(
+    response: Any,
+    connection: ConnectionConfig,
+    *,
+    classify_image_unsupported: bool = False,
+) -> LlamaClientError:
+    status_code = int(response.status_code)
+    error_type: str | None = None
     try:
-        _read_bounded_response_bytes(
+        body, truncated = _read_bounded_response_bytes(
             response,
             ERROR_RESPONSE_MAX_BYTES,
             truncate=True,
         )
+        if classify_image_unsupported:
+            error_type = _structured_error_bytes_type(
+                body,
+                http_status=status_code,
+                truncated=truncated,
+            )
     except (LlamaClientError, requests.RequestException):
         pass
-    return LlamaClientError(
-        f"HTTP {response.status_code}: stream request failed",
-        status_code=int(response.status_code),
+    return _StreamResponseError(
+        f"HTTP {status_code}: stream request failed",
+        status_code=status_code,
+        error_type=error_type,
     )
 
 
@@ -473,8 +573,18 @@ def iter_model_events(
             http.close()
 
 
-def _parse_error_message(payload: Mapping[str, Any]) -> str | None:
-    return "server returned an error" if payload.get("error") is not None else None
+def _parse_stream_error(
+    payload: Mapping[str, Any],
+    *,
+    classify_image_unsupported: bool = False,
+) -> tuple[str, str] | None:
+    if payload.get("error") is None:
+        return None
+    if classify_image_unsupported:
+        error_type = _structured_error_type(payload, http_status=None)
+        if error_type == _IMAGE_UNSUPPORTED_ERROR_TYPE:
+            return _IMAGE_UNSUPPORTED_STREAM_MESSAGE, _IMAGE_UNSUPPORTED_ERROR_TYPE
+    return "server returned an error", "server"
 
 
 def _nonnegative_int(value: object) -> int | None:
@@ -663,21 +773,34 @@ def stream_chat(
         kwargs["json"] = request_payload
         response_obj = http.request("POST", connection.url(endpoint), **kwargs)
         if response_obj.status_code != 200:
-            error = _response_error(response_obj, connection)
+            error = _response_error(
+                response_obj,
+                connection,
+                classify_image_unsupported=strict_protocol,
+            )
+            classified_error = getattr(error, "error_type", None)
             return result(
                 success=False,
-                error_message=str(error),
+                error_message=(
+                    _IMAGE_UNSUPPORTED_STREAM_MESSAGE
+                    if classified_error == _IMAGE_UNSUPPORTED_ERROR_TYPE
+                    else str(error)
+                ),
                 # Canonical strict generation is calling the chat-completions
                 # endpoint for one already selected model. llama.cpp redacts
                 # the useful body here, so status plus endpoint context is the
                 # only stable missing-model signal. Keep legacy classification
                 # unchanged.
                 error_type=(
-                    "model_missing"
-                    if strict_protocol
-                    and endpoint == "/v1/chat/completions"
-                    and error.status_code == 404
-                    else "http"
+                    _IMAGE_UNSUPPORTED_ERROR_TYPE
+                    if classified_error == _IMAGE_UNSUPPORTED_ERROR_TYPE
+                    else (
+                        "model_missing"
+                        if strict_protocol
+                        and endpoint == "/v1/chat/completions"
+                        and error.status_code == 404
+                        else "http"
+                    )
                 ),
                 status_code=error.status_code,
             )
@@ -708,8 +831,12 @@ def stream_chat(
                 done_received = True
                 break
             try:
-                chunk = json.loads(data)
-            except json.JSONDecodeError:
+                chunk = json.loads(
+                    data,
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_json_constant,
+                )
+            except (ValueError, json.JSONDecodeError, RecursionError):
                 return result(
                     success=False,
                     error_message=PROTOCOL_FAILURE_MESSAGE,
@@ -723,12 +850,16 @@ def stream_chat(
                 )
             chunks += 1
 
-            error_message = _parse_error_message(chunk)
-            if error_message is not None:
+            stream_error = _parse_stream_error(
+                chunk,
+                classify_image_unsupported=strict_protocol,
+            )
+            if stream_error is not None:
+                error_message, error_type = stream_error
                 return result(
                     success=False,
                     error_message=redact_secrets(error_message, connection.secrets),
-                    error_type="server",
+                    error_type=error_type,
                 )
 
             if strict_protocol:

@@ -16,6 +16,14 @@
 - Added passive managed model discovery with `autoload=false`, Known/Unknown
   facts, raw missing-value retention, runtime-epoch protection, and
   suggestion-only adjacent projectors.
+- Added local GGUF-metadata projector resolution for direct VLMs. `(auto)`
+  selects only one proven compatible projector, known missing or ambiguous
+  matches fail before server replacement, explicit filenames remain exact, and
+  `(none - text only)` guarantees a projector-free launch.
+- Added image-only passive capability preflight plus a narrow safe mapping for
+  llama.cpp's structured unsupported-image response. Known unsupported input
+  now raises a fixed categorized error before or at submission without exposing
+  arbitrary upstream response bodies.
 - Added exact router target-evidence validation for current llama.cpp status
   metadata. Local GGUF selections are resolved under the active router root and
   compared to the complete normalized target, so matching basenames or suffixes
@@ -64,7 +72,9 @@
 - Added complete immutable 0.3 contract characterization alongside the existing
   0.2.1 workflow fixtures.
 - Added a narrowly guarded browser migration for historical 0.2.1 seed companion
-  and persisted Prompt Output layouts while preserving fixed-seed behavior.
+  and persisted Prompt Output layouts while preserving fixed-seed behavior. The
+  same compatibility layer repairs only the invalid canonical VLM projector
+  placeholder to `(auto)`.
 
 ## 0.3.0 - 2026-07-11
 

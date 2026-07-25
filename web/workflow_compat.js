@@ -1,4 +1,7 @@
 const LEGACY_OUTPUT_PROPERTY = "__llamacppLegacyPromptOutput";
+const INVALID_PROJECTOR_PLACEHOLDER = "(select an installed projector)";
+const AUTO_PROJECTOR_SELECTION = "(auto)";
+const START_SERVER_PROJECTOR_INDEX = 14;
 
 const LEGACY_SEED_LAYOUTS = Object.freeze({
     LlamaCppBasicPrompt: { booleanTail: 2, seedIndex: 11, widgetCount: 14 },
@@ -44,19 +47,34 @@ function migratePromptOutput(node) {
     return true;
 }
 
+function migrateProjectorPlaceholder(node) {
+    const values = node?.widgets_values;
+    if (
+        node?.type !== "StartLlamaCppServer" ||
+        !Array.isArray(values) ||
+        values[START_SERVER_PROJECTOR_INDEX] !== INVALID_PROJECTOR_PLACEHOLDER
+    ) {
+        return false;
+    }
+    values[START_SERVER_PROJECTOR_INDEX] = AUTO_PROJECTOR_SELECTION;
+    return true;
+}
+
 /**
  * Normalize only the exact widget layouts serialized by the 0.2.1 frontend.
  * Current workflows already contain Comfy's seed companion and do not match
  * these guards.
  */
 export function migrateLegacyWorkflowData(workflow) {
+    let projectorPlaceholders = 0;
     let promptOutputs = 0;
     let seedCompanions = 0;
     for (const node of workflow?.nodes ?? []) {
+        projectorPlaceholders += Number(migrateProjectorPlaceholder(node));
         seedCompanions += Number(migrateSeedCompanion(node));
         promptOutputs += Number(migratePromptOutput(node));
     }
-    return { promptOutputs, seedCompanions };
+    return { projectorPlaceholders, promptOutputs, seedCompanions };
 }
 
 /** Restore a historical display value once, then remove its temporary marker. */

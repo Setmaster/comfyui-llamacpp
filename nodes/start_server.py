@@ -1,9 +1,11 @@
 """Start a positively owned single-model llama-server."""
 
 from ..model_manager import (
+    AUTO_PROJECTOR,
+    NONE_PROJECTOR,
     get_local_mmproj,
     get_local_models,
-    get_model_path,
+    resolve_direct_projector,
     validate_model,
 )
 from ..server_manager import ServerConfig, get_server_manager
@@ -35,7 +37,7 @@ class StartLlamaCppServer:
     @classmethod
     def INPUT_TYPES(cls):
         models = get_local_models() or ["No models found - add .gguf files to models/LLM/gguf/"]
-        mmproj = ["(auto)", *get_local_mmproj()]
+        mmproj = [AUTO_PROJECTOR, NONE_PROJECTOR, *get_local_mmproj()]
         schema = {
             "required": {
                 "model": (
@@ -169,10 +171,14 @@ class StartLlamaCppServer:
                 "mmproj": (
                     mmproj,
                     {
-                        "default": "(auto)",
+                        "default": AUTO_PROJECTOR,
                         "tooltip": (
-                            "Matching multimodal projector for local VLMs. (auto) leaves "
-                            "projector discovery to llama-server."
+                            "Automatically selects one confidently compatible local projector. "
+                            "Text models start without one. A known vision model with no match, "
+                            "or more than one distinct compatible projector identity, requires "
+                            "a choice. Select "
+                            f"{NONE_PROJECTOR} to disable vision. An explicit projector entry "
+                            "uses that exact file."
                         ),
                     },
                 ),
@@ -258,7 +264,7 @@ class StartLlamaCppServer:
         tensor_split: str = "",
         no_mmap: bool = False,
         flash_attention_mode: str = "legacy",
-        mmproj: str = "(auto)",
+        mmproj: str = AUTO_PROJECTOR,
         sleep_idle_seconds: int = 0,
         api_key_file: str = "",
         api_key_env: str = "LLAMACPP_API_KEY",
@@ -271,14 +277,15 @@ class StartLlamaCppServer:
         if not valid:
             return (error or "Invalid model", False)
 
-        mmproj_path = None
-        if mmproj and mmproj != "(auto)":
-            mmproj_path = get_model_path(mmproj)
+        resolution = resolve_direct_projector(model, mmproj)
+        mmproj_path = (
+            str(resolution.projector_path) if resolution.projector_path is not None else None
+        )
         modern_flash = None if flash_attention_mode == "legacy" else flash_attention_mode
         fit = None if fit_mode == "upstream default" else fit_mode == "on"
         try:
             config = ServerConfig(
-                model_path=get_model_path(model),
+                model_path=str(resolution.model_path),
                 port=port,
                 host=host.strip() or "127.0.0.1",
                 context_size=context_size,
@@ -290,6 +297,7 @@ class StartLlamaCppServer:
                 flash_attention=flash_attention if modern_flash is None else False,
                 no_mmap=no_mmap,
                 mmproj_path=mmproj_path,
+                no_mmproj=resolution.projector_path is None,
                 sleep_idle_seconds=sleep_idle_seconds or None,
                 api_key_file=optional_path(api_key_file),
                 media_path=optional_path(media_path),
@@ -307,6 +315,7 @@ class StartLlamaCppServer:
             binary_path=optional_path(binary_path),
             api_key_env=api_key_env,
             unload_comfy_models_before_start=unload_comfy_models_before_start,
+            projector_status=resolution.status_dict(),
         )
         return (manager.server_url, True) if success else (error or "Server start failed", False)
 

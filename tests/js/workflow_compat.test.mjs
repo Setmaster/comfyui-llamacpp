@@ -22,6 +22,7 @@ test("exact 0.2.1 layouts gain a fixed seed companion without shifting values", 
     const workflow = historicalWorkflow();
 
     assert.deepEqual(migrateLegacyWorkflowData(workflow), {
+        projectorPlaceholders: 0,
         promptOutputs: 1,
         seedCompanions: 3,
     });
@@ -61,6 +62,7 @@ test("migration is idempotent", () => {
     const once = structuredClone(workflow);
 
     assert.deepEqual(migrateLegacyWorkflowData(workflow), {
+        projectorPlaceholders: 0,
         promptOutputs: 0,
         seedCompanions: 0,
     });
@@ -107,8 +109,38 @@ test("current and ambiguous widget arrays are left unchanged", () => {
     const original = structuredClone(workflow);
 
     assert.deepEqual(migrateLegacyWorkflowData(workflow), {
+        projectorPlaceholders: 0,
         promptOutputs: 0,
         seedCompanions: 0,
     });
     assert.deepEqual(workflow, original);
+});
+
+test("only the invalid Start server projector placeholder migrates to auto", () => {
+    const values = Array.from({ length: 20 }, (_, index) => `value-${index}`);
+    values[14] = "(select an installed projector)";
+    const explicit = structuredClone(values);
+    explicit[14] = "bundle/mmproj-model.gguf";
+    const wrongNode = structuredClone(values);
+    const workflow = {
+        nodes: [
+            { type: "StartLlamaCppServer", widgets_values: values },
+            { type: "StartLlamaCppServer", widgets_values: explicit },
+            { type: "DifferentNode", widgets_values: wrongNode },
+        ],
+    };
+
+    assert.deepEqual(migrateLegacyWorkflowData(workflow), {
+        projectorPlaceholders: 1,
+        promptOutputs: 0,
+        seedCompanions: 0,
+    });
+    assert.equal(values[14], "(auto)");
+    assert.equal(explicit[14], "bundle/mmproj-model.gguf");
+    assert.equal(wrongNode[14], "(select an installed projector)");
+    assert.deepEqual(migrateLegacyWorkflowData(workflow), {
+        projectorPlaceholders: 0,
+        promptOutputs: 0,
+        seedCompanions: 0,
+    });
 });

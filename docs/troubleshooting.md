@@ -372,7 +372,18 @@ launched.
 
 ## A VLM fails or ignores the image
 
-- Select the matching direct-mode projector explicitly.
+- Leave direct-mode **Vision Projector** on `(auto)` when the compatible
+  projector is installed. Server Status shows the resolved projector and mode.
+- If Start reports several distinct compatible projector identities, select one
+  exact file. Strong equivalent projector matches across configured roots are
+  ranked Q8_0, BF16, F16, then F32, even when a lower-ranked copy is adjacent.
+  If Start reports no compatible projector for a known VLM, install the
+  matching `mmproj`, select one exact file, or use `(none - text only)`
+  deliberately.
+- If an image is connected while the running model reports no vision support,
+  Generate stops before submission with a capability error instead of silently
+  omitting the image. Selecting `(none - text only)` produces a specific
+  corrective message.
 - In router mode, keep the model and matching projector in one dedicated
   subdirectory.
 - Confirm the model's `/props` modalities include image input.

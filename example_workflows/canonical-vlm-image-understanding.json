@@ -270,7 +270,7 @@
         "",
         false,
         "auto",
-        "(select an installed projector)",
+        "(auto)",
         0,
         "",
         "LLAMACPP_API_KEY",

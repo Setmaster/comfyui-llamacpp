@@ -27,6 +27,7 @@ from runtime.client import (
     AuthConfig,
     ConnectionConfig,
     LlamaClientError,
+    ResponseProtocolError,
     StreamControl,
     StreamControlProbe,
     StreamControlSupport,
@@ -143,10 +144,12 @@ class FakeManager:
         router: bool = False,
         canonical_model: str = "canonical/model.gguf",
         service: FakeRuntimeService | None = None,
+        projector_status: dict | None = None,
     ) -> None:
         self.managed = managed
         self.is_router_mode = router
         self.canonical_model = canonical_model
+        self.projector_status = projector_status
         self.runtime_service = service or FakeRuntimeService(
             mode=RuntimeMode.ROUTER if router else RuntimeMode.DIRECT
         )
@@ -191,20 +194,35 @@ class FakeClient:
         error: Exception | None = None,
         probe: StreamControlProbe | None = None,
         stream_control=None,
+        props=None,
+        props_error: Exception | None = None,
     ) -> None:
         self.result = result or successful_stream()
         self.error = error
         self.probe = probe or StreamControlProbe(StreamControlSupport.UNSUPPORTED, "http_404")
         self.prepared_control = stream_control
+        self.props = props if props is not None else SimpleNamespace(modalities={})
+        self.props_error = props_error
         self.calls: list[dict] = []
         self.prepare_calls: list[dict] = []
+        self.props_calls: list[dict] = []
+        self.call_order: list[str] = []
         self.closed = False
 
+    def passive_props(self, model=None, **kwargs):
+        self.call_order.append("passive_props")
+        self.props_calls.append({"model": model, **kwargs})
+        if self.props_error is not None:
+            raise self.props_error
+        return self.props
+
     def prepare_stream_control(self, **kwargs):
+        self.call_order.append("prepare_stream_control")
         self.prepare_calls.append(kwargs)
         return self.probe, self.prepared_control
 
     def stream_chat(self, payload, **kwargs):
+        self.call_order.append("stream_chat")
         self.calls.append({"payload": payload, **kwargs})
         if self.error is not None:
             raise self.error
@@ -323,6 +341,7 @@ def test_default_sampling_and_auto_thinking_omit_all_optional_overrides():
         {"model_id": None, "release_after": False, "source": "canonical_generate"}
     ]
     assert len(manager.runtime_service.finish_calls) == 1
+    assert client.props_calls == []
     assert client.closed is True
 
 
@@ -640,6 +659,171 @@ def test_images_structured_output_and_token_bans_share_one_strict_path():
     assert result.image_count == 2
     assert result.structured_output_kind == "json_object"
     assert "data:image" not in result.to_json()
+
+
+@pytest.mark.parametrize(
+    ("projector_status", "expected_message"),
+    (
+        (
+            {"mode": "auto", "outcome": "text_only"},
+            (
+                "the selected llama.cpp model reports that vision is unavailable; "
+                "use a vision-capable model with its matching projector before connecting "
+                "an image"
+            ),
+        ),
+        (
+            {"mode": "none", "outcome": "text_only"},
+            (
+                "image input is connected, but Vision Projector is '(none - text only)'; "
+                "select '(auto)' or an exact matching projector, or disconnect the image"
+            ),
+        ),
+    ),
+)
+def test_known_false_image_capability_fails_before_probe_or_post(
+    projector_status,
+    expected_message,
+):
+    manager = FakeManager(projector_status=projector_status)
+    client = FakeClient(props=SimpleNamespace(modalities={"vision": False}))
+    runner, _, _ = executor(manager=manager, client=client)
+
+    with pytest.raises(CanonicalGenerationError) as caught:
+        runner.generate(
+            "inspect",
+            images=("data:image/png;base64,one",),
+        )
+
+    assert caught.value.category == ErrorCategory.CAPABILITY_UNSUPPORTED
+    assert caught.value.info.message == expected_message
+    assert client.call_order == ["passive_props"]
+    assert client.props_calls[0]["model"] is None
+    assert 0 < client.props_calls[0]["timeout"] <= 2.0
+    assert client.prepare_calls == []
+    assert client.calls == []
+    assert len(manager.runtime_service.begin_calls) == 1
+    assert len(manager.runtime_service.finish_calls) == 1
+    assert client.closed is True
+
+
+def test_unknown_image_capability_continues_before_probe_and_post():
+    client = FakeClient(props=SimpleNamespace(modalities={}))
+    runner, _, _ = executor(client=client)
+
+    response, _, _ = runner.generate(
+        "inspect",
+        images=("data:image/png;base64,one",),
+    )
+
+    assert response == "answer"
+    assert client.call_order == [
+        "passive_props",
+        "prepare_stream_control",
+        "stream_chat",
+    ]
+
+
+def test_unavailable_attached_props_preserve_generation_compatibility():
+    manager = FakeManager(managed=False)
+    client = FakeClient(
+        successful_stream(model="attached/model"),
+        props_error=LlamaClientError("/props is unavailable"),
+    )
+    runner, _, _ = executor(manager=manager, client=client)
+
+    response, _, _ = runner.generate(
+        "inspect",
+        server_url="http://127.0.0.1:8081",
+        model="attached/model",
+        images=("data:image/png;base64,one",),
+    )
+
+    assert response == "answer"
+    assert client.props_calls[0]["model"] == "attached/model"
+    assert client.call_order == [
+        "passive_props",
+        "prepare_stream_control",
+        "stream_chat",
+    ]
+    assert manager.runtime_service.begin_calls == []
+
+
+def test_malformed_props_preserve_image_generation_compatibility():
+    client = FakeClient(
+        successful_stream(),
+        props_error=ResponseProtocolError(
+            "response body was not valid JSON",
+            endpoint="/props",
+        ),
+    )
+    runner, _, _ = executor(client=client)
+
+    response, _, _ = runner.generate(
+        "inspect",
+        images=("data:image/png;base64,one",),
+    )
+
+    assert response == "answer"
+    assert client.call_order == [
+        "passive_props",
+        "prepare_stream_control",
+        "stream_chat",
+    ]
+
+
+def test_router_image_probe_uses_the_exact_admitted_model_without_autoloading():
+    manager = FakeManager(router=True, canonical_model="exact/router-id")
+    client = FakeClient(
+        successful_stream(model="exact/router-id"),
+        props=SimpleNamespace(modalities={}),
+    )
+    runner, _, _ = executor(manager=manager, client=client)
+
+    runner.generate(
+        "inspect",
+        model="saved/model.gguf",
+        images=("data:image/png;base64,one",),
+    )
+
+    assert client.props_calls[0]["model"] == "exact/router-id"
+    assert 0 < client.props_calls[0]["timeout"] <= 2.0
+    assert client.call_order[:2] == ["passive_props", "prepare_stream_control"]
+
+
+def test_image_unsupported_stream_token_maps_to_fixed_non_leaking_error():
+    raw_sentinel = "RAW_UPSTREAM_IMAGE_ERROR_BODY"
+    stream = StreamResult(
+        "",
+        "",
+        False,
+        error_message=raw_sentinel,
+        error_type="image_unsupported",
+        status_code=400,
+    )
+    client = FakeClient(
+        stream,
+        props_error=LlamaClientError("/props unavailable"),
+    )
+    runner, _, _ = executor(client=client)
+
+    with pytest.raises(CanonicalGenerationError) as caught:
+        runner.generate(
+            "inspect",
+            images=("data:image/png;base64,one",),
+        )
+
+    assert caught.value.category == ErrorCategory.CAPABILITY_UNSUPPORTED
+    assert caught.value.info.message == (
+        "the selected llama.cpp model reports that vision is unavailable; "
+        "use a vision-capable model with its matching projector before connecting an image"
+    )
+    assert raw_sentinel not in str(caught.value)
+    assert client.call_order == [
+        "passive_props",
+        "prepare_stream_control",
+        "stream_chat",
+    ]
 
 
 @pytest.mark.parametrize(

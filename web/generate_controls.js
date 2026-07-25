@@ -70,7 +70,11 @@ function selectedFacts(models, savedModel) {
         value === true ? "Yes" : value === false ? "No" : "Unknown",
     );
     const projector = text(selected.projector?.projector_name, 512);
-    const projectorStatus = projector ? `; projector suggestion ${projector} (confirm)` : "";
+    const projectorStatus = !projector
+        ? ""
+        : selected.projector?.requires_confirmation === false
+          ? `; projector ${projector} (configured)`
+          : `; projector suggestion ${projector} (confirm)`;
     return `; residency ${residency}; context ${context}; image ${image}${projectorStatus}`;
 }
 

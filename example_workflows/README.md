@@ -30,10 +30,13 @@ current frontend during validation.
 Model and projector names are local installation choices. After importing an
 example, select entries that exist in your configured `LLM/gguf` roots and set
 `binary_path` when Status cannot resolve `llama-server` from the environment.
-The canonical text examples leave projector selection on `(auto)`, which sends
-no explicit projector. The VLM example uses a visible projector placeholder so
-it cannot silently pair one; select and confirm the matching projector plus an
-image from your own ComfyUI input folder before running it.
+All canonical examples leave **Vision Projector** on `(auto)`. For a text model,
+that starts explicitly without a projector. For a supported VLM layout, the
+pack selects one compatible installed projector only when GGUF metadata proves
+the match. Ambiguous or missing known-VLM matches fail before launch. You can
+select an exact projector file instead, or choose `(none - text only)` to
+disable vision deliberately. Select an image from your own ComfyUI input folder
+before running the VLM example.
 
 The four `canonical-*.json` examples target 0.4.0. Their saved Freeform profile
 is a portable no-op snapshot, so execution never depends on a mutable profile
