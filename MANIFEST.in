@@ -1,2 +1,4 @@
 include package.json
+include docs/research/task-profile-bakeoff-2026-10-02.md
+include docs/research/visible-evidence-heldout-2026-10-02.md
 recursive-include tests *.json *.md *.mjs *.pem *.py

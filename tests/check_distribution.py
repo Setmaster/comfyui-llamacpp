@@ -49,6 +49,8 @@ def check_manifests(directory: Path, source_root: Path) -> None:
         )
     if any("/tests/" in name for name in wheel_members):
         raise AssertionError("Runtime wheel unexpectedly contains the source test suite")
+    if any("docs/research/" in name for name in wheel_members):
+        raise AssertionError("Runtime wheel unexpectedly contains source research documents")
 
     root = sdist_members[0].split("/", 1)[0]
     normalized_sdist = {name.removeprefix(f"{root}/") for name in sdist_members if name != root}
@@ -80,11 +82,21 @@ def check_manifests(directory: Path, source_root: Path) -> None:
         raise AssertionError(f"Source archive is missing test files: {sorted(missing)}")
     if "package.json" not in normalized_sdist:
         raise AssertionError("Source archive is missing package.json for frontend tests")
+    protocol_docs = {
+        "docs/research/task-profile-bakeoff-2026-10-02.md",
+        "docs/research/visible-evidence-heldout-2026-10-02.md",
+    }
+    missing_protocols = protocol_docs - normalized_sdist
+    if missing_protocols:
+        raise AssertionError(
+            f"Source archive is missing benchmark protocols: {sorted(missing_protocols)}"
+        )
 
     print(
         f"Distribution manifests passed: {len(runtime_files)} runtime assets, "
         f"{len(workflow_files)} workflow assets, "
-        f"{len(expected_tests)} source-test files, no duplicate members"
+        f"{len(expected_tests)} source-test files, {len(protocol_docs)} benchmark protocols, "
+        "no duplicate members"
     )
 
 
