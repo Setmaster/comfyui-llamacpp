@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
+from urllib3.exceptions import ReadTimeoutError
 
 from .http_deadline import DeadlineHTTPAdapter, response_deadline
 
@@ -78,6 +79,14 @@ class ModelOperationError(LlamaClientError):
     def __init__(self, message: str, *, model: RouterModel | None = None) -> None:
         super().__init__(message)
         self.model = model
+
+
+def _is_wrapped_read_timeout(exc: requests.RequestException) -> bool:
+    # requests.iter_content wraps urllib3 read timeouts as ConnectionError.
+    # The socket may time out before the overall monotonic deadline expires.
+    return isinstance(exc, requests.ConnectionError) and any(
+        isinstance(reason, ReadTimeoutError) for reason in exc.args
+    )
 
 
 def redact_secrets(value: object, secrets: Iterable[str | None] = ()) -> str:
@@ -715,7 +724,7 @@ class LlamaServerClient:
                 endpoint=path,
             ) from exc
         except requests.RequestException as exc:
-            if deadline.expired:
+            if _is_wrapped_read_timeout(exc) or deadline.expired:
                 raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
             raise LlamaClientError(
                 f"{method} {path} failed",
@@ -748,7 +757,7 @@ class LlamaServerClient:
                 endpoint=path,
             ) from exc
         except requests.RequestException as exc:
-            if deadline.expired:
+            if _is_wrapped_read_timeout(exc) or deadline.expired:
                 raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
             raise LlamaClientError(
                 f"{method} {path} failed",

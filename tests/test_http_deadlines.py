@@ -189,13 +189,13 @@ def _capture_response_readers():
 
 
 class HTTPDeadlineTests(unittest.TestCase):
-    def _client(self, server, mode="", *, timeout=2, tls=False):
+    def _client(self, server, mode="", *, timeout=2, read_timeout=2, tls=False):
         scheme = "https" if tls else "http"
         client = LlamaServerClient(
             ConnectionConfig(
                 f"{scheme}://127.0.0.1:{server.server_port}/{mode}",
                 connect_timeout=2,
-                read_timeout=2,
+                read_timeout=read_timeout,
                 default_deadline=timeout,
                 tls=TLSConfig(verify=str(_TLS_FIXTURE)) if tls else TLSConfig(),
             )
@@ -276,6 +276,56 @@ class HTTPDeadlineTests(unittest.TestCase):
             self.assertIsNone(caught.exception.body)
             self.assertNotIn("private-error-sentinel", str(caught.exception))
             self._assert_response_resources_closed(readers)
+
+    def test_body_read_timeout_before_overall_deadline_is_typed_and_closes_all_streams(self):
+        for endpoint in ("json", "chat", "models"):
+            resume_peer = threading.Event()
+
+            def paused_trickle(handler, data, *, interval=0.035, resume=resume_peer):
+                handler.wfile.write(data[:1])
+                handler.server.slow_started.set()
+                resume.wait(2)
+                handler.close_connection = True
+
+            before = set(threading.enumerate())
+            with (
+                self.subTest(endpoint=endpoint),
+                mock.patch.object(_Handler, "_trickle", paused_trickle),
+                _server() as server,
+                self._client(server, "chunked", read_timeout=0.1) as client,
+            ):
+                responses = []
+                sockets = []
+
+                def capture(response, responses=responses, sockets=sockets, **_kwargs):
+                    responses.append(response)
+                    sockets.append(response.raw.connection.sock)
+
+                client._session.hooks["response"].append(capture)
+                deadline = Deadline(2)
+                try:
+                    started = time.monotonic()
+                    if endpoint == "chat":
+                        result = client.stream_chat({"messages": []}, deadline=deadline)
+                        self.assertFalse(result.success)
+                        self.assertEqual(result.error_type, "timeout")
+                    else:
+                        with self.assertRaises(DeadlineExceeded) as caught:
+                            if endpoint == "json":
+                                client.health(deadline=deadline)
+                            else:
+                                list(client.iter_model_events(deadline=deadline))
+                        self.assertIsInstance(caught.exception.__cause__, requests.ConnectionError)
+                    self.assertLess(time.monotonic() - started, 0.35)
+                    self.assertFalse(deadline.expired)
+                    self.assertTrue(server.slow_started.is_set())
+                    self.assertFalse(server.connection_closed.is_set())
+                    self.assertEqual(len(responses), 1)
+                    self.assertTrue(responses[0].raw.closed)
+                    self.assertEqual(sockets[0].fileno(), -1)
+                finally:
+                    resume_peer.set()
+            self.assertEqual(set(threading.enumerate()) - before, set())
 
     def test_happy_utf8_and_error_responses(self):
         with _server() as server, self._client(server, "utf8") as client:

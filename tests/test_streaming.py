@@ -4,12 +4,17 @@ import json
 import unittest
 import uuid
 from dataclasses import asdict
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+import requests
+from urllib3.exceptions import ReadTimeoutError
 
 from runtime.client import (
     AuthConfig,
     ConnectionConfig,
     Deadline,
+    DeadlineExceeded,
+    LlamaClientError,
     LlamaServerClient,
     ModelState,
     StreamControl,
@@ -399,6 +404,49 @@ class ChatStreamingTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.error_type, "timeout")
         self.assertTrue(response.closed)
+
+    def test_body_transport_errors_preserve_timeout_category_partial_text_and_cleanup(self) -> None:
+        for failure, category in (
+            (ReadTimeoutError(None, "/private-sentinel", "top-secret"), "timeout"),
+            (requests.ConnectionError("timed out top-secret"), "transport"),
+            (requests.ConnectionError(ConnectionResetError("top-secret")), "transport"),
+        ):
+            with self.subTest(failure=repr(failure)):
+                clock = FakeClock()
+                deadline = Deadline(30, clock.monotonic)
+                response = requests.Response()
+                response.status_code = 200
+                response.raw = Mock()
+
+                def chunks(*_args, failure=failure, **_kwargs):
+                    yield (
+                        data_line({"choices": [{"delta": {"content": "first"}}]}) + "\n\n"
+                    ).encode()
+                    raise failure
+
+                response.raw.stream.side_effect = chunks
+                deletes = []
+                control = StreamControl(
+                    connection=self.connection(),
+                    conversation_id=uuid.uuid4(),
+                    _delete=lambda identity, _timeout, sink=deletes: sink.append(identity) or True,
+                )
+                result = stream_chat(
+                    self.connection(),
+                    {"stream": True},
+                    session=FakeSession(response),
+                    deadline=deadline,
+                    stream_control=control,
+                )
+
+                self.assertFalse(deadline.expired)
+                self.assertFalse(result.success)
+                self.assertEqual(result.error_type, category)
+                self.assertEqual(result.response, "first")
+                self.assertTrue(result.partial)
+                self.assertNotIn("top-secret", result.error_message)
+                self.assertEqual(deletes, [control.conversation_id])
+                response.raw.close.assert_called_once()
 
     def test_http_error_is_typed_and_closed(self) -> None:
         response = FakeResponse(
@@ -1469,6 +1517,63 @@ class ChatStreamingTests(unittest.TestCase):
 
 
 class ModelEventStreamingTests(unittest.TestCase):
+    def test_body_transport_errors_preserve_timeout_category_and_close_response(self) -> None:
+        for failure, category in (
+            (ReadTimeoutError(None, "/private-sentinel", "top-secret"), DeadlineExceeded),
+            (requests.ConnectionError("timed out top-secret"), LlamaClientError),
+            (requests.ConnectionError(ConnectionResetError("top-secret")), LlamaClientError),
+        ):
+            with self.subTest(failure=repr(failure)):
+                clock = FakeClock()
+                deadline = Deadline(30, clock.monotonic)
+                response = requests.Response()
+                response.status_code = 200
+                response.raw = Mock()
+
+                def chunks(*_args, failure=failure, **_kwargs):
+                    yield b'data: {"model":"one","event":"loaded"}\n\n'
+                    raise failure
+
+                response.raw.stream.side_effect = chunks
+                events = iter_model_events(
+                    ConnectionConfig("http://localhost:8080", auth=AuthConfig("top-secret")),
+                    session=FakeSession(response),
+                    deadline=deadline,
+                )
+                self.assertEqual(next(events).model, "one")
+                with self.assertRaises(category) as caught:
+                    next(events)
+
+                self.assertIs(type(caught.exception), category)
+                self.assertFalse(deadline.expired)
+                self.assertNotIn("top-secret", str(caught.exception))
+                self.assertIsInstance(caught.exception.__cause__, requests.ConnectionError)
+                response.raw.close.assert_called_once()
+
+    def test_error_body_read_timeout_preserves_http_error_for_both_streams(self) -> None:
+        for endpoint in ("chat", "models"):
+            with self.subTest(endpoint=endpoint):
+                response = requests.Response()
+                response.status_code = 500
+                response.raw = Mock()
+                response.raw.stream.side_effect = ReadTimeoutError(
+                    None, "/private-sentinel", "private-sentinel"
+                )
+                connection = ConnectionConfig("http://localhost:8080")
+                session = FakeSession(response)
+                if endpoint == "chat":
+                    result = stream_chat(connection, {}, session=session)
+                    self.assertEqual(result.error_type, "http")
+                    self.assertEqual(result.status_code, 500)
+                    self.assertNotIn("private-sentinel", result.error_message)
+                else:
+                    with self.assertRaises(LlamaClientError) as caught:
+                        list(iter_model_events(connection, session=session))
+                    self.assertNotIsInstance(caught.exception, DeadlineExceeded)
+                    self.assertEqual(caught.exception.status_code, 500)
+                    self.assertNotIn("private-sentinel", str(caught.exception))
+                response.raw.close.assert_called_once()
+
     def test_current_status_change_and_documented_model_status_are_both_typed(self) -> None:
         lines = [
             data_line({"model": "one", "event": "model_status", "data": {"status": "loading"}}),

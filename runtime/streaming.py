@@ -21,6 +21,7 @@ from .client import (
     ModelState,
     StreamCleanupSnapshot,
     StreamControl,
+    _is_wrapped_read_timeout,
     _read_bounded_response_bytes,
     redact_secrets,
 )
@@ -563,6 +564,8 @@ def iter_model_events(
     except requests.Timeout as exc:
         raise DeadlineExceeded("model event stream timed out") from exc
     except requests.RequestException as exc:
+        if _is_wrapped_read_timeout(exc):
+            raise DeadlineExceeded("model event stream timed out") from exc
         raise LlamaClientError(
             redact_secrets(f"model event stream failed: {exc}", connection.secrets)
         ) from exc
@@ -1026,6 +1029,12 @@ def stream_chat(
             error_type="timeout",
         )
     except requests.RequestException as exc:
+        if _is_wrapped_read_timeout(exc):
+            return result(
+                success=False,
+                error_message="stream timed out",
+                error_type="timeout",
+            )
         return result(
             success=False,
             error_message=redact_secrets(f"stream transport error: {exc}", connection.secrets),

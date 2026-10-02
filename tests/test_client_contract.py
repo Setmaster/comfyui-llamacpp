@@ -5,11 +5,15 @@ import unittest
 import uuid
 from unittest import mock
 
+import requests
+from urllib3.exceptions import ReadTimeoutError
+
 import runtime.client as client_module
 from runtime.client import (
     AmbiguousModelError,
     AuthConfig,
     ConnectionConfig,
+    Deadline,
     DeadlineExceeded,
     LlamaClientError,
     LlamaServerClient,
@@ -379,6 +383,76 @@ class TypedClientTests(unittest.TestCase):
         self.assertNotIn("secret", str(caught.exception))
         self.assertIsNone(caught.exception.body)
         self.assertTrue(response.closed)
+
+    def test_wrapped_read_timeout_is_typed_before_overall_deadline_expires(self) -> None:
+        for phase in ("request", "body"):
+            with self.subTest(phase=phase):
+                response = requests.Response()
+                response.status_code = 200
+                response.raw = mock.Mock()
+                timeout = ReadTimeoutError(None, "/private-sentinel", "secret")
+                response.raw.stream.side_effect = timeout
+                session = FakeSession(response)
+                if phase == "request":
+                    session.request = mock.Mock(side_effect=requests.ConnectionError(timeout))
+                client, clock = self.make_client(session)
+                deadline = Deadline(30, clock.monotonic)
+
+                with self.assertRaises(DeadlineExceeded) as caught:
+                    client.props(deadline=deadline)
+
+                self.assertFalse(deadline.expired)
+                self.assertEqual(caught.exception.endpoint, "/props")
+                self.assertIsInstance(caught.exception.__cause__, requests.ConnectionError)
+                self.assertIs(caught.exception.__cause__.args[0], timeout)
+                self.assertNotIn("private-sentinel", str(caught.exception))
+                self.assertNotIn("secret", str(caught.exception))
+                self.assertIsNone(caught.exception.body)
+                if phase == "body":
+                    response.raw.close.assert_called_once()
+
+    def test_non_timeout_connection_errors_keep_their_category(self) -> None:
+        for phase in ("request", "body"):
+            for reason in ("timed out secret", ConnectionResetError("timed out secret")):
+                with self.subTest(phase=phase, reason=type(reason).__name__):
+                    response = FakeResponse(200, {})
+                    session = FakeSession(response)
+                    target = session if phase == "request" else response
+                    method = "request" if phase == "request" else "iter_content"
+                    failure = requests.ConnectionError(reason)
+                    client, clock = self.make_client(session)
+                    deadline = Deadline(30, clock.monotonic)
+
+                    with (
+                        mock.patch.object(target, method, side_effect=failure),
+                        self.assertRaises(LlamaClientError) as caught,
+                    ):
+                        client.props(deadline=deadline)
+
+                    self.assertNotIsInstance(caught.exception, DeadlineExceeded)
+                    self.assertFalse(deadline.expired)
+                    self.assertIs(caught.exception.__cause__, failure)
+                    self.assertNotIn("secret", str(caught.exception))
+                    self.assertEqual(response.closed, phase == "body")
+
+    def test_error_body_read_timeout_preserves_http_error(self) -> None:
+        response = requests.Response()
+        response.status_code = 500
+        response.raw = mock.Mock()
+        response.raw.stream.side_effect = ReadTimeoutError(None, "/private-sentinel", "secret")
+        client, clock = self.make_client(FakeSession(response))
+        deadline = Deadline(30, clock.monotonic)
+
+        with self.assertRaises(LlamaClientError) as caught:
+            client.props(deadline=deadline)
+
+        self.assertNotIsInstance(caught.exception, DeadlineExceeded)
+        self.assertEqual(caught.exception.status_code, 500)
+        self.assertEqual(caught.exception.endpoint, "/props")
+        self.assertFalse(deadline.expired)
+        self.assertNotIn("private-sentinel", str(caught.exception))
+        self.assertIsNone(caught.exception.body)
+        response.raw.close.assert_called_once()
 
     def test_redirects_are_disabled_for_credential_bearing_requests(self) -> None:
         response = FakeResponse(302, text="cross-origin-sentinel")
