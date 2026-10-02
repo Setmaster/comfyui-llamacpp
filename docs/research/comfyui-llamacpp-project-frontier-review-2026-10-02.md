@@ -163,6 +163,20 @@ automated/package gates, independent review, pushed CI and clean installed clone
 Record unavailable surfaces rather than silently substituting unit tests.
 Tracking: **ENG-87**, followed by human gate **ENG-88**.
 
+### P2.9: Discovered router IDs rejected before canonical generation
+
+Current-runtime testing after the initial repairs found a second identity boundary:
+the model picker accepts the discovered public router ID, but Comfy's static combo
+validation rejects it because `INPUT_TYPES` initially lists local file paths.
+The real `/prompt` endpoint returned HTTP 400 for `qwen-vl-4B-Instruct` despite
+that ID being present in managed discovery. This prevents canonical router
+execution before the node can perform its own model validation.
+
+Fix and proof: validate only the model field's string shape at the Comfy boundary,
+retain exact runtime IDs and saved missing values, preserve all other built-in
+input validation, and prove generation plus scoped release on the real router.
+Tracking: **ENG-93**, added as a blocking predecessor of **ENG-87**.
+
 ## Next work, parked expansion and non-goals
 
 | Order | Issues | Scope |
@@ -171,7 +185,7 @@ Tracking: **ENG-87**, followed by human gate **ENG-88**.
 | 2 | ENG-79 | Close the launch guard/redaction defect first |
 | 3 | ENG-80 to ENG-84 | Bounded runtime/model/UI correctness repairs; independent files may proceed concurrently |
 | 4 | ENG-85, ENG-86 | Correct onboarding and automate delivery proof |
-| 5 | ENG-87 | Integrate, independently review, run current runtime gates and hand off dev |
+| 5 | ENG-93, then ENG-87 | Repair the live-discovered router validation boundary; integrate, independently review, run current runtime gates and hand off dev |
 | 6 | ENG-88 | Stop for maintainer acceptance before any promotion/publication |
 | Backlog | ENG-89, ENG-90 | Fixed task-profile bakeoff and exact audio compatibility investigation after acceptance |
 | Backlog | ENG-91, ENG-92 | Preview-tail indicator and measured reduction of duplicate image CPU transfers |
@@ -219,6 +233,7 @@ Rollback: revert focused dev commits or restore the pre-review `2d1d5ce` candida
 the stable fallback remains immutable 0.3.0. Preserve the host's llama.cpp b9957
 installation. Do not reset user edits or alter unrelated Comfy custom nodes.
 
-Review limitation: fresh full live acceptance and final implementation review are
-pending ENG-87. Existing historical evidence remains useful but cannot establish
-current compatibility by itself.
+Implementation follow-through is recorded in the [October validation report](../validation-2026-10.md).
+That report distinguishes the initial baseline from repaired behavior, current
+Windows/browser/GPU evidence, independent review, package gates and final CI.
+Maintainer hands-on approval and expansion remain tracked separately.

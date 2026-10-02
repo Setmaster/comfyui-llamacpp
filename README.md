@@ -493,7 +493,9 @@ App Mode, VLMs, structured output, and the final
 terminal LLM-to-diffusion GPU handoff. The accepted stable evidence remains
 in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
 recorded separately in the
-[canonical Generate validation report](docs/validation-0.4.md).
+[canonical Generate validation report](docs/validation-0.4.md). Current candidate
+hardening and Comfy 0.37/frontend 1.53.6 evidence are recorded in the
+[October validation report](docs/validation-2026-10.md).
 
 For failures, start with **llama.cpp Server Status** and
 [Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
@@ -533,6 +535,7 @@ release validation.
 - [Lifecycle and VRAM ownership](docs/lifecycle.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [0.3 validation report](docs/validation-0.3.md)
+- [October candidate validation](docs/validation-2026-10.md)
 - [Canonical Generate validation report](docs/validation-0.4.md)
 - [User acceptance checklist](docs/user-acceptance.md)
 - [0.4 canonical user acceptance](docs/user-acceptance-0.4.md)

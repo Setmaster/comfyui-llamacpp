@@ -5,6 +5,7 @@
 - Recognize verified text-only Gemma metadata without weakening VLM safety.
 - Enforce absolute JSON transport deadlines with resource cleanup.
 - Preserve exact nested model identity and truthful terminal/Stop state.
+- Accept exact router IDs at Comfy validation without bypassing other input checks.
 - Correct stable/candidate onboarding and automate isolated package proof.
 - All released nodes, schemas and workflow contracts remain compatible.
 - Full automated, current Windows/browser/GPU, independent-review and CI gates pass, or the exact missing evidence is left open in Linear.

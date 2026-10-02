@@ -8,7 +8,7 @@ The accepted 0.3 checklist remains available in
 ## Candidate identity
 
 - [ ] The installed clone is clean on `dev` at the candidate commit recorded in
-  [validation-0.4.md](validation-0.4.md).
+  [October validation](validation-2026-10.md).
 - [ ] Startup reports package `0.4.0` and 19 llama.cpp nodes.
 - [ ] `master` and tag `0.3.0` still resolve to the accepted hashes recorded in
   the validation report.

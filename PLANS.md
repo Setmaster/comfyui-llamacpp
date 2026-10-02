@@ -37,6 +37,11 @@ an unproven model/runtime capability. No speculative broad rewrite is required.
 
 ## Decisions
 
+- 2026-10-02: Live acceptance added ENG-93: Comfy rejects discovered router IDs
+  at the static combo boundary. Repair this before ENG-87 closes. Independent
+  deadline review also required HTTPS-proxy fragmentation and first-use concurrency
+  coverage before accepting ENG-82.
+
 - 2026-10-02: The user authorized review, Linear tracking and implementation.
   This supersedes the previous waiting state for development work, while the
   maintainer promotion/publication gate remains in effect.
