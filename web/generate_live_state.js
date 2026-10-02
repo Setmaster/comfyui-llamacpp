@@ -180,7 +180,12 @@ export function rememberActiveSnapshot(cache, snapshot, maximum = 32) {
 
 export function previewText(snapshot, pane) {
     const value = snapshot?.[pane];
-    return value && typeof value.text === "string" ? value.text : "";
+    if (!value || typeof value.text !== "string") return "";
+    // This notice belongs only to the transient widget value. Keep the event
+    // payload and the native terminal response unchanged.
+    return value.truncated === true
+        ? `[Preview truncated: showing the end only]\n\n${value.text}`
+        : value.text;
 }
 
 export function cancellationAction(snapshot) {

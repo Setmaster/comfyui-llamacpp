@@ -261,6 +261,38 @@ test("restoration keeps the newest mapped execution when active results arrive n
     assert.equal(cache.get(snapshotCacheKey(newest)), newest);
 });
 
+test("each preview reports truncation without changing the bounded event payload", () => {
+    const tail = "é".repeat(32 * 1024);
+    const current = snapshot({
+        response: { text: tail, bytes: 65536, total_bytes: 80000, truncated: true },
+        thinking: { text: "complete thought", bytes: 16, total_bytes: 16, truncated: false },
+    });
+    const original = JSON.stringify(current);
+
+    assert.equal(isGenerationSnapshot(current), true);
+    assert.equal(
+        previewText(current, "response"),
+        `[Preview truncated: showing the end only]\n\n${tail}`,
+    );
+    assert.equal(previewText(current, "thinking"), "complete thought");
+    assert.equal(JSON.stringify(current), original);
+    assert.equal(new TextEncoder().encode(current.response.text).byteLength, 65536);
+    assert.equal(isGenerationSnapshot(snapshot({ response: { text: `${tail}x` } })), false);
+
+    assert.equal(
+        previewText(snapshot({ thinking: { text: "last thought", truncated: true } }), "thinking"),
+        "[Preview truncated: showing the end only]\n\nlast thought",
+    );
+});
+
+test("only an explicit truncation flag adds a preview notice", () => {
+    for (const truncated of [false, undefined, null, "true"]) {
+        assert.equal(previewText({ response: { text: "  unchanged\n", truncated } }, "response"), "  unchanged\n");
+    }
+    assert.equal(previewText({ response: { truncated: true } }, "response"), "");
+    assert.equal(previewText(null, "thinking"), "");
+});
+
 test("preview helpers and cancellation labels never overclaim scope", () => {
     const current = snapshot({
         response: { text: "answer" },

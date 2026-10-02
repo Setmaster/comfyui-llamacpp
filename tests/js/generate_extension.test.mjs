@@ -37,7 +37,9 @@ function snapshot(overrides = {}) {
 }
 
 /** Import the real extension, replacing only Comfy's host-module boundary. */
-async function createHarness({ savedModel = "(use running model)", discovery = null } = {}) {
+async function createHarness({
+    savedModel = "(use running model)", discovery = null, activeSnapshots = [],
+} = {}) {
     const listeners = new Map();
     const cancellation = deferred();
     const requests = [];
@@ -54,7 +56,8 @@ async function createHarness({ savedModel = "(use running model)", discovery = n
             if (url.includes("/cancel")) return cancellation.promise;
             return Promise.resolve({
                 ok: true,
-                json: async () => url.includes("/discovery") ? discovery : { executions: [] },
+                json: async () => url.includes("/discovery")
+                    ? discovery : { executions: activeSnapshots },
             });
         },
     };
@@ -222,4 +225,72 @@ test("actual Refresh keeps the proven nested direct selection available", async 
     assert.equal(harness.state.model.value, "bundle/model.gguf");
     assert.match(harness.state.modelStatus.value, /bundle\/model\.gguf is available/);
     assert.match(harness.state.modelStatus.value, /context 4096/);
+});
+
+test("truncated live fields keep their notice through terminal updates and ignore stale events", async () => {
+    const harness = await createHarness();
+    const incoming = snapshot({
+        sequence: 2,
+        response: { text: "response tail", bytes: 13, total_bytes: 90000, truncated: true },
+        thinking: { text: "thinking tail", bytes: 13, total_bytes: 80000, truncated: true },
+    });
+    const original = JSON.stringify(incoming);
+    harness.emit(incoming);
+    const notice = "[Preview truncated: showing the end only]\n\n";
+    assert.equal(harness.state.response.value, `${notice}response tail`);
+    assert.equal(harness.state.thinking.value, `${notice}thinking tail`);
+
+    harness.emit(snapshot({ sequence: 1 }));
+    assert.equal(harness.state.response.value, `${notice}response tail`);
+    harness.emit({
+        ...incoming, sequence: 3, phase: "complete", terminal: true,
+        cancel: { scope: "none", enabled: false },
+    });
+    assert.match(harness.state.liveStatus.value, /^complete/);
+    assert.equal(harness.state.response.value, `${notice}response tail`);
+    assert.equal(harness.state.thinking.value, `${notice}thinking tail`);
+    assert.equal(JSON.stringify(incoming), original);
+
+    // The same widgets are bound into App Mode; their names and serialization
+    // contract must remain stable when a notice is displayed.
+    assert.equal(harness.state.response.name, "Live Response");
+    assert.equal(harness.state.thinking.name, "Live Thinking");
+    for (const widget of [harness.state.response, harness.state.thinking]) {
+        assert.equal(widget.options.read_only, true);
+        assert.equal(widget.options.serialize, false);
+        assert.equal(widget.serialize, false);
+        assert.equal(widget.serializeValue(), undefined);
+    }
+
+    harness.emit(snapshot({
+        execution_id: "00000000-0000-4000-8000-00000000000b",
+        prompt_id: "prompt-b", started_at_ms: 2000, phase: "starting",
+        response: { text: "", truncated: false }, thinking: { text: "", truncated: false },
+    }));
+    assert.equal(harness.state.response.value, "");
+    assert.equal(harness.state.thinking.value, "");
+    harness.emit({ ...incoming, sequence: 4 });
+    assert.equal(harness.state.response.value, "");
+    assert.equal(harness.state.thinking.value, "");
+});
+
+test("restored truncated previews display a notice and full replacements clear it", async () => {
+    const restored = snapshot({
+        response: { text: "restored tail", truncated: true },
+        thinking: { text: "whole thought", truncated: false },
+    });
+    const harness = await createHarness({ activeSnapshots: [restored] });
+    assert.equal(
+        harness.state.response.value,
+        "[Preview truncated: showing the end only]\n\nrestored tail",
+    );
+    assert.equal(harness.state.thinking.value, "whole thought");
+    harness.emit(snapshot({
+        sequence: 2, phase: "failed", terminal: true,
+        response: { text: "short final response", truncated: false },
+        thinking: { text: "", truncated: false },
+        cancel: { scope: "none", enabled: false },
+    }));
+    assert.equal(harness.state.response.value, "short final response");
+    assert.equal(harness.state.thinking.value, "");
 });
