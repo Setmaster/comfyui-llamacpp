@@ -1,11 +1,12 @@
 # Example workflows
 
 This directory ships with the unreleased 0.4 candidate. ComfyUI discovers it in
-**Workflow > Browse Templates**. The earlier canonical workflows have recorded
-frontend round-trip evidence. The five new graph, history and caption recipes
-are undergoing integration; schema checks do not establish native inference or
-browser acceptance. Stable 0.3 instead ships five JSON workflows in `examples/`,
-which users open manually.
+**Workflow > Browse Templates**. All 16 workflow JSON files, including the five
+new graph, history and caption recipes, pass saved-graph round trips in classic
+and Nodes 2.0 on frontend 1.53.6. Native execution results and capability limits
+are recorded separately in the
+[feature validation report](../docs/validation-2026-10-features.md). Stable 0.3
+ships five JSON workflows in `examples/`, which users open manually.
 
 - `canonical-text.json`: canonical text generation with a portable Freeform
   profile snapshot, strict errors, live status, and terminal managed release.

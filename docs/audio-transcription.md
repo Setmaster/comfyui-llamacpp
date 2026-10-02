@@ -2,8 +2,10 @@
 
 This candidate feature converts one short voice clip into text for a downstream
 Comfy workflow. It targets the previously verified **Qwen3-ASR 0.6B Q8_0 model
-with its matching Q8_0 audio projector**. Native Comfy acceptance is still pending;
-the earlier compatibility trial did not test this public node.
+with its matching Q8_0 audio projector**. The public node has passed native
+Windows Comfy AUDIO wiring and transcription checks with this pair. The
+[feature validation report](validation-2026-10-features.md) records the tested
+scope; this is not a general accuracy benchmark.
 
 ## Input and runtime requirements
 

@@ -532,8 +532,9 @@ The [backlog validation report](docs/validation-2026-10-backlog.md) records the
 subsequent profile evaluations and bounded audio compatibility trial. These
 reports describe their named revisions. Native Windows and browser acceptance
 for graph composition, router presets, messages, budgeting, captions, the profile
-editor and transcription remains pending during this integration. The earlier
-audio trial is not an acceptance result for the new public node.
+editor and public transcription node is recorded in the
+[feature validation report](docs/validation-2026-10-features.md), with tested
+revisions and explicit capability limits.
 
 For failures, start with **llama.cpp Server Status** and
 [Troubleshooting](docs/troubleshooting.md). The status node exposes the exact

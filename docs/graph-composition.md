@@ -120,8 +120,11 @@ belong to the caption pipeline; this document does not present a simple downstre
 release connection as satisfying them. Never infer source filenames from an
 anonymous IMAGE tensor.
 
-The source-only feasibility assessment did not run third-party reference code or
-claim native inference results. Native validation should exercise several distinct
-images with a shared prompt and exact-length prompts, then a middle-item failure
-and cancellation. Check request order, result association, one terminal release,
-and subsequent GPU allocation before calling a caption recipe supported.
+The native follow-up used core RebatchImages and ordinary Generate to produce two
+complete one-image results in order. Its downstream Release Runtime also mapped
+twice, returning complete then no-op. Caption Batch separately passed shared and
+exact-length prompts, a real middle-item failure, second-item cancellation and
+terminal group release. The
+[feature validation report](validation-2026-10-features.md) distinguishes those
+native receipts from isolated cleanup assertions and records the subsequent GPU
+render check. No third-party reference code was executed for this assessment.

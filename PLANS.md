@@ -42,11 +42,23 @@ completion decisions. Workers own result/examples, router presets and profile UI
 audio preparation and architecture review start read-only. Evidence, not elapsed
 time or a worker completion message, determines acceptance.
 
+## Implementation checkpoint
+
+All seven selected features are implemented. Source verification passes 1,655
+Python tests plus 197 subtests; native Windows passes 1,611 plus 197 with 44
+platform skips. Frontend verification passes 105 tests after the native-discovered
+sampler visibility fix. CI passes all seven jobs on 6fab80a and 370a13f.
+Independent implementation and transport reviews pass. Native graph composition,
+preset replacement/isolation, explicit history, exact budgets, caption failure
+and cancellation, profile authoring, ASR rejection/reuse/text chaining and GPU
+rendering pass. Final browser Stop proof, artifact rebuild, documentation and
+external-state reconciliation remain before issue and goal completion.
+
 ---
 
 # Comparable Tools and Feature Frontier Research
 
-Status: Complete; selected implementation slices remain Backlog
+Status: Complete; selected slices are now executing in the phase above
 Date: 2026-10-02
 Branch: `dev`
 Baseline: `c39e6a63b645a6de2e31bc3ba8cf16500967f296`
@@ -63,15 +75,6 @@ concrete bounded implementation candidates and proof gates, separate parked and
 rejected ideas, independent review, a full report reread, reviewed documentation
 diffs, and synchronized Linear/Project KB state. This phase is research only.
 Existing release approval and maintainer hands-on ENG-88 remain deferred.
-
-## Implementation checkpoint
-
-All seven selected surfaces are implemented. Source checks pass 1,647 tests plus
-197 subtests and 98 frontend tests. Preset, profile and combined transport reviews
-pass; combined execution review verified the repaired global-release caption
-boundary and is completing its final record. Native Windows/browser acceptance,
-final artifacts and CI remain before issue closure. ENG-106 records the necessary
-SSE response-header deadline repair found during this phase.
 
 ## Sequence
 
