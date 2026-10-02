@@ -1,3 +1,53 @@
+# October End-to-End Review and Candidate Hardening
+
+Status: In progress
+Date: 2026-10-02
+Branch: `dev`
+Baseline: `2d1d5ced6355bdb49e91f72b6ec9b89e93c087d2`
+Tracking: [7dev Linear project](https://linear.app/7dev/project/comfyui-llamacpp-b846a629b382)
+
+## Objective and completion contract
+
+Review the current product, implementation, delivery, and live runtime; turn
+verified findings into dependency-ordered Linear issues; implement the selected
+candidate-hardening work and verify it end to end. Preserve all released node
+and workflow contracts.
+
+Success requires a durable review report, current baseline evidence, scoped
+issues with acceptance checks, regression coverage for fixes, complete automated
+and package gates, current Windows/Comfy runtime evidence where relevant,
+independent review, reviewed diffs, and synchronized Linear/Project KB state.
+
+The completion gate must distinguish passing checks from unverified surfaces.
+Future expansion stays in the backlog when it depends on product acceptance or
+an unproven model/runtime capability. No speculative broad rewrite is required.
+
+## Sequence
+
+1. Establish current repo, Registry, CI, automated-test, and installed-runtime state.
+2. Complete independent runtime/models, generation/UI, and delivery reviews.
+3. Publish the ranked report and create scoped issues with dependencies.
+4. Repair correctness and first-run defects in dependency order.
+5. Verify the repaired candidate with automated, package, browser and live-runtime
+   checks; reconcile evidence and implementation through independent review.
+6. Commit and push reviewed work to `dev`, verify CI, update the maintained
+   installed clone, and record the exact handoff state.
+7. Stop at the existing maintainer hands-on acceptance gate. Merge to `master`,
+   release tagging and Registry publication require explicit maintainer blessing.
+
+## Decisions
+
+- 2026-10-02: The user authorized review, Linear tracking and implementation.
+  This supersedes the previous waiting state for development work, while the
+  maintainer promotion/publication gate remains in effect.
+- 2026-10-02: Baseline passes 912 Python tests plus 66 subtests, 59 frontend
+  tests, Ruff and formatting. Existing July live evidence is historical.
+- 2026-10-02: Registry version 0.3.0 is Active. Installed ComfyUI is now
+  `8d534945`, frontend 1.53.6; llama.cpp remains b9957. Recheck actual runtime
+  behavior before claiming current frontend compatibility.
+
+---
+
 # Completed Auto VLM Projector Resolution Plan
 
 Status: Complete
