@@ -272,6 +272,79 @@ def test_direct_catalog_alias_requires_exact_path_not_matching_basename(tmp_path
     assert "model.gguf" not in result.models[0].aliases
 
 
+@pytest.mark.parametrize("catalog_contains_running_file", [False, True])
+def test_relative_props_path_requires_same_file_before_becoming_catalog_alias(
+    tmp_path, monkeypatch, catalog_contains_running_file
+):
+    launched_root = tmp_path / "launched"
+    catalog_root = launched_root if catalog_contains_running_file else tmp_path / "catalog"
+    for root in {launched_root, catalog_root}:
+        model = root / "bundle" / "model.gguf"
+        model.parent.mkdir(parents=True)
+        model.write_bytes(b"inert model")
+    monkeypatch.chdir(launched_root)
+    configured = launched_root / "bundle" / "model.gguf"
+    record = ServerProps(
+        role=None,
+        build_info="fixture",
+        model_path="bundle/model.gguf",
+        model_alias="served-model",
+        is_sleeping=False,
+        modalities={},
+        raw={},
+    )
+    result = discover_runtime(
+        RuntimeEndpointSnapshot(
+            mode=RuntimeMode.DIRECT,
+            owned=True,
+            runtime_epoch=1,
+            endpoint="http://127.0.0.1:8080",
+            configured_model_path=str(configured),
+        ),
+        FakeClient(props=record),
+        saved_model="bundle/model.gguf",
+        catalog=ModelCatalog([catalog_root]),
+    )
+
+    assert result.models[0].aliases == (
+        ("bundle/model.gguf",) if catalog_contains_running_file else ()
+    )
+    assert result.saved_model_state == (
+        SavedModelState.AVAILABLE if catalog_contains_running_file else SavedModelState.MISSING
+    )
+    assert str(tmp_path) not in str(result.public_dict())
+
+
+def test_direct_props_mismatch_does_not_fall_back_to_configured_catalog_file(tmp_path):
+    configured = tmp_path / "bundle" / "model.gguf"
+    configured.parent.mkdir()
+    configured.write_bytes(b"configured model")
+    record = ServerProps(
+        role=None,
+        build_info="fixture",
+        model_path=str(tmp_path.parent / "foreign" / "model.gguf"),
+        model_alias="served-model",
+        is_sleeping=False,
+        modalities={},
+        raw={},
+    )
+    result = discover_runtime(
+        RuntimeEndpointSnapshot(
+            mode=RuntimeMode.DIRECT,
+            owned=True,
+            runtime_epoch=1,
+            endpoint="http://127.0.0.1:8080",
+            configured_model_path=str(configured),
+        ),
+        FakeClient(props=record),
+        saved_model="bundle/model.gguf",
+        catalog=ModelCatalog([tmp_path]),
+    )
+
+    assert result.models[0].aliases == ()
+    assert result.saved_model_state == SavedModelState.MISSING
+
+
 def test_direct_context_falls_back_to_its_exact_launch_configuration():
     unknown_context = props(context=0)
     unknown_context.raw["default_generation_settings"] = {}

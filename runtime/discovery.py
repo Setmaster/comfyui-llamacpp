@@ -471,6 +471,8 @@ def _catalog_model_identity(
     catalog: ModelCatalog | None,
     *candidates: str | None,
 ) -> str:
+    """Resolve catalog identity from file paths, never from a relative name alone."""
+
     if catalog is None:
         return ""
     try:
@@ -488,10 +490,6 @@ def _catalog_model_identity(
             matches = [entry for entry in entries if entry.path == resolved]
             if len(matches) == 1:
                 return matches[0].name
-        normalized = candidate.replace("\\", "/")
-        matches = [entry for entry in entries if entry.name == normalized]
-        if len(matches) == 1:
-            return matches[0].name
     return ""
 
 
@@ -616,10 +614,8 @@ def discover_runtime(
         # Only exact path evidence may connect a live server identity to a
         # catalog-relative selection. A same-basename local file is not proof
         # that it is the file this server is running.
-        catalog_model_name = _catalog_model_identity(
-            catalog,
-            props.model_path or snapshot.configured_model_path,
-        )
+        effective_model_path = props.model_path or snapshot.configured_model_path
+        catalog_model_name = _catalog_model_identity(catalog, effective_model_path)
         aliases = (
             (catalog_model_name,) if catalog_model_name and catalog_model_name != model_id else ()
         )
@@ -627,12 +623,13 @@ def discover_runtime(
         if saved_model:
             candidates = {
                 model_id,
-                props.model_path or "",
-                Path(props.model_path).name if props.model_path else "",
-                snapshot.configured_model_path or "",
-                configured_model_id or "",
                 *aliases,
             }
+            # Relative paths from /props are not catalog names. Accept their
+            # catalog-relative spelling only through the exact path proof
+            # above; otherwise a different root can contain the same name.
+            if effective_model_path and Path(effective_model_path).is_absolute():
+                candidates.add(effective_model_path)
             saved_state = (
                 SavedModelState.AVAILABLE if saved_model in candidates else SavedModelState.MISSING
             )
