@@ -1,0 +1,2779 @@
+{
+  "schema_version": 1,
+  "experiment": "ENG-89 task-profile bakeoff",
+  "date": "2026-10-02",
+  "publication_scope": "Sanitized derived evidence; evaluation candidates are not shipped or enabled.",
+  "source_integrity": {
+    "frozen_plan_sha256": "372fbdc0e69c33cededa29e776f1ab04401744372aad616a19ed128f49b5d887",
+    "hash_note": "The frozen plan identifier is recorded by the harness. Original file-byte hashes below fingerprint private source evidence, not this sanitized derivative.",
+    "source_file_sha256": {
+      "plan.json": "09f42eb8075c6844ebf9b5a5913655673eb969a27082970e12664d4991701da1",
+      "environment.json": "91d68d5fb9dcb6bd69d0325b593b0bb74c354171d15891182c193db212fab875",
+      "summary.json": "e6df26866a36766e04bcb227fec10207709197558b0ddc3806bce46b093f2e1a",
+      "scorecards.json": "b7213a6ed036e37756a00a0bae614169357877a3fc82f21237833642fa925950",
+      "scoring-provenance.json": "72feceb6717eaad39f4f983a96050b15396f6bc9c4948a7c84f7b9918d0976f0",
+      "results.jsonl": "9fe0f6390b334043acadfb8f531a9a34e952c7ddb3748312f7833eddd6ddde6b",
+      "text-blinded-scores.json": "9d5a0aaa7b773726f57a7f49985803449573d94a2dbb34e4d7c85016c7bc02fe",
+      "vision-blinded-scores.json": "b36c66fdd1c2ea5af09456a020e23c13b34073d74fdd561aefa3b539128f1b74"
+    }
+  },
+  "protocol": {
+    "repo_revision": "f84e227878208b094ec8b0f9510f4d581e9960c6",
+    "harness_source": "tests/benchmarks/task_profiles/bakeoff.py",
+    "harness_sha256": "660a4776332d7925d5c5ee96497d2fcdc9eaf3b0cddd80d1e35745190b556e57",
+    "specification": {
+      "schema_version": 1,
+      "seeds": [
+        17,
+        29
+      ],
+      "settings": {
+        "thinking_mode": "off",
+        "max_tokens": 256,
+        "sampling_mode": "custom",
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "top_k": 40,
+        "min_p": 0.05,
+        "repeat_penalty": 1.0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "cache_prompt": false,
+        "stop_sequences": "",
+        "request_timeout": 120,
+        "include_image_batch": false,
+        "release_after_generation": false,
+        "partial_output_policy": "raise_error"
+      },
+      "cases": [
+        {
+          "id": "text-object-fidelity",
+          "family": "text",
+          "candidate": "prompt-fidelity-v1",
+          "image": null,
+          "system_prompt": "",
+          "prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.",
+          "max_words": 70,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "subject",
+              "description": "Exactly one cobalt-blue ceramic mug."
+            },
+            {
+              "id": "handle",
+              "description": "A single white handle."
+            },
+            {
+              "id": "placement",
+              "description": "The mug is centered on a matte yellow table."
+            },
+            {
+              "id": "lighting",
+              "description": "Soft window light comes from the left."
+            },
+            {
+              "id": "background",
+              "description": "A plain warm-gray background."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 70 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "no_additions",
+              "description": "No extra objects, visible writing, brands, or camera specifications."
+            }
+          ],
+          "unsupported_examples": [
+            "steam",
+            "coffee inside the mug",
+            "a spoon",
+            "a lens or aperture specification"
+          ]
+        },
+        {
+          "id": "text-medium-exclusions",
+          "family": "text",
+          "candidate": "prompt-fidelity-v1",
+          "image": null,
+          "system_prompt": "",
+          "prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.",
+          "max_words": 60,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "medium",
+              "description": "Flat two-color screen print."
+            },
+            {
+              "id": "subject",
+              "description": "One black fox silhouette."
+            },
+            {
+              "id": "direction",
+              "description": "Centered and facing right."
+            },
+            {
+              "id": "background",
+              "description": "Cream background with rough paper texture."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 60 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "medium_preserved",
+              "description": "No photorealism, gradients, lighting effects, or camera terms."
+            },
+            {
+              "id": "no_additions",
+              "description": "No extra subjects or visible text."
+            }
+          ],
+          "unsupported_examples": [
+            "a forest",
+            "moonlight",
+            "fox fur detail",
+            "photographic depth of field"
+          ]
+        },
+        {
+          "id": "text-operator-system",
+          "family": "text",
+          "candidate": "prompt-fidelity-v1",
+          "image": null,
+          "system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+          "prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.",
+          "max_words": 40,
+          "format": "operator_two_lines",
+          "facts": [
+            {
+              "id": "medium",
+              "description": "A watercolor painting."
+            },
+            {
+              "id": "view",
+              "description": "Viewed directly from above."
+            },
+            {
+              "id": "boat",
+              "description": "One unoccupied wooden rowboat."
+            },
+            {
+              "id": "water",
+              "description": "A still green pond."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 40 words in the second line."
+            },
+            {
+              "id": "format",
+              "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief."
+            },
+            {
+              "id": "no_additions",
+              "description": "No people, animals, lettering, extra boats, or new scene details."
+            }
+          ],
+          "unsupported_examples": [
+            "reeds",
+            "an oar",
+            "a shoreline",
+            "a reflection of clouds"
+          ]
+        },
+        {
+          "id": "vision-count-relations",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "count-relations",
+          "system_prompt": "",
+          "prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.",
+          "max_words": 70,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "circle",
+              "description": "One red circle on the left."
+            },
+            {
+              "id": "squares",
+              "description": "Two blue squares to the right of the red circle."
+            },
+            {
+              "id": "triangle",
+              "description": "One green triangle below the upper row of shapes."
+            },
+            {
+              "id": "background",
+              "description": "A plain light cream or off-white background."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 70 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No invented material, use, real-world identity, text, or hidden object."
+            }
+          ],
+          "unsupported_examples": [
+            "plastic blocks",
+            "traffic signs",
+            "a sun",
+            "additional shapes"
+          ]
+        },
+        {
+          "id": "vision-readable-text",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "readable-text",
+          "system_prompt": "",
+          "prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.",
+          "max_words": 60,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "text",
+              "description": "The sign reads OPEN 24, with these exact characters."
+            },
+            {
+              "id": "circle",
+              "description": "An orange circle below the sign on the left."
+            },
+            {
+              "id": "square",
+              "description": "A blue square below the sign on the right."
+            },
+            {
+              "id": "background",
+              "description": "A plain light cream or off-white background; the sign is white with black lettering."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 60 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No inferred business, place, material, operating schedule, or extra text."
+            }
+          ],
+          "unsupported_examples": [
+            "a shop",
+            "24-hour opening",
+            "a street",
+            "OPEN 24 HOURS"
+          ]
+        },
+        {
+          "id": "vision-occlusion-unknown",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "occlusion-unknown",
+          "system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+          "prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.",
+          "max_words": 50,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "front",
+              "description": "A large brown rectangle in the foreground/lower-right portion of the image."
+            },
+            {
+              "id": "back",
+              "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle."
+            },
+            {
+              "id": "overlap",
+              "description": "The brown rectangle covers part of the blue shape."
+            },
+            {
+              "id": "unknown",
+              "description": "The rectangle's contents are not visible or cannot be determined from the image."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 50 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No invented contents, material, object purpose, or count of fully hidden objects."
+            }
+          ],
+          "unsupported_examples": [
+            "a cardboard box",
+            "a ball inside a box",
+            "an empty interior",
+            "wood grain"
+          ]
+        }
+      ]
+    },
+    "profiles": {
+      "freeform": {
+        "schema_version": 1,
+        "id": "freeform",
+        "name": "Freeform",
+        "description": "No prompt transformation.",
+        "system_prompt": "",
+        "prompt_prefix": "",
+        "prompt_suffix": ""
+      },
+      "prompt-fidelity-v1": {
+        "schema_version": 1,
+        "id": "prompt-fidelity-v1",
+        "name": "Prompt Fidelity (evaluation candidate)",
+        "description": "Clarify an image-generation brief without introducing unsupported scene details.",
+        "system_prompt": "Revise image-generation prompts while preserving the user's intent and explicit constraints. Keep the requested medium and output format. Do not turn an illustration into a photograph unless asked.",
+        "prompt_prefix": "",
+        "prompt_suffix": "\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output."
+      },
+      "visible-evidence-v1": {
+        "schema_version": 1,
+        "id": "visible-evidence-v1",
+        "name": "Visible Evidence (evaluation candidate)",
+        "description": "Describe visible image evidence while keeping occluded and unsupported information unknown.",
+        "system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+        "prompt_prefix": "",
+        "prompt_suffix": "\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length."
+      }
+    },
+    "rubric_file": "rubric.md",
+    "rubric_sha256": "b14dcab845f8aeb2c99c4ea2d968f4cbcb533ef70ab2e15d11f1dac2835f57a0",
+    "rubric_text": "## Scoring rubric fixed before output collection\n\nEach measured response receives a score from 0 to 10:\n\n`max(0, 4 * mean(fact scores) + 4 * mean(constraint passes) + clarity - hallucination penalty)`\n\n- **Facts, maximum 4:** score every listed fact 1 when correctly and fully\n  retained/described, 0.5 when recognizable but incomplete, and 0 when missing,\n  contradicted or wrong. A synonym can earn full credit. For example, \"off-white\"\n  and \"cream\" are equivalent here; \"two blue squares\" cannot become \"blue shapes\"\n  without losing specificity. Cite the response span or state what is missing.\n- **Constraints, maximum 4:** each explicit case constraint is pass/fail. Check\n  word limits, paragraph/two-line format, forbidden additions and medium or\n  visible-evidence limits. A failed automatic word/line check cannot be marked\n  passing; passing automatic checks do not prove the remaining semantic rules.\n  Word counts use whitespace-separated tokens. In the operator-format case,\n  the 40-word limit applies only to its second line.\n- **Clarity, maximum 2:** 2 means directly usable, coherent and free of redundant\n  or distracting phrasing; 1 means understandable but requires minor editing;\n  0 means unusable, contradictory or largely irrelevant. Longer output earns no\n  intrinsic benefit. Provide a short reason.\n- **Unsupported additions, penalty up to 4:** subtract 2 per distinct unsupported\n  asserted detail, capped at 4. Quote each claim and explain the absent evidence.\n  A wrong listed fact already loses fact credit; do not also list that same error\n  as an added claim. A genuinely invented detail can also violate an explicit\n  exclusion. Hedging does not excuse an invented detail when the task forbids\n  inference. Ordinary visual shape labels supported by pixels are allowed.\n- **Failure:** failed, timed-out or nonterminal generation scores 0 and cannot\n  qualify a candidate for follow-up. A stopped/incomplete batch must be reported\n  as incomplete, not summarized as if missing pairs passed.\n\nAll criteria require explicit evidence and a reviewed flag. Record \"no\nunsupported claims\" as an empty reviewed list. The scorer checks geometry/OCR\nagainst the PNG, not keyword presence alone. Synthetic unit-test scores prove\nthe aggregator's behavior and are never quality evidence.\n",
+    "decision_thresholds": {
+      "minimum_mean_paired_quality_delta": 1.0,
+      "minimum_improved_cases": 2,
+      "negative_case_mean_delta_allowed": false,
+      "candidate_constraint_failures_allowed": 0,
+      "candidate_unsupported_claims_allowed": 0,
+      "candidate_failures_allowed": 0,
+      "maximum_median_paired_latency_ratio": 1.25
+    },
+    "latency_metric": "execution_ms",
+    "latency_note": "Comfy execution time for every measured request; resident-model task time with host overhead, not pure token throughput. Ratios are paired by case and seed, then their median is taken.",
+    "warmup_count": 2,
+    "measured_count": 24,
+    "arm_order": "Counterbalanced by case and seed; exact order preserved in runs."
+  },
+  "environment": {
+    "repo_revision": "f84e227878208b094ec8b0f9510f4d581e9960c6",
+    "model_sha256": "026ad07482ca4a1121349fbb7b77abf9b81c0cbc156e3cf52ee7bb8d0229cde4",
+    "projector_sha256": "33d19545c921a784354b7cc099fa1f0e5b48352b73ab82bf077600e5ff9c6834",
+    "llama_build": "b9957 c4ae9a88f",
+    "llama_executable_sha256": "20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab",
+    "comfy_revision": "8d534945",
+    "frontend_version": "1.53.6",
+    "gpu": "NVIDIA GeForce RTX 5090, driver 610.88",
+    "context_size": 4096,
+    "python": "3.13.7",
+    "torch": "2.9.1+cu130",
+    "platform": "Windows",
+    "model_label": "qwen3-vl-4b-instruct-bakeoff/Qwen_Qwen3-VL-4B-Instruct-Q5_K_M.gguf",
+    "projector_label": "qwen-vl-4B-Instruct/Qwen3-VL-4B-Instruct-abliterated-v1-mmproj-Q8_0.gguf",
+    "launch_argv_with_path_placeholders": [
+      "llama-server.exe",
+      "-m",
+      "<MODEL_GGUF>",
+      "--port",
+      "18080",
+      "--host",
+      "127.0.0.1",
+      "-c",
+      "4096",
+      "-ngl",
+      "999",
+      "--main-gpu",
+      "0",
+      "-b",
+      "512",
+      "--mmproj",
+      "<PROJECTOR_GGUF>"
+    ],
+    "ownership": "owned",
+    "mode": "direct",
+    "runtime_epoch": 1,
+    "same_runtime_before_and_after_all_runs": true,
+    "projector_observation": {
+      "evidence": "launch_config",
+      "compatibility": {
+        "state": "unknown",
+        "value": null,
+        "source": null
+      }
+    }
+  },
+  "fixtures": {
+    "count-relations": {
+      "file": "count-relations.png",
+      "size": [
+        640,
+        480
+      ],
+      "rgb_sha256": "aed2e51018987126b50d7aa884daef601d0a61360b84a04f3d551ef1f1dbced0",
+      "png_sha256": "5bf93ec6cdeb0cbb4354c3da2725d89d2a50fb028633f9a0f0e9bb994a036830"
+    },
+    "readable-text": {
+      "file": "readable-text.png",
+      "size": [
+        640,
+        480
+      ],
+      "rgb_sha256": "1c3f15372bb0af8edde10c3f6fe8f5ff0a65d066c15cc38da45832b04f491f0e",
+      "png_sha256": "3e8c04e8499332fa20c3d2e2e2eee6954a02b1c1c11977f791c59314a37e1f23"
+    },
+    "occlusion-unknown": {
+      "file": "occlusion-unknown.png",
+      "size": [
+        640,
+        480
+      ],
+      "rgb_sha256": "2e0c37dfa4e494f651a474ce1b581421468e2dac96d30ed352a059b438a4a559",
+      "png_sha256": "9a693074799bfd999218406a809f1aea5f6c8e4d68159c2eb4041e5708b94767"
+    }
+  },
+  "scoring_provenance": {
+    "source": {
+      "text": {
+        "sha256": "9d5a0aaa7b773726f57a7f49985803449573d94a2dbb34e4d7c85016c7bc02fe",
+        "reviewer": "generation_ui_review",
+        "blinded": true,
+        "parent_review": "before arm reveal; vision covered-left-side penalty corrected from pixel geometry"
+      },
+      "vision": {
+        "sha256": "b36c66fdd1c2ea5af09456a020e23c13b34073d74fdd561aefa3b539128f1b74",
+        "reviewer": "gemma_fix",
+        "blinded": true,
+        "parent_review": "before arm reveal; vision covered-left-side penalty corrected from pixel geometry"
+      }
+    },
+    "scores_finalized_before_arm_reveal": true,
+    "review_note": "Independent text and vision reviewers scored blinded cards. Parent review occurred before arm reveal. One vision unsupported-claim penalty was removed after pixel review showed that the rectangle covers some of the circle left half; the incomplete-fact deductions were retained.",
+    "review_scope_note": "These are subjective rubric judgments by one reviewer per family with parent review, not an inter-rater agreement study."
+  },
+  "runs": [
+    {
+      "id": "warmup-text-object-fidelity-7-freeform",
+      "case_id": "text-object-fidelity",
+      "family": "text",
+      "seed": 7,
+      "arm": "freeform",
+      "warmup": true,
+      "pair_sha256": "94dbe800362672ccf23a90c1dc2bd57d86b34c6de42054c5977c4abd207b5a28",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.",
+      "effective_system_prompt": "",
+      "order": 1,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "A cobalt-blue ceramic mug with a single white handle rests centered on a matte yellow table, illuminated by soft window light from the left. The background is plain warm gray. No other objects or visible writing are present.",
+      "execution_ms": 386,
+      "wall_ms": 784.7525030083489,
+      "assessment": null
+    },
+    {
+      "id": "warmup-vision-count-relations-7-freeform",
+      "case_id": "vision-count-relations",
+      "family": "vision",
+      "seed": 7,
+      "arm": "freeform",
+      "warmup": true,
+      "pair_sha256": "88d5b1336e6d5573b42c6ca0e759647db6423c2c12ad78d05bce455b37478460",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.",
+      "effective_system_prompt": "",
+      "order": 2,
+      "profile_id": "freeform",
+      "image": "count-relations",
+      "status": "complete",
+      "response": "A red circle, two blue squares, and one green triangle are arranged on a light beige background. The circle is left, squares are center-right, triangle is below center. Shapes are distinct, non-overlapping, with simple geometric forms and solid colors.",
+      "execution_ms": 792,
+      "wall_ms": 945.6901289813686,
+      "assessment": null
+    },
+    {
+      "id": "text-object-fidelity-17-freeform",
+      "case_id": "text-object-fidelity",
+      "family": "text",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "17abdb868951fec00e4d438e41449e8d2c6adb98e01b08b418e01ed7e8151503",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.",
+      "effective_system_prompt": "",
+      "order": 3,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "A cobalt-blue ceramic mug with a single white handle rests centered on a matte yellow table, illuminated by soft window light from the left. The background is plain warm gray. No other objects or visible writing are present.",
+      "execution_ms": 375,
+      "wall_ms": 435.520621977048,
+      "assessment": {
+        "blind_id": "2ebf86f8631c46c1",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "subject",
+            "description": "Exactly one cobalt-blue ceramic mug.",
+            "score": 1,
+            "evidence": "\"A cobalt-blue ceramic mug\" identifies a singular mug with the specified color and material; the explicit exclusion of other objects preserves the one-mug composition."
+          },
+          {
+            "id": "handle",
+            "description": "A single white handle.",
+            "score": 1,
+            "evidence": "\"a single white handle\" preserves both handle count and color."
+          },
+          {
+            "id": "placement",
+            "description": "The mug is centered on a matte yellow table.",
+            "score": 1,
+            "evidence": "\"rests centered on a matte yellow table\" retains centered placement, table color, and matte finish."
+          },
+          {
+            "id": "lighting",
+            "description": "Soft window light comes from the left.",
+            "score": 1,
+            "evidence": "\"illuminated by soft window light from the left\" retains the light quality, source, and direction."
+          },
+          {
+            "id": "background",
+            "description": "A plain warm-gray background.",
+            "score": 1,
+            "evidence": "\"The background is plain warm gray.\" retains both plainness and the specified color."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 70-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph containing only the rewritten brief, without a heading, markdown, or commentary."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra objects, visible writing, brands, or camera specifications.",
+            "passed": true,
+            "evidence": "\"No other objects or visible writing are present.\" preserves the exclusions, and the response adds no objects, brands, or camera specifications."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, concise prose connects the mug, placement, light, and background clearly. No redundant or distracting phrasing; any unsupported scene detail is scored separately.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "text-object-fidelity-17-candidate",
+      "case_id": "text-object-fidelity",
+      "family": "text",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "17abdb868951fec00e4d438e41449e8d2c6adb98e01b08b418e01ed7e8151503",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Revise image-generation prompts while preserving the user's intent and explicit constraints. Keep the requested medium and output format. Do not turn an illustration into a photograph unless asked.",
+      "order": 4,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "A cobalt-blue ceramic mug with a single white handle rests centered on a matte yellow table; soft window light illuminates from the left, casting gentle shadows. The background is plain warm gray. No other objects or writing are visible.",
+      "execution_ms": 398,
+      "wall_ms": 543.7810080184136,
+      "assessment": {
+        "blind_id": "90eb25d27e2066cd",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "subject",
+            "description": "Exactly one cobalt-blue ceramic mug.",
+            "score": 1,
+            "evidence": "\"A cobalt-blue ceramic mug\" identifies a singular mug with the specified color and material; the explicit exclusion of other objects preserves the one-mug composition."
+          },
+          {
+            "id": "handle",
+            "description": "A single white handle.",
+            "score": 1,
+            "evidence": "\"a single white handle\" preserves both handle count and color."
+          },
+          {
+            "id": "placement",
+            "description": "The mug is centered on a matte yellow table.",
+            "score": 1,
+            "evidence": "\"rests centered on a matte yellow table\" retains centered placement, table color, and matte finish."
+          },
+          {
+            "id": "lighting",
+            "description": "Soft window light comes from the left.",
+            "score": 1,
+            "evidence": "\"soft window light illuminates from the left\" retains the light quality, source, and direction."
+          },
+          {
+            "id": "background",
+            "description": "A plain warm-gray background.",
+            "score": 1,
+            "evidence": "\"The background is plain warm gray.\" retains both plainness and the specified color."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "39 whitespace-separated words, within the 70-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph containing only the rewritten brief, without a heading, markdown, or commentary."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra objects, visible writing, brands, or camera specifications.",
+            "passed": true,
+            "evidence": "\"No other objects or writing are visible.\" preserves these exclusions, and no brand or camera specification is introduced. The added shadow detail is unsupported, but is not an extra object, writing, brand, or camera specification; it is recorded separately as an unsupported claim."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, concise prose connects the mug, placement, light, and background clearly. No redundant or distracting phrasing; any unsupported scene detail is scored separately.",
+        "unsupported_claims": [
+          "\"casting gentle shadows\" asserts a particular shadow effect absent from the brief. Soft window light from the left is specified, but visible shadows and their character are not; this is a plausible inference rather than a retained stated fact."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 8
+      }
+    },
+    {
+      "id": "text-object-fidelity-29-candidate",
+      "case_id": "text-object-fidelity",
+      "family": "text",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "bb66d13863f965d5d8a877a8ae68e9023cb172bedac859386812a99bbfb5ab8b",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Revise image-generation prompts while preserving the user's intent and explicit constraints. Keep the requested medium and output format. Do not turn an illustration into a photograph unless asked.",
+      "order": 5,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "A cobalt-blue ceramic mug with a single white handle rests centered on a matte yellow table; soft window light illuminates from the left, casting gentle shadows. The background is plain warm gray. No other objects or writing are visible.",
+      "execution_ms": 375,
+      "wall_ms": 541.3127230131067,
+      "assessment": {
+        "blind_id": "754aa1284d27cbb4",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "subject",
+            "description": "Exactly one cobalt-blue ceramic mug.",
+            "score": 1,
+            "evidence": "\"A cobalt-blue ceramic mug\" identifies a singular mug with the specified color and material; the explicit exclusion of other objects preserves the one-mug composition."
+          },
+          {
+            "id": "handle",
+            "description": "A single white handle.",
+            "score": 1,
+            "evidence": "\"a single white handle\" preserves both handle count and color."
+          },
+          {
+            "id": "placement",
+            "description": "The mug is centered on a matte yellow table.",
+            "score": 1,
+            "evidence": "\"rests centered on a matte yellow table\" retains centered placement, table color, and matte finish."
+          },
+          {
+            "id": "lighting",
+            "description": "Soft window light comes from the left.",
+            "score": 1,
+            "evidence": "\"soft window light illuminates from the left\" retains the light quality, source, and direction."
+          },
+          {
+            "id": "background",
+            "description": "A plain warm-gray background.",
+            "score": 1,
+            "evidence": "\"The background is plain warm gray.\" retains both plainness and the specified color."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "39 whitespace-separated words, within the 70-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph containing only the rewritten brief, without a heading, markdown, or commentary."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra objects, visible writing, brands, or camera specifications.",
+            "passed": true,
+            "evidence": "\"No other objects or writing are visible.\" preserves these exclusions, and no brand or camera specification is introduced. The added shadow detail is unsupported, but is not an extra object, writing, brand, or camera specification; it is recorded separately as an unsupported claim."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, concise prose connects the mug, placement, light, and background clearly. No redundant or distracting phrasing; any unsupported scene detail is scored separately.",
+        "unsupported_claims": [
+          "\"casting gentle shadows\" asserts a particular shadow effect absent from the brief. Soft window light from the left is specified, but visible shadows and their character are not; this is a plausible inference rather than a retained stated fact."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 8
+      }
+    },
+    {
+      "id": "text-object-fidelity-29-freeform",
+      "case_id": "text-object-fidelity",
+      "family": "text",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "bb66d13863f965d5d8a877a8ae68e9023cb172bedac859386812a99bbfb5ab8b",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.",
+      "effective_system_prompt": "",
+      "order": 6,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "A cobalt-blue ceramic mug with a single white handle rests centered on a matte yellow table, illuminated by soft window light from the left. The background is plain warm gray. No other objects or visible writing are present.",
+      "execution_ms": 356,
+      "wall_ms": 434.6103449934162,
+      "assessment": {
+        "blind_id": "c6857875b7e49547",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "subject",
+            "description": "Exactly one cobalt-blue ceramic mug.",
+            "score": 1,
+            "evidence": "\"A cobalt-blue ceramic mug\" identifies a singular mug with the specified color and material; the explicit exclusion of other objects preserves the one-mug composition."
+          },
+          {
+            "id": "handle",
+            "description": "A single white handle.",
+            "score": 1,
+            "evidence": "\"a single white handle\" preserves both handle count and color."
+          },
+          {
+            "id": "placement",
+            "description": "The mug is centered on a matte yellow table.",
+            "score": 1,
+            "evidence": "\"rests centered on a matte yellow table\" retains centered placement, table color, and matte finish."
+          },
+          {
+            "id": "lighting",
+            "description": "Soft window light comes from the left.",
+            "score": 1,
+            "evidence": "\"illuminated by soft window light from the left\" retains the light quality, source, and direction."
+          },
+          {
+            "id": "background",
+            "description": "A plain warm-gray background.",
+            "score": 1,
+            "evidence": "\"The background is plain warm gray.\" retains both plainness and the specified color."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 70-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph containing only the rewritten brief, without a heading, markdown, or commentary."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra objects, visible writing, brands, or camera specifications.",
+            "passed": true,
+            "evidence": "\"No other objects or visible writing are present.\" preserves the exclusions, and the response adds no objects, brands, or camera specifications."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, concise prose connects the mug, placement, light, and background clearly. No redundant or distracting phrasing; any unsupported scene detail is scored separately.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "text-medium-exclusions-17-candidate",
+      "case_id": "text-medium-exclusions",
+      "family": "text",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "32b15180247e082f6cb3c5164e7711c6420b2f6edf74fd2051b8f08d58fdd327",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Revise image-generation prompts while preserving the user's intent and explicit constraints. Keep the requested medium and output format. Do not turn an illustration into a photograph unless asked.",
+      "order": 7,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "A flat, two-color screen print: black fox silhouette, centered, facing right, on cream background with rough paper texture. No gradients, lighting, text, or extra subjects. Keep medium as illustration.",
+      "execution_ms": 316,
+      "wall_ms": 431.54818599577993,
+      "assessment": {
+        "blind_id": "21e17d382135d89a",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "Flat two-color screen print.",
+            "score": 1,
+            "evidence": "\"A flat, two-color screen print\" retains the flat screen-print technique and two-color restriction."
+          },
+          {
+            "id": "subject",
+            "description": "One black fox silhouette.",
+            "score": 1,
+            "evidence": "\"black fox silhouette\" describes one singular fox, reinforced by \"No gradients, lighting, text, or extra subjects.\""
+          },
+          {
+            "id": "direction",
+            "description": "Centered and facing right.",
+            "score": 1,
+            "evidence": "\"centered, facing right\" preserves both placement and direction."
+          },
+          {
+            "id": "background",
+            "description": "Cream background with rough paper texture.",
+            "score": 1,
+            "evidence": "\"cream background with rough paper texture\" retains the background color and texture."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "29 whitespace-separated words, within the 60-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph, with no heading, markdown, or explanatory commentary. The final illustration instruction is part of the image prompt."
+          },
+          {
+            "id": "medium_preserved",
+            "description": "No photorealism, gradients, lighting effects, or camera terms.",
+            "passed": false,
+            "evidence": "\"No gradients, lighting, text, or extra subjects.\" retains those exclusions, but omits the source instruction prohibiting camera terms. \"Keep medium as illustration.\" does not preserve that distinct exclusion. No camera detail is actually added, but the prompt explicitly requires preserving every exclusion."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra subjects or visible text.",
+            "passed": true,
+            "evidence": "The singular \"black fox silhouette\" is the only subject; the response explicitly excludes \"text\" and \"extra subjects\" and introduces neither."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent image-prompt wording with clear composition and exclusions. The final illustration directive is usable prompt content; any omitted exclusion is scored under constraints.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 3.0,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9.0
+      }
+    },
+    {
+      "id": "text-medium-exclusions-17-freeform",
+      "case_id": "text-medium-exclusions",
+      "family": "text",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "32b15180247e082f6cb3c5164e7711c6420b2f6edf74fd2051b8f08d58fdd327",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.",
+      "effective_system_prompt": "",
+      "order": 8,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "Flat two-color screen print: black fox silhouette, centered, facing right, on cream background with rough paper texture. No gradients, lighting, text, camera terms, or extra subjects. Illustration only.",
+      "execution_ms": 349,
+      "wall_ms": 446.3361699890811,
+      "assessment": {
+        "blind_id": "e3eab0125865bbad",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "Flat two-color screen print.",
+            "score": 1,
+            "evidence": "\"Flat two-color screen print\" retains the flat screen-print technique and two-color restriction."
+          },
+          {
+            "id": "subject",
+            "description": "One black fox silhouette.",
+            "score": 1,
+            "evidence": "\"black fox silhouette\" describes one singular fox, reinforced by \"No gradients, lighting, text, camera terms, or extra subjects.\""
+          },
+          {
+            "id": "direction",
+            "description": "Centered and facing right.",
+            "score": 1,
+            "evidence": "\"centered, facing right\" preserves both placement and direction."
+          },
+          {
+            "id": "background",
+            "description": "Cream background with rough paper texture.",
+            "score": 1,
+            "evidence": "\"cream background with rough paper texture\" retains the background color and texture."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "28 whitespace-separated words, within the 60-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph, with no heading, markdown, or explanatory commentary. The final illustration instruction is part of the image prompt."
+          },
+          {
+            "id": "medium_preserved",
+            "description": "No photorealism, gradients, lighting effects, or camera terms.",
+            "passed": true,
+            "evidence": "\"Flat two-color screen print\" and \"Illustration only.\" preserve the medium; \"No gradients, lighting, text, camera terms, or extra subjects.\" retains the relevant exclusions without introducing photographic rendering."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra subjects or visible text.",
+            "passed": true,
+            "evidence": "The singular \"black fox silhouette\" is the only subject; the response explicitly excludes \"text\" and \"extra subjects\" and introduces neither."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent image-prompt wording with clear composition and exclusions. The final illustration directive is usable prompt content; any omitted exclusion is scored under constraints.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "text-medium-exclusions-29-freeform",
+      "case_id": "text-medium-exclusions",
+      "family": "text",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "3a52faba6904e8cb8da117f05432a7b7d71c6dfc4f3e951c739d87f7fc3ae093",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.",
+      "effective_system_prompt": "",
+      "order": 9,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "Flat two-color screen print: black fox silhouette, centered, facing right, on cream background with rough paper texture. No gradients, lighting, text, camera terms, or extra subjects. Illustration only.",
+      "execution_ms": 342,
+      "wall_ms": 423.6677949957084,
+      "assessment": {
+        "blind_id": "eee1ba50474a7b12",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "Flat two-color screen print.",
+            "score": 1,
+            "evidence": "\"Flat two-color screen print\" retains the flat screen-print technique and two-color restriction."
+          },
+          {
+            "id": "subject",
+            "description": "One black fox silhouette.",
+            "score": 1,
+            "evidence": "\"black fox silhouette\" describes one singular fox, reinforced by \"No gradients, lighting, text, camera terms, or extra subjects.\""
+          },
+          {
+            "id": "direction",
+            "description": "Centered and facing right.",
+            "score": 1,
+            "evidence": "\"centered, facing right\" preserves both placement and direction."
+          },
+          {
+            "id": "background",
+            "description": "Cream background with rough paper texture.",
+            "score": 1,
+            "evidence": "\"cream background with rough paper texture\" retains the background color and texture."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "28 whitespace-separated words, within the 60-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph, with no heading, markdown, or explanatory commentary. The final illustration instruction is part of the image prompt."
+          },
+          {
+            "id": "medium_preserved",
+            "description": "No photorealism, gradients, lighting effects, or camera terms.",
+            "passed": true,
+            "evidence": "\"Flat two-color screen print\" and \"Illustration only.\" preserve the medium; \"No gradients, lighting, text, camera terms, or extra subjects.\" retains the relevant exclusions without introducing photographic rendering."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra subjects or visible text.",
+            "passed": true,
+            "evidence": "The singular \"black fox silhouette\" is the only subject; the response explicitly excludes \"text\" and \"extra subjects\" and introduces neither."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent image-prompt wording with clear composition and exclusions. The final illustration directive is usable prompt content; any omitted exclusion is scored under constraints.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "text-medium-exclusions-29-candidate",
+      "case_id": "text-medium-exclusions",
+      "family": "text",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "3a52faba6904e8cb8da117f05432a7b7d71c6dfc4f3e951c739d87f7fc3ae093",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Revise image-generation prompts while preserving the user's intent and explicit constraints. Keep the requested medium and output format. Do not turn an illustration into a photograph unless asked.",
+      "order": 10,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "Flat two-color screen print: black fox silhouette, centered, facing right, on cream background with rough paper texture. No gradients, lighting, text, or extra subjects. Keep medium as illustration.",
+      "execution_ms": 329,
+      "wall_ms": 424.94206901756115,
+      "assessment": {
+        "blind_id": "9236bfca6b47b9b4",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "Flat two-color screen print.",
+            "score": 1,
+            "evidence": "\"Flat two-color screen print\" retains the flat screen-print technique and two-color restriction."
+          },
+          {
+            "id": "subject",
+            "description": "One black fox silhouette.",
+            "score": 1,
+            "evidence": "\"black fox silhouette\" describes one singular fox, reinforced by \"No gradients, lighting, text, or extra subjects.\""
+          },
+          {
+            "id": "direction",
+            "description": "Centered and facing right.",
+            "score": 1,
+            "evidence": "\"centered, facing right\" preserves both placement and direction."
+          },
+          {
+            "id": "background",
+            "description": "Cream background with rough paper texture.",
+            "score": 1,
+            "evidence": "\"cream background with rough paper texture\" retains the background color and texture."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "28 whitespace-separated words, within the 60-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph, with no heading, markdown, or explanatory commentary. The final illustration instruction is part of the image prompt."
+          },
+          {
+            "id": "medium_preserved",
+            "description": "No photorealism, gradients, lighting effects, or camera terms.",
+            "passed": false,
+            "evidence": "\"No gradients, lighting, text, or extra subjects.\" retains those exclusions, but omits the source instruction prohibiting camera terms. \"Keep medium as illustration.\" does not preserve that distinct exclusion. No camera detail is actually added, but the prompt explicitly requires preserving every exclusion."
+          },
+          {
+            "id": "no_additions",
+            "description": "No extra subjects or visible text.",
+            "passed": true,
+            "evidence": "The singular \"black fox silhouette\" is the only subject; the response explicitly excludes \"text\" and \"extra subjects\" and introduces neither."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent image-prompt wording with clear composition and exclusions. The final illustration directive is usable prompt content; any omitted exclusion is scored under constraints.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 3.0,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9.0
+      }
+    },
+    {
+      "id": "text-operator-system-17-freeform",
+      "case_id": "text-operator-system",
+      "family": "text",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "532c4f2a5aa2a2fa051fd47102560b267083ee672e5e7f157e8588145859c323",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.",
+      "effective_system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+      "order": 11,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "PROMPT:  \nTop-down watercolor of a single empty wooden rowboat on a calm green pond. No people, animals, text, or other boats. Keep scene minimal\u2014no added details.",
+      "execution_ms": 356,
+      "wall_ms": 425.8805909776129,
+      "assessment": {
+        "blind_id": "a54f7cbab39a9177",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": false
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "A watercolor painting.",
+            "score": 1,
+            "evidence": "\"Top-down watercolor\" retains watercolor as the painting medium."
+          },
+          {
+            "id": "view",
+            "description": "Viewed directly from above.",
+            "score": 1,
+            "evidence": "\"Top-down\" is an equivalent description of viewing directly from above."
+          },
+          {
+            "id": "boat",
+            "description": "One unoccupied wooden rowboat.",
+            "score": 1,
+            "evidence": "\"a single empty wooden rowboat\" retains the count, material, boat type, and lack of occupants."
+          },
+          {
+            "id": "water",
+            "description": "A still green pond.",
+            "score": 1,
+            "evidence": "\"a calm green pond\" retains the pond and green color; \"calm\" conveys the stated still water in this context."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 40 words in the second line.",
+            "passed": true,
+            "evidence": "The second line has 25 whitespace-separated words, within the 40-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief.",
+            "passed": false,
+            "evidence": "There are exactly two lines, but the first line is \"PROMPT:  \" with two trailing spaces, not exactly \"PROMPT:\". This agrees with the failed automatic format check; the second line otherwise contains only the rewritten brief."
+          },
+          {
+            "id": "no_additions",
+            "description": "No people, animals, lettering, extra boats, or new scene details.",
+            "passed": true,
+            "evidence": "\"No people, animals, text, or other boats.\" preserves the exclusions. The rewritten scene adds no objects or other scene details; the final instruction reiterates the no-additions requirement."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The brief is concise, coherent, and understandable as an image prompt. Its scene instructions need no prose editing; the exact header whitespace defect is scored separately under format.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 2.6666666666666665,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.6667
+      }
+    },
+    {
+      "id": "text-operator-system-17-candidate",
+      "case_id": "text-operator-system",
+      "family": "text",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "532c4f2a5aa2a2fa051fd47102560b267083ee672e5e7f157e8588145859c323",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+      "order": 12,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "PROMPT:  \nWatercolor, top-down view: single unoccupied wooden rowboat on still green pond. No people, animals, text, or other boats. No added scene details.",
+      "execution_ms": 350,
+      "wall_ms": 425.37938099121675,
+      "assessment": {
+        "blind_id": "007da5a057ec2e00",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": false
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "A watercolor painting.",
+            "score": 1,
+            "evidence": "\"Watercolor\" retains the painting medium."
+          },
+          {
+            "id": "view",
+            "description": "Viewed directly from above.",
+            "score": 1,
+            "evidence": "\"top-down view\" is an equivalent description of viewing directly from above."
+          },
+          {
+            "id": "boat",
+            "description": "One unoccupied wooden rowboat.",
+            "score": 1,
+            "evidence": "\"single unoccupied wooden rowboat\" explicitly retains the count, material, boat type, and lack of occupants."
+          },
+          {
+            "id": "water",
+            "description": "A still green pond.",
+            "score": 1,
+            "evidence": "\"still green pond\" retains all stated water details."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 40 words in the second line.",
+            "passed": true,
+            "evidence": "The second line has 22 whitespace-separated words, within the 40-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief.",
+            "passed": false,
+            "evidence": "There are exactly two lines, but the first line is \"PROMPT:  \" with two trailing spaces, not exactly \"PROMPT:\". This agrees with the failed automatic format check; the second line otherwise contains only the rewritten brief."
+          },
+          {
+            "id": "no_additions",
+            "description": "No people, animals, lettering, extra boats, or new scene details.",
+            "passed": true,
+            "evidence": "\"No people, animals, text, or other boats.\" preserves the exclusions. The rewritten scene adds no objects or other scene details; the final instruction reiterates the no-additions requirement."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The brief is concise, coherent, and understandable as an image prompt. Its scene instructions need no prose editing; the exact header whitespace defect is scored separately under format.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 2.6666666666666665,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.6667
+      }
+    },
+    {
+      "id": "text-operator-system-29-candidate",
+      "case_id": "text-operator-system",
+      "family": "text",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "a9496619a6a5c9f9856479ff76412c545f247617486a2aaa828145c00c23a51e",
+      "profile_sha256": "de86bd15a28daeedfdd5c5eb66bba6413e2105e96e86b51a0ee6c2658a2377eb",
+      "effective_prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.\n\nBefore answering, check the stated subjects, counts, colors, spatial relationships, medium, and exclusions. Improve wording and organization without inventing scene facts or camera settings. Follow the user's requested format and length. Return only the requested output.",
+      "effective_system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+      "order": 13,
+      "profile_id": "prompt-fidelity-v1",
+      "image": null,
+      "status": "complete",
+      "response": "PROMPT:  \nWatercolor, top-down view: single unoccupied wooden rowboat on still green pond. No people, animals, text, or other boats. No added scene elements.",
+      "execution_ms": 339,
+      "wall_ms": 427.98109498107806,
+      "assessment": {
+        "blind_id": "058551760c58d0b7",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": false
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "A watercolor painting.",
+            "score": 1,
+            "evidence": "\"Watercolor\" retains the painting medium."
+          },
+          {
+            "id": "view",
+            "description": "Viewed directly from above.",
+            "score": 1,
+            "evidence": "\"top-down view\" is an equivalent description of viewing directly from above."
+          },
+          {
+            "id": "boat",
+            "description": "One unoccupied wooden rowboat.",
+            "score": 1,
+            "evidence": "\"single unoccupied wooden rowboat\" explicitly retains the count, material, boat type, and lack of occupants."
+          },
+          {
+            "id": "water",
+            "description": "A still green pond.",
+            "score": 1,
+            "evidence": "\"still green pond\" retains all stated water details."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 40 words in the second line.",
+            "passed": true,
+            "evidence": "The second line has 22 whitespace-separated words, within the 40-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief.",
+            "passed": false,
+            "evidence": "There are exactly two lines, but the first line is \"PROMPT:  \" with two trailing spaces, not exactly \"PROMPT:\". This agrees with the failed automatic format check; the second line otherwise contains only the rewritten brief."
+          },
+          {
+            "id": "no_additions",
+            "description": "No people, animals, lettering, extra boats, or new scene details.",
+            "passed": true,
+            "evidence": "\"No people, animals, text, or other boats.\" preserves the exclusions. The rewritten scene adds no objects or other scene details; the final instruction reiterates the no-additions requirement."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The brief is concise, coherent, and understandable as an image prompt. Its scene instructions need no prose editing; the exact header whitespace defect is scored separately under format.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 2.6666666666666665,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.6667
+      }
+    },
+    {
+      "id": "text-operator-system-29-freeform",
+      "case_id": "text-operator-system",
+      "family": "text",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "a9496619a6a5c9f9856479ff76412c545f247617486a2aaa828145c00c23a51e",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.",
+      "effective_system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+      "order": 14,
+      "profile_id": "freeform",
+      "image": null,
+      "status": "complete",
+      "response": "PROMPT:  \nTop-down watercolor of a single empty wooden rowboat on a calm green pond. No people, animals, text, or other boats. Keep scene minimal\u2014no added details.",
+      "execution_ms": 338,
+      "wall_ms": 435.49291501403786,
+      "assessment": {
+        "blind_id": "3f89ccb8343c779d",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": false
+        },
+        "facts": [
+          {
+            "id": "medium",
+            "description": "A watercolor painting.",
+            "score": 1,
+            "evidence": "\"Top-down watercolor\" retains watercolor as the painting medium."
+          },
+          {
+            "id": "view",
+            "description": "Viewed directly from above.",
+            "score": 1,
+            "evidence": "\"Top-down\" is an equivalent description of viewing directly from above."
+          },
+          {
+            "id": "boat",
+            "description": "One unoccupied wooden rowboat.",
+            "score": 1,
+            "evidence": "\"a single empty wooden rowboat\" retains the count, material, boat type, and lack of occupants."
+          },
+          {
+            "id": "water",
+            "description": "A still green pond.",
+            "score": 1,
+            "evidence": "\"a calm green pond\" retains the pond and green color; \"calm\" conveys the stated still water in this context."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 40 words in the second line.",
+            "passed": true,
+            "evidence": "The second line has 25 whitespace-separated words, within the 40-word maximum."
+          },
+          {
+            "id": "format",
+            "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief.",
+            "passed": false,
+            "evidence": "There are exactly two lines, but the first line is \"PROMPT:  \" with two trailing spaces, not exactly \"PROMPT:\". This agrees with the failed automatic format check; the second line otherwise contains only the rewritten brief."
+          },
+          {
+            "id": "no_additions",
+            "description": "No people, animals, lettering, extra boats, or new scene details.",
+            "passed": true,
+            "evidence": "\"No people, animals, text, or other boats.\" preserves the exclusions. The rewritten scene adds no objects or other scene details; the final instruction reiterates the no-additions requirement."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The brief is concise, coherent, and understandable as an image prompt. Its scene instructions need no prose editing; the exact header whitespace defect is scored separately under format.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 2.6666666666666665,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.6667
+      }
+    },
+    {
+      "id": "vision-count-relations-17-candidate",
+      "case_id": "vision-count-relations",
+      "family": "vision",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "96c772e285793f017829332026a462480763b5938381e1085be4148fce2f5bfb",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "order": 15,
+      "profile_id": "visible-evidence-v1",
+      "image": "count-relations",
+      "status": "complete",
+      "response": "A red circle, two blue squares, and one green triangle are visible. The circle is left, squares are center-right, triangle is below center. All shapes are on a light beige background with no overlap or text.",
+      "execution_ms": 493,
+      "wall_ms": 631.9097980158404,
+      "assessment": {
+        "blind_id": "7c60625631294aa5",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "circle",
+            "description": "One red circle on the left.",
+            "score": 1,
+            "evidence": "\"A red circle\" and \"The circle is left\" correctly identify the single red circle on the left."
+          },
+          {
+            "id": "squares",
+            "description": "Two blue squares to the right of the red circle.",
+            "score": 1,
+            "evidence": "\"two blue squares\" and \"squares are center-right\" give the correct count, color and placement to the circle's right."
+          },
+          {
+            "id": "triangle",
+            "description": "One green triangle below the upper row of shapes.",
+            "score": 1,
+            "evidence": "\"one green triangle\" and \"triangle is below center\" correctly place the triangle below the upper row."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background.",
+            "score": 1,
+            "evidence": "\"All shapes are on a light beige background with no overlap or text\" describes the plain light cream/off-white field accurately; light beige is an acceptable equivalent here."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "36 whitespace-separated words, within the 70-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, use, real-world identity, text, or hidden object.",
+            "passed": true,
+            "evidence": "\"no overlap or text\" is supported by the PNG; no material, use, real-world identity or hidden object is introduced."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Compact, coherent description that gives the requested properties without distracting phrasing.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "vision-count-relations-17-freeform",
+      "case_id": "vision-count-relations",
+      "family": "vision",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "96c772e285793f017829332026a462480763b5938381e1085be4148fce2f5bfb",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.",
+      "effective_system_prompt": "",
+      "order": 16,
+      "profile_id": "freeform",
+      "image": "count-relations",
+      "status": "complete",
+      "response": "A red circle, two blue squares, and one green triangle are visible. The circle is left, squares are center-right, triangle is bottom center. All shapes are on a plain, light beige background, with no overlapping or touching edges.",
+      "execution_ms": 565,
+      "wall_ms": 736.4685570064466,
+      "assessment": {
+        "blind_id": "8e8b11876940102f",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "circle",
+            "description": "One red circle on the left.",
+            "score": 1,
+            "evidence": "\"A red circle\" and \"The circle is left\" correctly identify the single red circle on the left."
+          },
+          {
+            "id": "squares",
+            "description": "Two blue squares to the right of the red circle.",
+            "score": 1,
+            "evidence": "\"two blue squares\" and \"squares are center-right\" correctly give the count, color and position to the circle's right."
+          },
+          {
+            "id": "triangle",
+            "description": "One green triangle below the upper row of shapes.",
+            "score": 1,
+            "evidence": "\"one green triangle\" and \"triangle is bottom center\" correctly place the triangle below the upper row; the broad lower-center label is acceptable despite its slight leftward offset."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background.",
+            "score": 1,
+            "evidence": "\"a plain, light beige background\" correctly describes the plain cream/off-white field."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 70-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, use, real-world identity, text, or hidden object.",
+            "passed": true,
+            "evidence": "\"no overlapping or touching edges\" agrees with the separated shapes in the PNG; no material, use, identity, text or hidden object is invented."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Clear, concise description of all requested attributes; the no-contact observation is easy to understand.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 10
+      }
+    },
+    {
+      "id": "vision-count-relations-29-freeform",
+      "case_id": "vision-count-relations",
+      "family": "vision",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "fa6870e53cbfba4570e0d77ff6b56bf67f0619f031def977dfae51dcab7a6fc9",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.",
+      "effective_system_prompt": "",
+      "order": 17,
+      "profile_id": "freeform",
+      "image": "count-relations",
+      "status": "complete",
+      "response": "A red circle, two blue squares, and one green triangle are arranged on a light beige background. The circle is left, squares are center-right, and the triangle is below the squares, forming a loose horizontal and vertical alignment.",
+      "execution_ms": 458,
+      "wall_ms": 534.303243010072,
+      "assessment": {
+        "blind_id": "8bbc87666a4256e0",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "circle",
+            "description": "One red circle on the left.",
+            "score": 1,
+            "evidence": "\"A red circle\" and \"The circle is left\" correctly identify the single red circle and its position."
+          },
+          {
+            "id": "squares",
+            "description": "Two blue squares to the right of the red circle.",
+            "score": 1,
+            "evidence": "\"two blue squares\" and \"squares are center-right\" correctly give the count, color and position to the circle's right."
+          },
+          {
+            "id": "triangle",
+            "description": "One green triangle below the upper row of shapes.",
+            "score": 1,
+            "evidence": "\"one green triangle\" and \"the triangle is below the squares\" correctly give its count, color and lower position; this does not assert that it is directly vertically aligned with a square."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background.",
+            "score": 1,
+            "evidence": "\"on a light beige background\" is an acceptable description of the plain cream/off-white field."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 70-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, use, real-world identity, text, or hidden object.",
+            "passed": true,
+            "evidence": "Describes only visible shapes, colors and their loose arrangement. No material, use, identity, text or hidden object is introduced; \"loose\" alignment does not assert an exact shared vertical centerline."
+          }
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Understandable, but \"forming a loose horizontal and vertical alignment\" is vague and adds little after the concrete positions; minor trimming would improve it.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 4,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 1,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9
+      }
+    },
+    {
+      "id": "vision-count-relations-29-candidate",
+      "case_id": "vision-count-relations",
+      "family": "vision",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "fa6870e53cbfba4570e0d77ff6b56bf67f0619f031def977dfae51dcab7a6fc9",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "order": 18,
+      "profile_id": "visible-evidence-v1",
+      "image": "count-relations",
+      "status": "complete",
+      "response": "A red circle, two blue squares, and one green triangle are visible on a light background. The circle is left, squares are center-right, and triangle is below center. No text or overlapping shapes are present.",
+      "execution_ms": 475,
+      "wall_ms": 539.9322919838596,
+      "assessment": {
+        "blind_id": "3f7b943b5937c3e8",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "circle",
+            "description": "One red circle on the left.",
+            "score": 1,
+            "evidence": "\"A red circle\" and \"The circle is left\" correctly identify the single red circle and its left position."
+          },
+          {
+            "id": "squares",
+            "description": "Two blue squares to the right of the red circle.",
+            "score": 1,
+            "evidence": "\"two blue squares\" and \"squares are center-right\" correctly give the count, color and position to the circle's right."
+          },
+          {
+            "id": "triangle",
+            "description": "One green triangle below the upper row of shapes.",
+            "score": 1,
+            "evidence": "\"one green triangle\" and \"triangle is below center\" correctly place the triangle below the upper row."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background.",
+            "score": 0.5,
+            "evidence": "\"on a light background\" recognizes the light background but omits its cream/off-white color and plain appearance."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 70 words.",
+            "passed": true,
+            "evidence": "35 whitespace-separated words, within the 70-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, use, real-world identity, text, or hidden object.",
+            "passed": true,
+            "evidence": "\"No text or overlapping shapes are present\" agrees with the PNG; no materials, uses, identities or hidden objects are invented."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent description with readily understood positions and no distracting repetition.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.5,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9.5
+      }
+    },
+    {
+      "id": "vision-readable-text-17-freeform",
+      "case_id": "vision-readable-text",
+      "family": "vision",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "d2276b13977d6c5bc543ae277364ad78d4dfc14880886e1c85af70869c5e310f",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.",
+      "effective_system_prompt": "",
+      "order": 19,
+      "profile_id": "freeform",
+      "image": "readable-text",
+      "status": "complete",
+      "response": "\"BEWARE\" sign in black on white. Orange circle left, blue square right, both below sign. Background: off-white. Shapes are distinct, positioned symmetrically beneath the text.",
+      "execution_ms": 468,
+      "wall_ms": 540.359177015489,
+      "assessment": {
+        "blind_id": "4651f4b72ff807cf",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "text",
+            "description": "The sign reads OPEN 24, with these exact characters.",
+            "score": 0,
+            "evidence": "\"BEWARE\" is the wrong transcription: the sign visibly reads OPEN 24."
+          },
+          {
+            "id": "circle",
+            "description": "An orange circle below the sign on the left.",
+            "score": 1,
+            "evidence": "\"Orange circle left\" and \"both below sign\" correctly describe its color, shape and position."
+          },
+          {
+            "id": "square",
+            "description": "A blue square below the sign on the right.",
+            "score": 1,
+            "evidence": "\"blue square right\" and \"both below sign\" correctly describe its color, shape and position."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background; the sign is white with black lettering.",
+            "score": 1,
+            "evidence": "\"sign in black on white\" and \"Background: off-white\" correctly identify the sign's black lettering, white panel and plain off-white surround."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "25 whitespace-separated words, within the 60-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No inferred business, place, material, operating schedule, or extra text.",
+            "passed": true,
+            "evidence": "No business, place, material, operating schedule or extra inscription is introduced. BEWARE replaces the required transcription and is scored as a wrong fact; the separate spatial symmetry assertion is recorded as an unsupported addition."
+          }
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Understandable, but the final sentence repeats the already stated below-sign placement and adds a distracting symmetry assertion.",
+        "unsupported_claims": [
+          "\"positioned symmetrically beneath the text\": the shapes are not equally offset from the sign/text center; the orange circle is farther to its left than the blue square is to its right."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.0,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 1,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 6.0
+      }
+    },
+    {
+      "id": "vision-readable-text-17-candidate",
+      "case_id": "vision-readable-text",
+      "family": "vision",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "d2276b13977d6c5bc543ae277364ad78d4dfc14880886e1c85af70869c5e310f",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "order": 20,
+      "profile_id": "visible-evidence-v1",
+      "image": "readable-text",
+      "status": "complete",
+      "response": "The sign reads \"BEWARE\". Below it, an orange circle and a blue square are positioned, left and right respectively, on a light beige background. The sign is white with black lettering.",
+      "execution_ms": 448,
+      "wall_ms": 530.7073109725025,
+      "assessment": {
+        "blind_id": "75b311b7a8a73b96",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "text",
+            "description": "The sign reads OPEN 24, with these exact characters.",
+            "score": 0,
+            "evidence": "\"BEWARE\" is the wrong transcription: the visible characters are OPEN 24, not BEWARE."
+          },
+          {
+            "id": "circle",
+            "description": "An orange circle below the sign on the left.",
+            "score": 1,
+            "evidence": "\"Below it, an orange circle and a blue square\" and \"left and right respectively\" correctly place the orange circle below the sign on the left."
+          },
+          {
+            "id": "square",
+            "description": "A blue square below the sign on the right.",
+            "score": 1,
+            "evidence": "\"Below it, an orange circle and a blue square\" and \"left and right respectively\" correctly place the blue square below the sign on the right."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background; the sign is white with black lettering.",
+            "score": 1,
+            "evidence": "\"on a light beige background\" and \"The sign is white with black lettering\" correctly describe the background and sign colors; light beige is an acceptable cream/off-white description here."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "31 whitespace-separated words, within the 60-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No inferred business, place, material, operating schedule, or extra text.",
+            "passed": true,
+            "evidence": "Describes only the sign, shapes and colors, with no business, place, material, schedule or additional inscription. The replacement OCR error is scored under the text fact, not counted again as extra text."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The paragraph is coherent and concise; the transcription error is scored under facts.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.0,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9.0
+      }
+    },
+    {
+      "id": "vision-readable-text-29-candidate",
+      "case_id": "vision-readable-text",
+      "family": "vision",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "2e9ec5912339c477004d673f18bebac18c85317a8097c8353dc4c053c937a824",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "order": 21,
+      "profile_id": "visible-evidence-v1",
+      "image": "readable-text",
+      "status": "complete",
+      "response": "The sign reads \"E4\". Below it, an orange circle and a blue square are positioned, left and right respectively. The background is off-white, with the sign's text and shapes in black, orange, and blue.",
+      "execution_ms": 449,
+      "wall_ms": 527.4928339931648,
+      "assessment": {
+        "blind_id": "fade6d52fa21b39a",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "text",
+            "description": "The sign reads OPEN 24, with these exact characters.",
+            "score": 0,
+            "evidence": "\"E4\" is wrong and not a faithful transcription of OPEN 24."
+          },
+          {
+            "id": "circle",
+            "description": "An orange circle below the sign on the left.",
+            "score": 1,
+            "evidence": "\"Below it, an orange circle and a blue square\" and \"left and right respectively\" correctly describe the orange circle below the sign on the left."
+          },
+          {
+            "id": "square",
+            "description": "A blue square below the sign on the right.",
+            "score": 1,
+            "evidence": "\"Below it, an orange circle and a blue square\" and \"left and right respectively\" correctly describe the blue square below the sign on the right."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background; the sign is white with black lettering.",
+            "score": 0.5,
+            "evidence": "\"The background is off-white\" and \"the sign's text and shapes in black, orange, and blue\" retain the background and lettering color, but omit the white sign panel."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "34 whitespace-separated words, within the 60-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No inferred business, place, material, operating schedule, or extra text.",
+            "passed": true,
+            "evidence": "No business, place, material, schedule or additional inscription is inferred. E4 is the incorrect replacement transcription, scored under the text fact rather than again as extra text."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent and brief; the final color list is understandable, with accuracy and the missing panel color handled by the fact scores.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 2.5,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.5
+      }
+    },
+    {
+      "id": "vision-readable-text-29-freeform",
+      "case_id": "vision-readable-text",
+      "family": "vision",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "2e9ec5912339c477004d673f18bebac18c85317a8097c8353dc4c053c937a824",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.",
+      "effective_system_prompt": "",
+      "order": 22,
+      "profile_id": "freeform",
+      "image": "readable-text",
+      "status": "complete",
+      "response": "\"BEWARE\" sign in black on white. Orange circle left, blue square right, both below sign. Background: off-white. Shapes are distinct, positioned symmetrically beneath the text.",
+      "execution_ms": 469,
+      "wall_ms": 632.9038219992071,
+      "assessment": {
+        "blind_id": "fc217d3fed82010e",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "text",
+            "description": "The sign reads OPEN 24, with these exact characters.",
+            "score": 0,
+            "evidence": "\"BEWARE\" is the wrong transcription: the sign visibly reads OPEN 24."
+          },
+          {
+            "id": "circle",
+            "description": "An orange circle below the sign on the left.",
+            "score": 1,
+            "evidence": "\"Orange circle left\" and \"both below sign\" correctly describe its color, shape and position."
+          },
+          {
+            "id": "square",
+            "description": "A blue square below the sign on the right.",
+            "score": 1,
+            "evidence": "\"blue square right\" and \"both below sign\" correctly describe its color, shape and position."
+          },
+          {
+            "id": "background",
+            "description": "A plain light cream or off-white background; the sign is white with black lettering.",
+            "score": 1,
+            "evidence": "\"sign in black on white\" and \"Background: off-white\" correctly identify the sign's black lettering, white panel and plain off-white surround."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 60 words.",
+            "passed": true,
+            "evidence": "25 whitespace-separated words, within the 60-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No inferred business, place, material, operating schedule, or extra text.",
+            "passed": true,
+            "evidence": "No business, place, material, operating schedule or extra inscription is introduced. BEWARE replaces the required transcription and is scored as a wrong fact; the separate spatial symmetry assertion is recorded as an unsupported addition."
+          }
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Understandable, but the final sentence repeats the already stated below-sign placement and adds a distracting symmetry assertion.",
+        "unsupported_claims": [
+          "\"positioned symmetrically beneath the text\": the shapes are not equally offset from the sign/text center; the orange circle is farther to its left than the blue square is to its right."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.0,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 1,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 6.0
+      }
+    },
+    {
+      "id": "vision-occlusion-unknown-17-candidate",
+      "case_id": "vision-occlusion-unknown",
+      "family": "vision",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "b11e14d6edee263802882e80cc1da4f5ff66a7df17b40177470062f5be423105",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+      "order": 23,
+      "profile_id": "visible-evidence-v1",
+      "image": "occlusion-unknown",
+      "status": "complete",
+      "response": "A blue circle overlaps a brown rectangle. The circle\u2019s left side is partially covered by the rectangle. Inside the brown rectangle, nothing is visible.",
+      "execution_ms": 433,
+      "wall_ms": 534.9722029932309,
+      "assessment": {
+        "blind_id": "96d1bb8605514a0e",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "front",
+            "description": "A large brown rectangle in the foreground/lower-right portion of the image.",
+            "score": 0.5,
+            "evidence": "\"a brown rectangle\" and \"partially covered by the rectangle\" recognize the foreground rectangle, but omit its large size and lower-right position."
+          },
+          {
+            "id": "back",
+            "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle.",
+            "score": 0.5,
+            "evidence": "\"A blue circle\" recognizes the blue rounded shape, but does not describe its visible extension above and to the left of the rectangle."
+          },
+          {
+            "id": "overlap",
+            "description": "The brown rectangle covers part of the blue shape.",
+            "score": 1,
+            "evidence": "\"The circle\u2019s left side is partially covered by the rectangle\" correctly identifies the rectangle as the covering shape. The rectangle starts left of the circle center and covers some of its left half below the rectangle's top edge, so \"partially\" is supported even though most occlusion is on the right."
+          },
+          {
+            "id": "unknown",
+            "description": "The rectangle's contents are not visible or cannot be determined from the image.",
+            "score": 1,
+            "evidence": "\"Inside the brown rectangle, nothing is visible\" states a visibility limit and does not assert that the contents are empty."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 50 words.",
+            "passed": true,
+            "evidence": "24 whitespace-separated words, within the 50-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented contents, material, object purpose, or count of fully hidden objects.",
+            "passed": true,
+            "evidence": "\"Inside the brown rectangle, nothing is visible\" reports unavailable contents without inventing material, purpose or hidden-object counts. The partial left-side coverage is supported by the overlap extending left of the circle center."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Short, coherent account without redundancy. The partial-coverage wording is understandable; missing size and relative-position details are scored under facts.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.0,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 9.0
+      }
+    },
+    {
+      "id": "vision-occlusion-unknown-17-freeform",
+      "case_id": "vision-occlusion-unknown",
+      "family": "vision",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "b11e14d6edee263802882e80cc1da4f5ff66a7df17b40177470062f5be423105",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.",
+      "effective_system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+      "order": 24,
+      "profile_id": "freeform",
+      "image": "occlusion-unknown",
+      "status": "complete",
+      "response": "A blue circle overlaps a brown rectangle, partially covering its top-left. The image reveals no interior of the brown rectangle; only its outer edge and the blue shape\u2019s visible portion are present.",
+      "execution_ms": 447,
+      "wall_ms": 529.8401890031528,
+      "assessment": {
+        "blind_id": "89fbced6dbdc8c33",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "front",
+            "description": "A large brown rectangle in the foreground/lower-right portion of the image.",
+            "score": 0,
+            "evidence": "\"A blue circle overlaps a brown rectangle, partially covering its top-left\" reverses the foreground relationship: the brown rectangle is in front, not covered by the blue shape."
+          },
+          {
+            "id": "back",
+            "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle.",
+            "score": 0.5,
+            "evidence": "\"A blue circle\" and \"its top-left\" recognize the blue rounded shape and a top-left relationship, but do not correctly describe its visible extension above and left of the foreground rectangle."
+          },
+          {
+            "id": "overlap",
+            "description": "The brown rectangle covers part of the blue shape.",
+            "score": 0,
+            "evidence": "\"partially covering its top-left\" says the blue circle covers the rectangle; the brown rectangle actually covers part of the blue shape."
+          },
+          {
+            "id": "unknown",
+            "description": "The rectangle's contents are not visible or cannot be determined from the image.",
+            "score": 1,
+            "evidence": "\"The image reveals no interior of the brown rectangle\" correctly states that its contents cannot be seen."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 50 words.",
+            "passed": true,
+            "evidence": "32 whitespace-separated words, within the 50-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented contents, material, object purpose, or count of fully hidden objects.",
+            "passed": true,
+            "evidence": "\"The image reveals no interior\" does not invent contents, material, object purpose or a count of hidden objects. The separate false statement about visible edges is recorded as an unsupported addition."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The two sentences are understandable and compact; incorrect geometry and the added edge-only claim are scored separately.",
+        "unsupported_claims": [
+          "\"only its outer edge and the blue shape\u2019s visible portion are present\": the rectangle has a broad solid brown face visible in the PNG, not merely an outer edge."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 1.5,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 5.5
+      }
+    },
+    {
+      "id": "vision-occlusion-unknown-29-freeform",
+      "case_id": "vision-occlusion-unknown",
+      "family": "vision",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "pair_sha256": "746ddff899b9ea0e606081e30b55f942a3fd36e580ce64bc1e9100339c626df9",
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "effective_prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.",
+      "effective_system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+      "order": 25,
+      "profile_id": "freeform",
+      "image": "occlusion-unknown",
+      "status": "complete",
+      "response": "A blue circle overlaps a brown rectangle, partially covering its left side. The image reveals no interior of the brown rectangle; only its outer edge and the blue shape\u2019s overlap are visible.",
+      "execution_ms": 429,
+      "wall_ms": 532.513893005671,
+      "assessment": {
+        "blind_id": "f316b08c1f7da5bd",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "front",
+            "description": "A large brown rectangle in the foreground/lower-right portion of the image.",
+            "score": 0,
+            "evidence": "\"A blue circle overlaps a brown rectangle, partially covering its left side\" places the blue shape in front, contradicting the brown rectangle's foreground position."
+          },
+          {
+            "id": "back",
+            "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle.",
+            "score": 0.5,
+            "evidence": "\"A blue circle\" and \"its left side\" recognize the blue rounded shape and a left-side relationship, but do not describe its extension above and to the left of the rectangle."
+          },
+          {
+            "id": "overlap",
+            "description": "The brown rectangle covers part of the blue shape.",
+            "score": 0,
+            "evidence": "\"partially covering its left side\" reverses the occlusion: the rectangle covers the blue shape, not the reverse."
+          },
+          {
+            "id": "unknown",
+            "description": "The rectangle's contents are not visible or cannot be determined from the image.",
+            "score": 1,
+            "evidence": "\"The image reveals no interior of the brown rectangle\" correctly says its contents are not visible."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 50 words.",
+            "passed": true,
+            "evidence": "32 whitespace-separated words, within the 50-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented contents, material, object purpose, or count of fully hidden objects.",
+            "passed": true,
+            "evidence": "\"reveals no interior\" does not invent contents, material, purpose or hidden-object counts. The false claim about which surfaces are visible is recorded separately as an unsupported addition."
+          }
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Compact, understandable sentences; the wrong overlap direction and edge-only assertion are scored in the accuracy fields.",
+        "unsupported_claims": [
+          "\"only its outer edge and the blue shape\u2019s overlap are visible\": the PNG visibly contains the rectangle's broad solid brown face, not just its outer edge."
+        ],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 1.5,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 2,
+          "unsupported_penalty": 2
+        },
+        "score_out_of_10": 5.5
+      }
+    },
+    {
+      "id": "vision-occlusion-unknown-29-candidate",
+      "case_id": "vision-occlusion-unknown",
+      "family": "vision",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "pair_sha256": "746ddff899b9ea0e606081e30b55f942a3fd36e580ce64bc1e9100339c626df9",
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "effective_prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+      "order": 26,
+      "profile_id": "visible-evidence-v1",
+      "image": "occlusion-unknown",
+      "status": "complete",
+      "response": "A blue circle overlaps a brown rectangle. The circle is partially behind the rectangle. Inside the rectangle, nothing is visible. The image reveals no contents within the large brown rectangle.",
+      "execution_ms": 411,
+      "wall_ms": 531.6651480097789,
+      "assessment": {
+        "blind_id": "35f78548c3842c67",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "front",
+            "description": "A large brown rectangle in the foreground/lower-right portion of the image.",
+            "score": 0.5,
+            "evidence": "\"the large brown rectangle\" and \"The circle is partially behind the rectangle\" correctly identify the large foreground rectangle, but omit its lower-right position."
+          },
+          {
+            "id": "back",
+            "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle.",
+            "score": 0.5,
+            "evidence": "\"A blue circle\" and \"The circle is partially behind the rectangle\" recognize the partially hidden rounded shape but omit its extension above and to the left."
+          },
+          {
+            "id": "overlap",
+            "description": "The brown rectangle covers part of the blue shape.",
+            "score": 1,
+            "evidence": "\"The circle is partially behind the rectangle\" correctly states that the rectangle covers part of the blue shape."
+          },
+          {
+            "id": "unknown",
+            "description": "The rectangle's contents are not visible or cannot be determined from the image.",
+            "score": 1,
+            "evidence": "\"The image reveals no contents within the large brown rectangle\" correctly reports that contents are not visible, without claiming it is empty."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 50 words.",
+            "passed": true,
+            "evidence": "30 whitespace-separated words, within the 50-word limit; automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown, or commentary; automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented contents, material, object purpose, or count of fully hidden objects.",
+            "passed": true,
+            "evidence": "\"nothing is visible\" is clarified by \"reveals no contents\" as an observation limit, not a claim of an empty interior. No materials, identities, purposes or hidden-object counts are invented."
+          }
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Clear overall, but the last two sentences repeat the same lack-of-visible-contents information and need minor trimming.",
+        "unsupported_claims": [],
+        "reviewed": true,
+        "score_components": {
+          "facts_out_of_4": 3.0,
+          "constraints_out_of_4": 4,
+          "clarity_out_of_2": 1,
+          "unsupported_penalty": 0
+        },
+        "score_out_of_10": 8.0
+      }
+    }
+  ],
+  "summary": {
+    "plan_sha256": "372fbdc0e69c33cededa29e776f1ab04401744372aad616a19ed128f49b5d887",
+    "latency_metric": "execution_ms",
+    "families": {
+      "text": {
+        "pairs": [
+          {
+            "case_id": "text-object-fidelity",
+            "seed": 17,
+            "freeform": 10,
+            "candidate": 8,
+            "delta": -2,
+            "latency_ratio": 1.0613333333333332
+          },
+          {
+            "case_id": "text-object-fidelity",
+            "seed": 29,
+            "freeform": 10,
+            "candidate": 8,
+            "delta": -2,
+            "latency_ratio": 1.053370786516854
+          },
+          {
+            "case_id": "text-medium-exclusions",
+            "seed": 17,
+            "freeform": 10,
+            "candidate": 9.0,
+            "delta": -1.0,
+            "latency_ratio": 0.9054441260744985
+          },
+          {
+            "case_id": "text-medium-exclusions",
+            "seed": 29,
+            "freeform": 10,
+            "candidate": 9.0,
+            "delta": -1.0,
+            "latency_ratio": 0.9619883040935673
+          },
+          {
+            "case_id": "text-operator-system",
+            "seed": 17,
+            "freeform": 8.6667,
+            "candidate": 8.6667,
+            "delta": 0.0,
+            "latency_ratio": 0.9831460674157303
+          },
+          {
+            "case_id": "text-operator-system",
+            "seed": 29,
+            "freeform": 8.6667,
+            "candidate": 8.6667,
+            "delta": 0.0,
+            "latency_ratio": 1.0029585798816567
+          }
+        ],
+        "mean_delta": -1.0,
+        "median_latency_ratio": 0.9930523236486934,
+        "gate": {
+          "mean_gain_at_least_one": false,
+          "no_case_mean_regression": false,
+          "at_least_two_cases_improve": false,
+          "candidate_constraints_all_pass": false,
+          "candidate_no_unsupported_claims": false,
+          "candidate_all_complete": true,
+          "median_latency_ratio_at_most_1_25": true
+        },
+        "decision": "defer"
+      },
+      "vision": {
+        "pairs": [
+          {
+            "case_id": "vision-count-relations",
+            "seed": 17,
+            "freeform": 10,
+            "candidate": 10,
+            "delta": 0,
+            "latency_ratio": 0.8725663716814159
+          },
+          {
+            "case_id": "vision-count-relations",
+            "seed": 29,
+            "freeform": 9,
+            "candidate": 9.5,
+            "delta": 0.5,
+            "latency_ratio": 1.037117903930131
+          },
+          {
+            "case_id": "vision-readable-text",
+            "seed": 17,
+            "freeform": 6.0,
+            "candidate": 9.0,
+            "delta": 3.0,
+            "latency_ratio": 0.9572649572649573
+          },
+          {
+            "case_id": "vision-readable-text",
+            "seed": 29,
+            "freeform": 6.0,
+            "candidate": 8.5,
+            "delta": 2.5,
+            "latency_ratio": 0.9573560767590619
+          },
+          {
+            "case_id": "vision-occlusion-unknown",
+            "seed": 17,
+            "freeform": 5.5,
+            "candidate": 9.0,
+            "delta": 3.5,
+            "latency_ratio": 0.9686800894854586
+          },
+          {
+            "case_id": "vision-occlusion-unknown",
+            "seed": 29,
+            "freeform": 5.5,
+            "candidate": 8.0,
+            "delta": 2.5,
+            "latency_ratio": 0.958041958041958
+          }
+        ],
+        "mean_delta": 2.0,
+        "median_latency_ratio": 0.95769901740051,
+        "gate": {
+          "mean_gain_at_least_one": true,
+          "no_case_mean_regression": true,
+          "at_least_two_cases_improve": true,
+          "candidate_constraints_all_pass": true,
+          "candidate_no_unsupported_claims": true,
+          "candidate_all_complete": true,
+          "median_latency_ratio_at_most_1_25": true
+        },
+        "decision": "eligible_for_followup"
+      }
+    }
+  },
+  "descriptive_aggregates": {
+    "text": {
+      "freeform": {
+        "runs": 6,
+        "mean_score": 9.555566666666667,
+        "median_execution_ms": 352.5,
+        "median_wall_ms": 435.05163000372704,
+        "responses_with_constraint_failures": 2,
+        "responses_with_unsupported_claims": 0,
+        "unsupported_claim_count": 0
+      },
+      "candidate": {
+        "runs": 6,
+        "mean_score": 8.555566666666667,
+        "median_execution_ms": 344.5,
+        "median_wall_ms": 429.764640488429,
+        "responses_with_constraint_failures": 4,
+        "responses_with_unsupported_claims": 2,
+        "unsupported_claim_count": 2
+      }
+    },
+    "vision": {
+      "freeform": {
+        "runs": 6,
+        "mean_score": 7.0,
+        "median_execution_ms": 463.0,
+        "median_wall_ms": 537.3312100127805,
+        "responses_with_constraint_failures": 0,
+        "responses_with_unsupported_claims": 4,
+        "unsupported_claim_count": 4
+      },
+      "candidate": {
+        "runs": 6,
+        "mean_score": 9.0,
+        "median_execution_ms": 448.5,
+        "median_wall_ms": 533.3186755015049,
+        "responses_with_constraint_failures": 0,
+        "responses_with_unsupported_claims": 0,
+        "unsupported_claim_count": 0
+      }
+    }
+  },
+  "limitations": [
+    "One model/quantization/projector/runtime combination; six cases and two seeds per case, with only three synthetic images.",
+    "All four sign transcriptions are incorrect; improved composite OCR-case scores do not demonstrate OCR accuracy.",
+    "Word, line-format and exclusion rules are literal; subjective completeness, clarity and unsupported-detail judgments remain visible in each assessment.",
+    "No statistical significance claim, model-family generalization, or natural-image robustness claim.",
+    "Measured latency excludes warmups/model loading and does not isolate token throughput."
+  ],
+  "decisions": {
+    "text": "defer",
+    "vision": "eligible_for_followup",
+    "shipped": false,
+    "followup_issue": "ENG-95",
+    "followup_url": "https://linear.app/7dev/issue/ENG-95/validate-the-visible-evidence-profile-on-held-out-images-before",
+    "followup_scope": "Bounded held-out image validation on two models before any shipping decision."
+  },
+  "omitted_private_fields": [
+    "Host-specific absolute model, projector and executable paths",
+    "Native Comfy submitted graphs/history envelopes and runtime discovery dumps",
+    "Host usernames and runtime authentication values"
+  ]
+}

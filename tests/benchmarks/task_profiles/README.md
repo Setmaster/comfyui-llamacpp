@@ -70,6 +70,11 @@ then mark each card `reviewed: true`. Automatic word/line checks are supplements
 to human or independent model review, not quality scores. The rubric requires
 checking image facts against the actual PNGs.
 
+`unsupported_claims` is a list of strings. Each string quotes the claim and gives
+the reason it lacks support, for example `["\"a spoon\": no spoon is present"]`.
+Use an empty list when no unsupported additions are found. Do not place objects
+with separate claim/reason keys in this field.
+
 ```bash
 .venv/bin/python tests/benchmarks/task_profiles/bakeoff.py summarize /tmp/profile-bakeoff-live
 .venv/bin/python -m pytest -q tests/benchmarks/task_profiles

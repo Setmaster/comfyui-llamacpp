@@ -1,0 +1,137 @@
+{
+  "issue": "ENG-90",
+  "build": "b9957 c4ae9a88f8884ee5a155c8349ace9ea31a58007f",
+  "acquisition": [
+    {
+      "file": "Qwen3-ASR-0.6B-Q8_0.gguf",
+      "bytes": 804749248,
+      "sha256": "bca259818b50ca7c4c05e9bdb35a5dc04fa039653a6d6f3f0f331f96f6aa1971",
+      "seconds": 13.418047322978964,
+      "source_revision": "928ab958557df9aa2ef1c93e0e83c7ad0933fae2"
+    },
+    {
+      "file": "mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
+      "bytes": 214392480,
+      "sha256": "41a342b5e4c514e968cb756de6cd1b7be39eff43c44c57a2ef5fc6522e36603d",
+      "seconds": 5.747735309007112,
+      "source_revision": "928ab958557df9aa2ef1c93e0e83c7ad0933fae2"
+    }
+  ],
+  "metadata": {
+    "mmproj-Qwen3-ASR-0.6B-Q8_0.gguf": {
+      "general.architecture": "clip",
+      "general.type": "mmproj",
+      "general.size_label": "188M",
+      "general.tags": [
+        "automatic-speech-recognition"
+      ],
+      "general.file_type": 7,
+      "clip.has_audio_encoder": true,
+      "clip.audio.projection_dim": 1024,
+      "clip.audio.embedding_length": 896,
+      "clip.audio.feed_forward_length": 3584,
+      "clip.audio.block_count": 18,
+      "clip.audio.attention.head_count": 14,
+      "clip.audio.num_mel_bins": 128,
+      "clip.audio.attention.layer_norm_epsilon": 9.999999747378752e-06,
+      "clip.audio.projector_type": "qwen3a"
+    },
+    "Qwen3-ASR-0.6B-Q8_0.gguf": {
+      "general.architecture": "qwen3vl",
+      "general.type": "model",
+      "general.size_label": "752M",
+      "general.tags": [
+        "automatic-speech-recognition"
+      ],
+      "qwen3vl.embedding_length": 1024,
+      "qwen3vl.n_deepstack_layers": 0,
+      "general.file_type": 7
+    }
+  },
+  "modalities": {
+    "vision": false,
+    "video": false,
+    "audio": true
+  },
+  "fixture": {
+    "sha256": "4d141e9f9d520d95620d98f12719c77e36d49ddca4653e50b7c52c75c344598b",
+    "words": "The blue notebook is beside the window.",
+    "sample_rate": 16000,
+    "channels": 1,
+    "sample_width_bytes": 2,
+    "frames": 44720,
+    "duration_seconds": 2.795
+  },
+  "probes": [
+    {
+      "name": "chat",
+      "status": 200,
+      "seconds": 0.22109850001288578,
+      "text": "language English<asr_text>The blue notebook is beside the window.",
+      "exact_words": false
+    },
+    {
+      "name": "transcription",
+      "status": 200,
+      "seconds": 0.12535190000198781,
+      "text": "language English<asr_text>The blue notebook is beside the window.",
+      "exact_words": false
+    },
+    {
+      "name": "chat-reuse",
+      "status": 200,
+      "seconds": 0.10824579998734407,
+      "text": "language English<asr_text>The blue notebook is beside the window.",
+      "exact_words": false
+    },
+    {
+      "name": "chat-stream",
+      "status": 200,
+      "seconds": 0.09697869999217801,
+      "text": "language English<asr_text>The blue notebook is beside the window.",
+      "exact_words": false
+    }
+  ],
+  "after_cancel": {
+    "status": 200,
+    "seconds": 0.07962030000635423,
+    "text": "language English<asr_text>The blue notebook is beside the window."
+  },
+  "cancellation": [
+    {
+      "attempt": 1,
+      "wav_repeats": 1,
+      "active_seen": true,
+      "delete_status": 204,
+      "delete_seconds": 0.0008218000002671033,
+      "reader_terminated": true,
+      "elapsed_seconds": 1.0409285000059754,
+      "quiescent": true
+    }
+  ],
+  "same_owned_pid": true,
+  "windows_job_assigned": true,
+  "stop": {
+    "complete": true,
+    "escalated": false,
+    "returncode": 1,
+    "duration_seconds": 0.2492478000058327,
+    "remaining_pids": [],
+    "error": null
+  },
+  "pid_gone": true,
+  "listener_closed": true,
+  "vram_mib": {
+    "vram_before_mib": 14127,
+    "vram_loaded_mib": 16443,
+    "vram_peak_observed_mib": 16555,
+    "vram_released_mib": 14129
+  },
+  "limits": [
+    "Single synthetic English short clip",
+    "Raw language/control prefix preserved",
+    "Requests connect/read timeouts, not absolute-deadline stress",
+    "VRAM sampled, not continuous peak",
+    "No public audio node shipped"
+  ]
+}

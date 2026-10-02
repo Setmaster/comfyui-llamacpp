@@ -1,7 +1,8 @@
 # Task-profile bakeoff, 2026-10-02
 
-Status: protocol prepared; live runs and scoring pending.
-Tracking: ENG-89. Runtime baseline: `a466b6b`.
+Status: completed local bakeoff; Prompt Fidelity deferred, Visible Evidence
+eligible for a separate follow-up. Neither candidate is shipped.
+Tracking: ENG-89; follow-up ENG-95. Executed plugin revision: `f84e227878208b094ec8b0f9510f4d581e9960c6`.
 
 ## Question and scope
 
@@ -171,17 +172,161 @@ scoped Linear issue; this benchmark does not modify bundled profiles.
 
 ## Results and decision
 
-Pending live execution and independent scoring. No candidate benefit,
-latency result or ship recommendation is claimed yet.
+All 24 measured requests and both excluded warmups completed on the same owned
+Windows runtime. Before/after records retain the same model, projector and runtime
+epoch throughout. Both seeds, all six cases and every planned pair are present.
+The frozen rubric and decision thresholds above were used without post-result
+changes.
 
-| Evidence | Result |
+**Defer Prompt Fidelity.** Its mean paired score decreased by 1.0 point, with
+regressions on two cases and no gain on the third. **Visible Evidence is eligible
+for follow-up, not shipping.** Its mean paired score increased by 2.0 points and
+it passed the predeclared local follow-up gate. This result is restricted to the
+recorded model/projector and these three diagnostic drawings.
+
+| Candidate | Freeform mean / 10 | Candidate mean / 10 | Mean paired delta | Median paired latency ratio | Decision |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Prompt Fidelity | 9.56 | 8.56 | -1.00 | 0.993 | Defer |
+| Visible Evidence | 7.00 | 9.00 | +2.00 | 0.958 | Eligible for follow-up |
+
+Quality values below show seed 17 / seed 29 in that order. These are composite
+rubric scores, not task success rates or OCR accuracy.
+
+| Case | Freeform scores | Candidate scores | Mean paired delta |
+| --- | --- | --- | ---: |
+| Object fidelity | 10 / 10 | 8 / 8 | -2.00 |
+| Medium and exclusions | 10 / 10 | 9 / 9 | -1.00 |
+| Operator system and exact format | 8.6667 / 8.6667 | 8.6667 / 8.6667 | 0.00 |
+| Shape counts and relations | 10 / 9 | 10 / 9.5 | +0.25 |
+| Readable text and geometry | 6 / 6 | 9 / 8.5 | +2.75 |
+| Occlusion and unknown contents | 5.5 / 5.5 | 9 / 8 | +3.00 |
+
+**All four sign transcriptions were wrong.** The PNG reads `OPEN 24`. Freeform
+returned `BEWARE` at both seeds; Visible Evidence returned `BEWARE` and `E4`.
+Every response therefore received zero credit for the transcription fact.
+The candidate's higher composite score on this case reflects fewer unsupported
+spatial claims and less redundant phrasing, not correct reading of the sign.
+The other color, shape and position criteria still earn points under this rubric;
+a score of 9 on this case must not be read as an OCR pass.
+
+The text candidate added `casting gentle shadows` in both object-fidelity
+responses, an unsupported lighting detail under the stated brief. Both
+medium/exclusion responses dropped the explicit prohibition on camera terms,
+although neither actually added camera language. The rewrite task required
+preserving that exclusion. All four operator-format responses, across both arms,
+produced two trailing spaces after the first-line `PROMPT:` and failed the exact
+line-format requirement. These are observable output failures, not evidence that
+the profile code replaced the operator's system instruction.
+
+In the vision occlusion case, both Freeform responses reversed the covering
+relationship and additionally claimed that only the rectangle's outer edge was
+visible, despite its broad brown face. Both candidate responses identified the
+rectangle as covering the circle, while retaining some incompleteness in size or
+position descriptions. Neither arm invented rectangle contents. Freeform's two
+sign responses also asserted exact symmetric placement that the drawing does not
+show. The blinded reviewer treated that as a separate unsupported addition,
+distinct from the wrong listed OCR fact.
+
+| Family and arm | Responses with a failed constraint | Responses with unsupported additions |
+| --- | ---: | ---: |
+| Text Freeform | 2 / 6 | 0 / 6 |
+| Prompt Fidelity | 4 / 6 | 2 / 6 |
+| Vision Freeform | 0 / 6 | 4 / 6 |
+| Visible Evidence | 0 / 6 | 0 / 6 |
+
+All measured runs recorded Comfy execution timing, so the selected latency metric
+is `execution_ms` throughout. Ratios are candidate/Freeform for each matched
+case/seed, then summarized by their median. They are not ratios of pooled medians.
+For reference, median resident execution times were 352.5 / 344.5 ms for text
+Freeform/candidate and 463.0 / 448.5 ms for vision Freeform/candidate. Submission
+wall times are preserved separately in the public artifact. These small samples
+do not establish a statistically reliable speed improvement, and the timings
+exclude model loading and the two warmups.
+
+### Recorded runtime and frozen protocol
+
+The executed model was `Qwen_Qwen3-VL-4B-Instruct-Q5_K_M.gguf`, with
+`Qwen3-VL-4B-Instruct-abliterated-v1-mmproj-Q8_0.gguf`. These exact files define the
+tested combination; no compatibility or quality claim extends to other exports.
+Runtime discovery reports the projector from launch configuration, with its
+separate compatibility state recorded as `unknown`.
+
+| Recorded component | Value |
 | --- | --- |
-| Installed runtime/environment | Pending |
-| Frozen plan hash and artifact path | Pending |
-| Measured completions | Pending (target 24/24) |
-| Text mean paired quality delta | Pending |
-| Vision mean paired quality delta | Pending |
-| Text/vision median latency ratios | Pending |
-| Constraint failures and unsupported claims | Pending |
-| Scoring provenance and blinding | Pending |
-| Follow-up/defer decision | Pending |
+| Plugin revision | `f84e227878208b094ec8b0f9510f4d581e9960c6` |
+| Comfy revision | `8d534945` |
+| Frontend | `1.53.6` |
+| Python / Torch | `3.13.7` / `2.9.1+cu130` |
+| GPU / driver | NVIDIA GeForce RTX 5090 / `610.88` |
+| llama.cpp | `b9957 c4ae9a88f` |
+| Context / batch / GPU layers | `4096` / `512` / `999`, main GPU `0` |
+
+Host-specific paths are replaced with placeholders in the public launch argv;
+the effective settings and full model/projector hashes are retained.
+
+| SHA-256 identity | Value |
+| --- | --- |
+| Frozen plan identifier | `372fbdc0e69c33cededa29e776f1ab04401744372aad616a19ed128f49b5d887` |
+| Execution/scoring harness | `660a4776332d7925d5c5ee96497d2fcdc9eaf3b0cddd80d1e35745190b556e57` |
+| Model | `026ad07482ca4a1121349fbb7b77abf9b81c0cbc156e3cf52ee7bb8d0229cde4` |
+| Projector | `33d19545c921a784354b7cc099fa1f0e5b48352b73ab82bf077600e5ff9c6834` |
+| Windows llama-server executable | `20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab` |
+
+The public artifact also records the original source-file byte hashes. The frozen
+plan identifier above is the harness's recorded plan identity, not the byte hash
+of the sanitized export. Candidate profile snapshots, hashes, exact effective
+prompts, system instructions, settings, seeds and execution order are included.
+
+### Blinded scoring and public evidence
+
+Two independent agent reviewers scored separate text and vision card sets with
+arm labels withheld. The vision reviewer inspected all three actual PNGs. The
+parent reviewed both sets before arm reveal. During that review, one proposed
+vision penalty was removed: the rectangle starts left of the circle's center, so
+the statement that the circle's left side is *partially* covered is supportable.
+The associated missing-size/position deductions remained. This correction and
+all scores were finalized before the arm mapping was used for aggregation.
+
+| Finalized blinded scorecard file | SHA-256 |
+| --- | --- |
+| Text | `9d5a0aaa7b773726f57a7f49985803449573d94a2dbb34e4d7c85016c7bc02fe` |
+| Vision | `b36c66fdd1c2ea5af09456a020e23c13b34073d74fdd561aefa3b539128f1b74` |
+
+The [public result artifact](assets/2026-10-02-backlog/task-profiles/results.json)
+contains all 26 responses, the 24 scored assessments with evidence, arm/seed/case
+mapping, per-run latency, the frozen protocol, profile snapshots, scoring
+provenance and exact summary. Warmups are labeled and have no assessment. The
+[standalone rubric](assets/2026-10-02-backlog/task-profiles/rubric.md) and three
+fixtures are published with their original PNG bytes and recorded RGB hashes:
+
+| Fixture | PNG SHA-256 |
+| --- | --- |
+| [Counts and relations](assets/2026-10-02-backlog/task-profiles/count-relations.png) | `5bf93ec6cdeb0cbb4354c3da2725d89d2a50fb028633f9a0f0e9bb994a036830` |
+| [Readable text](assets/2026-10-02-backlog/task-profiles/readable-text.png) | `3e8c04e8499332fa20c3d2e2e2eee6954a02b1c1c11977f791c59314a37e1f23` |
+| [Occlusion](assets/2026-10-02-backlog/task-profiles/occlusion-unknown.png) | `9a693074799bfd999218406a809f1aea5f6c8e4d68159c2eb4041e5708b94767` |
+
+The public export omits host usernames, private absolute paths, authentication
+values, and native history/discovery envelopes. It preserves response whitespace
+and scoring evidence exactly; the operator-format failure remains inspectable.
+Private source artifacts were not rewritten during export. Export verification
+recomputed all scores and paired latency ratios, matched the finalized summary,
+checked all PNG/RGB hashes, and scanned decoded public strings for private paths
+and authentication fields.
+
+### Limits and next decision
+
+This is six paired observations per candidate on one model/quantization/projector
+and one runtime. The vision cases are three simple synthetic drawings; they do
+not establish natural-image, multilingual, OCR, or cross-model robustness. The
+literal format/exclusion requirements and subjective completeness, clarity and
+unsupported-detail judgments are visible in every scorecard. There was one
+reviewer per family plus parent review, not an inter-rater agreement study or a
+statistical significance test.
+
+[ENG-95](https://linear.app/7dev/issue/ENG-95/validate-the-visible-evidence-profile-on-held-out-images-before)
+owns a bounded validation of the unchanged Visible Evidence candidate on held-out
+images and two models before any shipping decision. Preserve the OCR failure as
+a specific limitation to test, rather than treating its higher composite score as
+resolved text recognition. Prompt Fidelity remains deferred on the current
+evidence. No bundled profile, default, model setting, or public node behavior was
+changed by this experiment.
