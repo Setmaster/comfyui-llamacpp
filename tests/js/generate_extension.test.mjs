@@ -118,6 +118,7 @@ async function createHarness({
         state: node.__llamacppGenerateState,
         setup: () => module.setupGenerateNode(node, { refresh }),
         loaded: () => extension.loadedGraphNode(node),
+        beforeConfigureGraph: (data) => extension.beforeConfigureGraph(data),
         emit: (value) => listeners.get("llamacpp.generation")({ detail: value }),
         execute: (detail) => listeners.get("executing")?.({ detail }),
     };
@@ -302,6 +303,100 @@ test("pure result and message utilities receive no execution UI", async () => {
     }
 });
 
+test("saved Stop pin migration is limited to known aliases on our exact root nodes", async () => {
+    const { beforeConfigureGraph } = await createHarness();
+    const types = [
+        "LlamaCppGenerate", "LlamaCppCaptions", "LlamaCppRequestBudget", "LlamaCppTranscribe",
+    ];
+    const names = ["Stopping unavailable", "Stop generation", "Stop Comfy job"];
+    const config = { height: 51, description: "Keep my help text" };
+    const inputs = types.flatMap((_, index) => names.flatMap((name) => [
+        [index + 1, name, config],
+        [String(index + 1), name, config],
+        [`saved-graph:${index + 1}:${encodeURIComponent(name)}`, "My Stop caption", config],
+    ]));
+    const untouched = [
+        [9, "Stop generation", config], // Another extension's button.
+        [1, "Other action", config],
+        [99, "Stop Comfy job", config],
+        ["saved-graph:9:Stop%20generation", "Other node", config],
+        ["different-graph:1:Stop%20generation", "Other graph", config],
+        ["saved-graph:1:%invalid", "Malformed", config],
+        ["saved-graph:%invalid:Stop%20generation", "Malformed ID", config],
+        ["saved-graph:1:nested:Stop%20generation", "Ambiguous path", config],
+        ["1:2", "Stop generation", config],
+        [8, "Stop generation", config], // Conflicting node IDs cannot be attributed.
+        ["saved-graph:8:Stop%20Comfy%20job", "Duplicate ID", config],
+        ["undefined", "Stop generation", config],
+        [1, "Stop generation", config, "Unexpected field"],
+        ["saved-graph:1:Stop%20generation", null],
+        [null, "Stop generation"], null, {}, [],
+    ];
+    const graphData = {
+        id: "saved-graph",
+        nodes: [...types.map((type, index) => ({ id: index + 1, type })),
+            { id: 9, type: "OtherNode" }, { id: 8, type: "LlamaCppGenerate" },
+            { id: "8", type: "OtherNode" }, { type: "LlamaCppGenerate" }, null],
+        extra: { linearData: { inputs: [...inputs, ...structuredClone(untouched)], outputs: [1] } },
+    };
+    beforeConfigureGraph(graphData);
+    for (const [key, name, savedConfig] of inputs) {
+        if (typeof key === "string" && key.includes(":")) {
+            assert.match(key, /^saved-graph:[1-4]:Stopping%20unavailable$/);
+            assert.equal(name, "My Stop caption");
+        } else {
+            assert.equal(name, "Stopping unavailable");
+        }
+        assert.equal(savedConfig, config);
+    }
+    assert.deepEqual(graphData.extra.linearData.inputs.slice(inputs.length), untouched);
+    assert.deepEqual(graphData.extra.linearData.outputs, [1]);
+    const migrated = structuredClone(graphData);
+    beforeConfigureGraph(graphData);
+    assert.deepEqual(graphData, migrated);
+    for (const data of [undefined, {}, { nodes: [] }, { nodes: [], extra: { linearData: { inputs: {} } } }]) {
+        assert.doesNotThrow(() => beforeConfigureGraph(data));
+    }
+});
+
+for (const comfyClass of [
+    "LlamaCppGenerate", "LlamaCppCaptions", "LlamaCppRequestBudget", "LlamaCppTranscribe",
+]) {
+    test(`${comfyClass} preserves the existing Stop pin through live changes and restore`, async () => {
+        const harness = await createHarness({ comfyClass });
+        const savedPin = [7, "Stopping unavailable"];
+        const resolvePin = (node) => node.widgets.find((item) => item.name === savedPin[1]);
+        const cancel = harness.state.cancel;
+        assert.equal(resolvePin(harness.node), cancel);
+        assert.equal(cancel.label ?? cancel.name, "Stopping unavailable");
+        for (const [index, [phase, scope, enabled, label]] of [
+            ["starting", "prompt", true, "Stop Comfy job"],
+            ["generating", "generation", true, "Stop generation"],
+            ["releasing", "none", false, "Stopping unavailable"],
+            ["cancelled", "none", false, "Stopping unavailable"],
+        ].entries()) {
+            harness.emit(snapshot({
+                sequence: index + 1, phase, terminal: phase === "cancelled",
+                cancel: { scope, enabled },
+            }));
+            assert.equal(resolvePin(harness.node), cancel);
+            assert.equal(cancel.label, label);
+            assert.equal(cancel.disabled, !enabled);
+            assert.equal(cancel.options.disabled, !enabled);
+        }
+        harness.loaded();
+        assert.equal(resolvePin(harness.node), cancel);
+        assert.equal(cancel.options.serialize, false);
+        assert.equal(cancel.serializeValue(), undefined);
+        harness.node.onRemoved();
+        const restored = await createHarness({ comfyClass, activeSnapshots: [snapshot()] });
+        assert.equal(resolvePin(restored.node), restored.state.cancel);
+        assert.equal(restored.state.cancel.label, "Stop generation");
+        assert.equal(restored.state.cancel.disabled, false);
+        restored.node.onRemoved();
+    });
+}
+
 for (const responseOK of [true, false]) {
     for (const transition of ["terminal", "new_execution", "releasing", "workflow", "client", "removed"]) {
         test(`delayed Stop ${responseOK ? "success" : "failure"} preserves ${transition}`, async () => {
@@ -373,6 +468,11 @@ test("current Stop failure stays visible and retryable", async () => {
     assert.equal(harness.state.liveStatus.value, "Stop failed: temporarily unavailable");
     assert.equal(harness.state.cancel.disabled, false);
     assert.equal(harness.state.cancel.label, "Stop generation");
+    assert.equal(harness.state.cancel.name, "Stopping unavailable");
+    assert.equal(
+        harness.node.widgets.find((item) => item.name === "Stopping unavailable"),
+        harness.state.cancel,
+    );
 });
 
 test("actual Refresh keeps the proven nested direct selection available", async () => {

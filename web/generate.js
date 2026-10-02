@@ -45,6 +45,8 @@ const TARGETS = {
 const DISCOVERY_ROUTE = "/llamacpp/runtime/discovery";
 const ACTIVE_ROUTE = "/llamacpp/generation/active";
 const CANCEL_ROUTE = "/llamacpp/generation/cancel";
+const CANCEL_WIDGET_NAME = "Stopping unavailable";
+const LEGACY_CANCEL_NAMES = new Set(["Stop generation", "Stop Comfy job"]);
 const nodes = new Set();
 const restored = new Map();
 const discoveryRequests = new Map();
@@ -61,6 +63,43 @@ function transient(widget) {
     widget.serialize = false;
     widget.serializeValue = () => undefined;
     return widget;
+}
+
+function migrateStopPins(graphData) {
+    const inputs = graphData?.extra?.linearData?.inputs;
+    if (!Array.isArray(inputs) || !Array.isArray(graphData.nodes)) return;
+    const rootNodes = new Map();
+    for (const node of graphData.nodes) {
+        const id = node?.id;
+        if (!(typeof id === "number" && Number.isSafeInteger(id) && id >= 0) &&
+            !(typeof id === "string" && id && !id.includes(":"))) continue;
+        const key = String(id);
+        rootNodes.set(key, rootNodes.has(key) ? null : node);
+    }
+    const targetIds = new Set([...rootNodes]
+        .filter(([, node]) => node && Object.hasOwn(TARGETS, node.type))
+        .map(([id]) => id));
+    for (const input of inputs) {
+        if (!Array.isArray(input) || input.length < 2 || input.length > 3 ||
+            typeof input[1] !== "string") continue;
+        const [storedId, name] = input;
+        if (typeof storedId !== "string" && typeof storedId !== "number") continue;
+        const parts = typeof storedId === "string" ? storedId.split(":") : [];
+        if (parts.length > 1) {
+            if (parts.length !== 3 || parts[0] !== graphData.id) continue;
+            try {
+                if (!targetIds.has(decodeURIComponent(parts[1])) ||
+                    !LEGACY_CANCEL_NAMES.has(decodeURIComponent(parts[2]))) continue;
+            } catch {
+                continue;
+            }
+            // Canonical IDs carry identity in the key; preserve the saved caption/config.
+            input[0] = `${parts[0]}:${parts[1]}:${encodeURIComponent(CANCEL_WIDGET_NAME)}`;
+        } else if (targetIds.has(String(storedId)) && LEGACY_CANCEL_NAMES.has(name)) {
+            // Legacy tuples carry widget identity in their second element.
+            input[1] = CANCEL_WIDGET_NAME;
+        }
+    }
 }
 
 function readOnlyText(node, name, value, { multiline = false } = {}) {
@@ -264,7 +303,6 @@ function applySnapshot(node, incoming) {
     if (state.response) state.response.value = previewText(next, "response");
     if (state.thinking) state.thinking.value = previewText(next, "thinking");
     const action = cancellationAction(next);
-    state.cancel.name = action.label;
     state.cancel.label = action.label;
     state.cancel.disabled = !action.enabled;
     state.cancel.options.disabled = !action.enabled;
@@ -300,7 +338,6 @@ async function cancelGeneration(node) {
         if (!stillDisplayed()) return;
         state.liveStatus.value = `Stop failed: ${error?.message ?? error}`;
         const retry = cancellationRetryAction(state.live, snapshot);
-        state.cancel.name = retry.label;
         state.cancel.label = retry.label;
         state.cancel.disabled = !retry.enabled;
         state.cancel.options.disabled = !retry.enabled;
@@ -384,8 +421,10 @@ export function setupGenerateNode(node, { refresh = true } = {}) {
     const thinking = presentation.thinking
         ? readOnlyText(node, presentation.thinking, "", { multiline: true }) : null;
     const cancel = transient(
-        node.addWidget("button", "Stopping unavailable", null, () => cancelGeneration(node)),
+        node.addWidget("button", CANCEL_WIDGET_NAME, null, () => cancelGeneration(node)),
     );
+    // App Mode pins use the legacy widget name as identity; only its label changes.
+    cancel.label = cancel.name;
     cancel.disabled = true;
     cancel.options.disabled = true;
     node.__llamacppGenerateState = {
@@ -421,7 +460,8 @@ export function setupGenerateNode(node, { refresh = true } = {}) {
 
 app.registerExtension({
     name: "llamacpp.GenerateUX",
-    beforeConfigureGraph() {
+    beforeConfigureGraph(graphData) {
+        migrateStopPins(graphData);
         nodes.clear();
         restored.clear();
         automaticDiscoveryCache = null;
