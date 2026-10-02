@@ -147,6 +147,41 @@ class ConfigContractTests(unittest.TestCase):
             ("--metrics",),
         )
 
+    def test_alternate_long_option_spellings_cannot_override_launch_policy(self) -> None:
+        spellings = (
+            "--gpu_layers",
+            "--n_gpu-layers",
+            "--ctx_size",
+            "--models_dir",
+            "--models_max",
+            "--no_models-autoload",
+            "--mmproj_url",
+            "--mmproj_auto",
+            "--no_mmproj",
+            "--api_key",
+            "--api_key-file",
+            "--ssl_key_file",
+            "--ssl-cert_file",
+            "--sleep_idle-seconds",
+            "--hf_token",
+            "--reuse_port",
+            "--api_prefix",
+        )
+        for config_class in (ServerConfig, RouterConfig):
+            for option in spellings:
+                for extra_args in ((option, "fixture-value"), (f"{option}=fixture-value",)):
+                    with self.subTest(config=config_class.__name__, extra_args=extra_args):
+                        with self.assertRaisesRegex(ValueError, "cannot override typed option"):
+                            config_class("fixture", extra_args=extra_args)
+
+    def test_unreserved_alternate_options_preserve_spelling_and_values(self) -> None:
+        extra_args = ("--cache_type_k", "q8_0", "--log_prefix")
+        for config_class in (ServerConfig, RouterConfig):
+            with self.subTest(config=config_class.__name__):
+                config = config_class("fixture", extra_args=extra_args)
+                self.assertEqual(config.extra_args, extra_args)
+                self.assertEqual(config.to_command_args()[-3:], list(extra_args))
+
     def test_fingerprint_covers_every_field_and_binary(self) -> None:
         base = ServerConfig("model.gguf")
         baseline = base.fingerprint("binary-a")

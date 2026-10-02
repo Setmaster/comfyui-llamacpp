@@ -2708,3 +2708,16 @@ def test_command_redaction_covers_separate_and_inline_credentials() -> None:
         "--model",
         "<redacted>.gguf",
     )
+
+
+@pytest.mark.parametrize("option", ("--api-key", "--api_key", "--bearer_token"))
+def test_alternate_credential_options_are_redacted_without_configured_secrets(option) -> None:
+    redactor = SecretRedactor()
+
+    assert redactor.redact_argv(
+        ["llama-server", option, "fixture-secret", "--model", "path_with_underscores.gguf"]
+    ) == ("llama-server", option, "<redacted>", "--model", "path_with_underscores.gguf")
+    assert redactor.redact_argv(["llama-server", f"{option}=fixture-secret"]) == (
+        "llama-server",
+        f"{option}=<redacted>",
+    )

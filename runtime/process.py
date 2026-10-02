@@ -225,7 +225,12 @@ class SecretRedactor:
                 continue
 
             option, separator, _value = arg.partition("=")
-            if option.lower() in _SENSITIVE_OPTION_NAMES:
+            normalized_option = option.lower()
+            if normalized_option.startswith("--"):
+                # Match llama.cpp's alternate long-option spelling without
+                # changing the original command representation.
+                normalized_option = normalized_option.replace("_", "-")
+            if normalized_option in _SENSITIVE_OPTION_NAMES:
                 if separator:
                     redacted.append(f"{option}=<redacted>")
                 else:

@@ -84,6 +84,10 @@ def _path_text(value: str | os.PathLike[str]) -> str:
 def _validate_extra_args(extra_args: tuple[str, ...]) -> None:
     for argument in extra_args:
         option = argument.partition("=")[0].lower()
+        # llama.cpp accepts underscores in long options as hyphens, including
+        # mixed spellings. Validate the same option the server will interpret.
+        if option.startswith("--"):
+            option = option.replace("_", "-")
         if option in _RESERVED_EXTRA_FLAGS:
             raise ValueError(
                 f"extra_args cannot override typed option {option!r}; "
