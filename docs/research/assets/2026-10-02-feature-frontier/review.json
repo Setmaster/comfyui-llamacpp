@@ -1,0 +1,14 @@
+{
+  "review_date": "2026-10-02",
+  "verdict": "PASS",
+  "remaining_findings": [],
+  "substantive_report_sha256": "f1b656612830c798b52f70bcdeb2e1665500b513225f89c44cdc8a25f0caca49",
+  "reference_manifest_sha256": "15abd3cda441a29aa6f52347dcfa21a3a6fcb95ef06c3498ebc41bd7dd5ee12c",
+  "scope": "Independent source review of current capabilities, peer support, installed b9957 distinctions, feature boundaries, sequence and provenance. Subsequent changes append Linear mapping and completion receipts only.",
+  "resolved_notes": [
+    "Describe QwenVL processor input as sampled video frames.",
+    "Require same-path preset edit/reload semantics and prohibit implicit model acquisition."
+  ],
+  "runtime_tests_run": false,
+  "peer_code_executed": false
+}

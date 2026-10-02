@@ -1,3 +1,46 @@
+# Comparable Tools and Feature Frontier Research
+
+Status: Complete; selected implementation slices remain Backlog
+Date: 2026-10-02
+Branch: `dev`
+Baseline: `c39e6a63b645a6de2e31bc3ba8cf16500967f296`
+
+## Objective and completion contract
+
+Refresh relevant reference clones and research current comparable tools to identify
+features this project lacks and should consider. Verify every recommendation
+against the current candidate, preserve stable/candidate distinctions and the
+completed profile/audio findings, and produce a source-backed prioritized report.
+
+Success requires before/after reference provenance, a capability matrix,
+concrete bounded implementation candidates and proof gates, separate parked and
+rejected ideas, independent review, a full report reread, reviewed documentation
+diffs, and synchronized Linear/Project KB state. This phase is research only.
+Existing release approval and maintainer hands-on ENG-88 remain deferred.
+
+## Sequence
+
+1. Inventory existing research, current source capabilities and Linear state.
+2. Refresh relevant cached references and inspect a bounded set of new peers.
+3. Compare user workflows and source implementations in parallel review angles.
+4. Rank verified gaps by benefit, product fit, implementation cost and evidence.
+5. Write and independently review the report, track selected future slices in
+   Backlog, commit/push documentation and synchronize knowledge-base state.
+
+## Outcome
+
+Research report: [Comparable tools and the next feature frontier](docs/research/comparable-tool-feature-frontier-2026-10-02.md).
+Refreshed 33 reference repositories: 17 fast-forwarded, 12 current, four cloned.
+Independent review passed with no remaining findings; 64 pinned source URLs and
+reference provenance checks passed. Product source is unchanged from the baseline.
+ENG-99 through ENG-105 track seven bounded implementation slices in Backlog.
+Recommended order: result/graph composition, router presets, messages, request
+budgeting, caption coordination, then independent profile editor and short-clip ASR.
+ENG-88 remains the separate maintainer/release gate. Parked and rejected frontiers
+and each future runtime/UI proof gate are recorded in the report.
+
+---
+
 # October Remaining Backlog Execution
 
 Status: Complete; maintainer hands-on ENG-88 remains Backlog

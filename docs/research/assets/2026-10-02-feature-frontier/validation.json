@@ -1,0 +1,19 @@
+{
+  "checked_at_utc": "2026-10-02T16:34:03.742944+00:00",
+  "report_sha256": "381c8064522440de2a193cc8262355f8f55a1c868fe3ee96026b7c3a61ce063a",
+  "reference_count": 33,
+  "source_urls_checked": 64,
+  "reference_definitions": 28,
+  "errors": [],
+  "checks": [
+    "all reference heads and old commits",
+    "reference trees clean",
+    "pinned GitHub file/tree existence and line ranges",
+    "reference-style and local links",
+    "dash/conflict checks",
+    "git diff --check",
+    "product source unchanged"
+  ],
+  "runtime_tests_run": false,
+  "peer_code_executed": false
+}
