@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from typing import Any
+
+from .presets import LocalPreset, load_local_preset, normalize_preset_extra_args
 
 GpuLayers = int | str
 
@@ -60,6 +62,7 @@ _RESERVED_EXTRA_FLAGS = frozenset(
         "--mmproj-url",
         "--mmproj-auto",
         "--no-mmproj",
+        "--no-mmproj-auto",
         "--sleep-idle-seconds",
         "--api-key",
         "--api-key-file",
@@ -136,7 +139,7 @@ def _fingerprint_payload(config: Any, mode: str, binary_identity: str | None) ->
         "schema": 1,
         "mode": mode,
         "binary_identity": binary_identity,
-        "config": asdict(config),
+        "config": {key: value for key, value in asdict(config).items() if not key.startswith("_")},
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return sha256(encoded.encode("utf-8")).hexdigest()
@@ -327,6 +330,11 @@ class RouterConfig:
     flash_attention_mode: str | None = None
     fit: bool | None = None
     extra_args: tuple[str, ...] = field(default_factory=tuple)
+    preset_policy: str = "override"
+    preset_sha256: str | None = field(default=None, init=False)
+    preset_effective_sha256: str | None = field(default=None, init=False)
+    preset_models: tuple[str, ...] = field(default=(), init=False)
+    _preset: LocalPreset | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "models_dir", _path_text(self.models_dir))
@@ -340,6 +348,23 @@ class RouterConfig:
         if not all(isinstance(argument, str) for argument in self.extra_args):
             raise TypeError("extra_args must contain only strings")
         _validate_extra_args(self.extra_args)
+        if self.preset_policy not in {"override", "inherit"}:
+            raise ValueError("preset_policy must be 'override' or 'inherit'")
+        if self.preset_policy == "inherit" and not self.models_preset:
+            raise ValueError("preset_policy 'inherit' requires a local preset file")
+        if self.models_preset:
+            preset = load_local_preset(self.models_preset)
+            object.__setattr__(self, "extra_args", normalize_preset_extra_args(self.extra_args))
+            # Normalization must not turn an INI/env alias into a typed-option
+            # escape through the public extra_args field.
+            _validate_extra_args(self.extra_args)
+            object.__setattr__(self, "models_preset", preset.source_path)
+            object.__setattr__(self, "preset_sha256", preset.source_sha256)
+            object.__setattr__(
+                self, "preset_effective_sha256", sha256(preset.text.encode("utf-8")).hexdigest()
+            )
+            object.__setattr__(self, "preset_models", preset.models)
+            object.__setattr__(self, "_preset", preset)
         if self.flash_attention and self.flash_attention_mode is not None:
             raise ValueError("set either flash_attention or flash_attention_mode, not both")
         if self.models_max < 0:
@@ -360,50 +385,67 @@ class RouterConfig:
     def mode(self) -> str:
         return "router"
 
-    def to_command_args(self) -> list[str]:
+    def to_command_args(self, *, preset_path: str | None = None) -> list[str]:
         args: list[str] = []
         if self.models_dir:
             args.extend(("--models-dir", self.models_dir))
         if self.models_preset:
-            args.extend(("--models-preset", self.models_preset))
+            args.extend(("--models-preset", preset_path or self.models_preset))
+        inherit = self.preset_policy == "inherit"
         args.extend(
             (
                 "--port",
                 str(self.port),
                 "--host",
                 self.host,
-                "-c",
-                str(self.context_size),
-                "-ngl",
-                str(self.n_gpu_layers),
-                "--main-gpu",
-                str(self.main_gpu),
-                "--models-max",
-                str(self.models_max),
             )
         )
+        if not inherit:
+            args.extend(
+                (
+                    "-c",
+                    str(self.context_size),
+                    "-ngl",
+                    str(self.n_gpu_layers),
+                    "--main-gpu",
+                    str(self.main_gpu),
+                )
+            )
+        args.extend(("--models-max", str(self.models_max)))
         if not self.models_autoload:
             args.append("--no-models-autoload")
         _append_common_args(
             args,
-            tensor_split=self.tensor_split,
-            threads=self.threads,
-            batch_size=self.batch_size,
-            flash_attention=self.flash_attention,
-            flash_attention_mode=self.flash_attention_mode,
-            no_mmap=self.no_mmap,
-            mmproj_path=self.mmproj_path,
+            tensor_split=None if inherit else self.tensor_split,
+            threads=None if inherit else self.threads,
+            batch_size=None if inherit else self.batch_size,
+            flash_attention=False if inherit else self.flash_attention,
+            flash_attention_mode=None if inherit else self.flash_attention_mode,
+            no_mmap=False if inherit else self.no_mmap,
+            mmproj_path=None if inherit else self.mmproj_path,
             no_mmproj=False,
-            sleep_idle_seconds=self.sleep_idle_seconds,
+            sleep_idle_seconds=None if inherit else self.sleep_idle_seconds,
             api_key_file=self.api_key_file,
             media_path=self.media_path,
-            fit=self.fit,
+            fit=None if inherit else self.fit,
             extra_args=self.extra_args,
         )
+        if self.models_preset:
+            args.append("--offline")
         return args
 
-    def command(self, binary: str | os.PathLike[str]) -> list[str]:
-        return [_path_text(binary), *self.to_command_args()]
+    def command(
+        self, binary: str | os.PathLike[str], *, preset_path: str | None = None
+    ) -> list[str]:
+        return [_path_text(binary), *self.to_command_args(preset_path=preset_path)]
+
+    def refresh_preset(self) -> RouterConfig:
+        """Revalidate original bytes/files before a lifecycle replacement decision."""
+        return replace(self) if self.models_preset else self
+
+    @property
+    def validated_preset(self) -> LocalPreset | None:
+        return self._preset
 
     def fingerprint(self, binary_identity: str | None = None) -> str:
         return _fingerprint_payload(self, self.mode, binary_identity)
@@ -412,7 +454,10 @@ class RouterConfig:
         return self.fingerprint(binary_identity)
 
     def effective_values(self) -> dict[str, Any]:
-        return {"mode": self.mode, **asdict(self)}
+        return {
+            "mode": self.mode,
+            **{key: value for key, value in asdict(self).items() if not key.startswith("_")},
+        }
 
 
 LaunchConfig = ServerConfig | RouterConfig

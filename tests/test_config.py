@@ -133,6 +133,7 @@ class ConfigContractTests(unittest.TestCase):
             "--mmproj=other.gguf",
             "--mmproj-auto",
             "--no-mmproj",
+            "--no-mmproj-auto",
             "--models-dir",
             "--models-max=9",
         )
@@ -158,6 +159,7 @@ class ConfigContractTests(unittest.TestCase):
             "--mmproj_url",
             "--mmproj_auto",
             "--no_mmproj",
+            "--no_mmproj_auto",
             "--api_key",
             "--api_key-file",
             "--ssl_key_file",

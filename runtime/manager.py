@@ -39,6 +39,7 @@ from .discovery import (
     RuntimeEndpointSnapshot,
     discover_runtime,
 )
+from .presets import PresetSnapshot, local_preset_environment
 from .process import OwnedProcessController, ProcessLifecycle
 from .service import (
     ReleaseResult,
@@ -423,6 +424,7 @@ class LlamaCppServerManager:
 
             self._config: LaunchConfig | None = None
             self._config_fingerprint: str | None = None
+            self._preset_snapshot: PresetSnapshot | None = None
             self._projector_status: dict[str, str] | None = None
             self._capabilities: ServerCapabilities | None = None
             self._connection: ConnectionConfig | None = None
@@ -733,6 +735,7 @@ class LlamaCppServerManager:
             prior_status = self.status
             had_owned_process = self._process.has_owned_process
             destructive_start = False
+            staged_preset: PresetSnapshot | None = None
             self._last_error = None
             try:
                 if mode != ServerMode.SINGLE_MODEL and projector_status is not None:
@@ -740,6 +743,8 @@ class LlamaCppServerManager:
                 sanitized_projector_status = _sanitize_projector_status(projector_status)
                 if isinstance(config, ServerConfig):
                     _validate_projector_status_config(config, sanitized_projector_status)
+                elif isinstance(config, RouterConfig):
+                    config = config.refresh_preset()
                 capabilities = self._probe_binary(binary_path)
                 self._validate_launch(config, mode, capabilities)
                 fingerprint = config.fingerprint(capabilities.identity)
@@ -751,6 +756,11 @@ class LlamaCppServerManager:
                 ):
                     self._projector_status = sanitized_projector_status
                     return True, None
+
+                # Write validated immutable bytes while the prior runtime is
+                # still healthy. Catalog reloads must never read source edits.
+                if isinstance(config, RouterConfig) and config.validated_preset is not None:
+                    staged_preset = PresetSnapshot(config.validated_preset)
 
                 if (
                     self._process.has_owned_process
@@ -791,7 +801,11 @@ class LlamaCppServerManager:
                     default_deadline=timeout,
                 )
                 client = self._client_factory(connection)
-                command = config.command(capabilities.path)
+                command = (
+                    config.command(capabilities.path, preset_path=staged_preset.path)
+                    if isinstance(config, RouterConfig) and staged_preset is not None
+                    else config.command(capabilities.path)
+                )
                 launch_options: dict[str, Any] = {
                     "secret_values": (api_key,) if api_key else (),
                 }
@@ -801,6 +815,11 @@ class LlamaCppServerManager:
                     and (config.mmproj_path is not None or config.no_mmproj)
                 ):
                     launch_options["env"] = _projector_safe_environment()
+                elif isinstance(config, RouterConfig) and staged_preset is not None:
+                    launch_options["env"] = local_preset_environment()
+                self._clear_preset_snapshot()
+                self._preset_snapshot = staged_preset
+                staged_preset = None
                 self._process.start(command, **launch_options)
 
                 self._config = config
@@ -836,6 +855,7 @@ class LlamaCppServerManager:
                     stop_result = self._process.stop()
                     if not stop_result.complete:
                         self._last_error += f"\nCleanup incomplete: {stop_result.error}"
+                self._clear_preset_snapshot()
                 self._close_client()
                 self._mode = ServerMode.SINGLE_MODEL
                 self._config = None
@@ -849,6 +869,9 @@ class LlamaCppServerManager:
                     pass
                 clear_stream_control_cache()
                 return False, self._last_error
+            finally:
+                if staged_preset is not None:
+                    staged_preset.close()
 
     def _validate_launch(
         self,
@@ -857,8 +880,10 @@ class LlamaCppServerManager:
         capabilities: ServerCapabilities,
     ) -> None:
         _validate_bind_host(config.host)
+        inherit = isinstance(config, RouterConfig) and config.preset_policy == "inherit"
         if (
-            isinstance(config.n_gpu_layers, str)
+            not inherit
+            and isinstance(config.n_gpu_layers, str)
             and config.n_gpu_layers in {"auto", "all"}
             and not capabilities.supports_symbolic_gpu_layers
         ):
@@ -877,25 +902,41 @@ class LlamaCppServerManager:
                 raise RuntimeError("llama-server does not support --no-models-autoload")
             if config.models_preset and not capabilities.supports("--models-preset"):
                 raise RuntimeError("llama-server does not support --models-preset")
+            if config.models_preset and not capabilities.supports("--offline"):
+                raise RuntimeError("local router presets require llama-server --offline support")
+            if config.validated_preset is not None:
+                required = set(config.validated_preset.required_flags)
+                required.update(
+                    argument for argument in config.extra_args if argument.startswith("--")
+                )
+                unsupported = sorted(flag for flag in required if not capabilities.supports(flag))
+                if unsupported:
+                    raise RuntimeError(
+                        "llama-server does not support preset options: " + ", ".join(unsupported)
+                    )
         else:
             if not isinstance(config, ServerConfig):
                 raise TypeError("direct mode requires ServerConfig")
             if not Path(config.model_path).is_file():
                 raise FileNotFoundError(f"Model file not found: {config.model_path}")
-        if config.mmproj_path is not None and not Path(config.mmproj_path).is_file():
+        if (
+            not inherit
+            and config.mmproj_path is not None
+            and not Path(config.mmproj_path).is_file()
+        ):
             raise FileNotFoundError(f"Projector file not found: {config.mmproj_path}")
 
         optional_flags = (
-            (config.sleep_idle_seconds is not None, "--sleep-idle-seconds"),
+            (not inherit and config.sleep_idle_seconds is not None, "--sleep-idle-seconds"),
             (config.api_key_file is not None, "--api-key-file"),
             (config.media_path is not None, "--media-path"),
-            (config.mmproj_path is not None, "--mmproj"),
+            (not inherit and config.mmproj_path is not None, "--mmproj"),
             (
                 isinstance(config, ServerConfig) and config.no_mmproj,
                 "--no-mmproj",
             ),
-            (config.fit is not None, "--fit"),
-            (config.flash_attention_mode is not None, "--flash-attn"),
+            (not inherit and config.fit is not None, "--fit"),
+            (not inherit and config.flash_attention_mode is not None, "--flash-attn"),
         )
         unsupported = [
             flag for enabled, flag in optional_flags if enabled and not capabilities.supports(flag)
@@ -966,6 +1007,7 @@ class LlamaCppServerManager:
 
     def _stop_locked(self) -> tuple[bool, str | None]:
         if not self._process.has_owned_process:
+            self._clear_preset_snapshot()
             self._status = ServerStatus.STOPPED
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
@@ -984,6 +1026,7 @@ class LlamaCppServerManager:
         self._status = ServerStatus.STOPPING
         result = self._process.stop()
         if result.complete:
+            self._clear_preset_snapshot()
             self._status = ServerStatus.STOPPED
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
@@ -1136,6 +1179,7 @@ class LlamaCppServerManager:
         if not direct_runtime_cleared and not owned_process_stopped:
             return
         with self._lock:
+            self._clear_preset_snapshot()
             self._status = ServerStatus.STOPPED
             self._mode = ServerMode.SINGLE_MODEL
             self._config = None
@@ -1145,6 +1189,11 @@ class LlamaCppServerManager:
             self._connection = None
             self._close_client()
             clear_stream_control_cache()
+
+    def _clear_preset_snapshot(self) -> None:
+        if self._preset_snapshot is not None and not self._process.has_owned_process:
+            self._preset_snapshot.close()
+            self._preset_snapshot = None
 
     def _close_client(self) -> None:
         client, self._client = self._client, None

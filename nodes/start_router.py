@@ -238,6 +238,27 @@ class StartLlamaCppRouter:
                         ),
                     },
                 ),
+                "models_preset": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "Optional local llama.cpp INI file. Relative model paths resolve "
+                            "beside this file. Requeue Start after edits; downloads are disabled."
+                        ),
+                    },
+                ),
+                "preset_policy": (
+                    ["override", "inherit"],
+                    {
+                        "default": "override",
+                        "tooltip": (
+                            "Override keeps node runtime settings. Inherit omits context, GPU, "
+                            "threads, batch, flash, mmap, fit and idle settings so presets win. "
+                            "Explicit extra arguments still override presets."
+                        ),
+                    },
+                ),
             },
         }
         return apply_input_presentation("StartLlamaCppRouter", schema)
@@ -271,12 +292,19 @@ class StartLlamaCppRouter:
         unload_comfy_models_before_start: bool = False,
         extra_args: str = "",
         models_directory: str = "(auto)",
+        models_preset: str = "",
+        preset_policy: str = "override",
     ):
         modern_flash = None if flash_attention_mode == "legacy" else flash_attention_mode
         fit = None if fit_mode == "upstream default" else fit_mode == "on"
         try:
+            preset_path = optional_path(models_preset)
             config = RouterConfig(
-                models_dir=get_router_models_directory(models_directory),
+                models_dir=(
+                    ""
+                    if preset_path and models_directory == "(auto)"
+                    else get_router_models_directory(models_directory)
+                ),
                 port=port,
                 host=host.strip() or "127.0.0.1",
                 context_size=context_size,
@@ -295,6 +323,8 @@ class StartLlamaCppRouter:
                 flash_attention_mode=modern_flash,
                 fit=fit,
                 extra_args=parse_extra_args(extra_args),
+                models_preset=preset_path,
+                preset_policy=preset_policy,
             )
         except ValueError as exc:
             return (f"Invalid router configuration: {exc}", False)

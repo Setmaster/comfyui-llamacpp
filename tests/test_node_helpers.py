@@ -239,7 +239,7 @@ def test_router_node_appends_and_forwards_configured_model_root(
     result = node.start_router(2048, "all", 0, 1, models_directory="chosen-root")
 
     schema = node_class.INPUT_TYPES()
-    assert list(schema["optional"])[-1] == "models_directory"
+    assert list(schema["optional"])[-3:] == ["models_directory", "models_preset", "preset_policy"]
     assert schema["optional"]["models_directory"][1]["default"] == "(auto)"
     assert selections == ["chosen-root"]
     assert configs[0][0].models_dir == str(tmp_path)
