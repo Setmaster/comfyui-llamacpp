@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
     normalizeImageCount,
@@ -43,29 +44,64 @@ test("image count preserves zero and clamps invalid values", () => {
     assert.equal(normalizeImageCount("bad"), 2);
 });
 
-test("Generate restores images before trailing typed sockets and repairs links", () => {
-    const structuredLink = { target_slot: 1 };
-    const tokenLink = { target_slot: 2 };
-    const node = fakeNode(0);
-    node.constructor = { comfyClass: "LlamaCppGenerate" };
-    node.inputs.push(
-        { name: "structured_output", type: "STRUCTURED_OUTPUT", link: 71 },
-        { name: "token_ban", type: "LOGIT_BIAS", link: 72 },
-    );
-    node.graph = { _links: new Map([[71, structuredLink], [72, tokenLink]]) };
+for (const comfyClass of ["LlamaCppGenerate", "LlamaCppRequestBudget"]) {
+    test(`${comfyClass} restores images before trailing typed sockets and repairs links`, () => {
+        const structuredLink = { target_slot: 1 };
+        const tokenLink = { target_slot: 2 };
+        const node = fakeNode(0);
+        node.constructor = { comfyClass };
+        node.inputs.push(
+            { name: "structured_output", type: "STRUCTURED_OUTPUT", link: 71 },
+            { name: "token_ban", type: "LOGIT_BIAS", link: 72 },
+        );
+        node.graph = { _links: new Map([[71, structuredLink], [72, tokenLink]]) };
 
-    setupDynamicImageInputs(node, { graph: {} });
-    node.widgets[0].callback(2);
+        setupDynamicImageInputs(node, { graph: {} });
+        node.widgets[0].callback(2);
 
-    assert.deepEqual(node.inputs.map((input) => input.name), [
-        "trigger",
-        "image_1",
-        "image_2",
-        "structured_output",
-        "token_ban",
-    ]);
-    assert.equal(structuredLink.target_slot, 3);
-    assert.equal(tokenLink.target_slot, 4);
+        assert.deepEqual(node.inputs.map((input) => input.name), [
+            "trigger",
+            "image_1",
+            "image_2",
+            "structured_output",
+            "token_ban",
+        ]);
+        assert.equal(structuredLink.target_slot, 3);
+        assert.equal(tokenLink.target_slot, 4);
+    });
+}
+
+test("actual image extension targets Request Budget and leaves fixed-media nodes alone", async () => {
+    const sourceURL = new URL("../../web/adv_prompt.js", import.meta.url);
+    let extension;
+    globalThis.__llamacppDynamicHarnessApp = {
+        graph: {}, registerExtension: (value) => { extension = value; },
+    };
+    const source = (await readFile(sourceURL, "utf8"))
+        .replace('import { app } from "../../scripts/app.js";',
+            "const app = globalThis.__llamacppDynamicHarnessApp;")
+        .replace('"./dynamic_images.js"', JSON.stringify(new URL("dynamic_images.js", sourceURL).href));
+    try {
+        await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+    } finally {
+        delete globalThis.__llamacppDynamicHarnessApp;
+    }
+    const budget = fakeNode();
+    budget.constructor = { comfyClass: "LlamaCppRequestBudget" };
+    budget.widgets[0].value = 0;
+    extension.nodeCreated(budget);
+    assert.deepEqual(budget.inputs.map((input) => input.name), ["trigger"]);
+    budget.widgets[0].value = 1;
+    extension.loadedGraphNode(budget);
+    assert.deepEqual(budget.inputs.map((input) => input.name), ["trigger", "image_1"]);
+    for (const comfyClass of ["LlamaCppCaptions", "LlamaCppTranscribe"]) {
+        const fixed = fakeNode();
+        fixed.constructor = { comfyClass };
+        const before = [...fixed.inputs];
+        extension.nodeCreated(fixed);
+        assert.deepEqual(fixed.inputs, before);
+        assert.equal(fixed.widgets[0].callback, null);
+    }
 });
 
 test("sync removes only image sockets and restores named sockets", () => {

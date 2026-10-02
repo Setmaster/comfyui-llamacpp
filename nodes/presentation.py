@@ -29,15 +29,26 @@ NODE_CATEGORIES = {
     "LlamaCppAdvPrompt": CATEGORY_GENERATE,
     "LlamaCppAdvPPPrompt": CATEGORY_GENERATE,
     "LlamaCppPromptOutput": CATEGORY_UTILITIES,
+    "LlamaCppResult": CATEGORY_UTILITIES,
     "LlamaCppTokenBan": CATEGORY_UTILITIES,
     "LlamaCppTokenCount": CATEGORY_UTILITIES,
     "LlamaCppModelInfo": CATEGORY_UTILITIES,
     "LlamaCppStructuredOutput": CATEGORY_UTILITIES,
     "LlamaCppGenerate": CATEGORY_GENERATE,
     "LlamaCppTaskProfile": CATEGORY_GENERATE,
+    "LlamaCppMessage": CATEGORY_GENERATE,
+    "LlamaCppMessages": CATEGORY_GENERATE,
+    "LlamaCppCaptions": CATEGORY_GENERATE,
+    "LlamaCppRequestBudget": CATEGORY_GENERATE,
+    "LlamaCppTranscribe": CATEGORY_GENERATE,
 }
 
 NODE_SEARCH_ALIASES = {
+    "LlamaCppCaptions": ["caption batch", "image captions", "dataset", "per image"],
+    "LlamaCppRequestBudget": ["request budget", "context budget", "input tokens", "context window"],
+    "LlamaCppTranscribe": ["transcribe", "speech to text", "audio", "ASR"],
+    "LlamaCppMessage": ["conversation", "few shot", "history", "append message"],
+    "LlamaCppMessages": ["conversation json", "history snapshot", "import messages"],
     "StartLlamaCppServer": [
         "llm",
         "gguf",
@@ -121,6 +132,7 @@ NODE_SEARCH_ALIASES = {
         "block tokens",
         "forbidden tokens",
     ],
+    "LlamaCppResult": ["generation result", "result json", "usage", "release evidence"],
     "LlamaCppTokenCount": [
         "count tokens",
         "tokenizer",
@@ -163,6 +175,30 @@ NODE_SEARCH_ALIASES = {
 # Primitive widgets listed here start collapsed in supporting ComfyUI frontends.
 # Socket inputs are deliberately excluded so links remain discoverable.
 NODE_ADVANCED_INPUTS = {
+    "LlamaCppCaptions": frozenset(
+        {
+            "server_url",
+            "stop_sequences",
+            "api_key_env",
+            "verify_tls",
+            "request_timeout",
+            "partial_output_policy",
+        }
+    ),
+    "LlamaCppRequestBudget": frozenset(
+        {
+            "server_url",
+            "stop_sequences",
+            "api_key_env",
+            "verify_tls",
+            "request_timeout",
+            "include_image_batch",
+            "partial_output_policy",
+        }
+    ),
+    "LlamaCppTranscribe": frozenset({"request_timeout"}),
+    "LlamaCppMessage": frozenset(),
+    "LlamaCppMessages": frozenset(),
     "StartLlamaCppServer": frozenset(
         {
             "gpu_layers",
@@ -271,6 +307,7 @@ NODE_ADVANCED_INPUTS = {
         }
     ),
     "LlamaCppPromptOutput": frozenset({"plaintext"}),
+    "LlamaCppResult": frozenset(),
     "LlamaCppTokenBan": frozenset(),
     "LlamaCppTokenCount": frozenset(
         {
@@ -299,6 +336,15 @@ NODE_ADVANCED_INPUTS = {
 }
 
 INPUT_DISPLAY_NAMES = {
+    "audio": "Audio",
+    "supported_pair": "Supported Model Pair",
+    "budget_policy": "Budget Policy",
+    "models_preset": "Local Model Preset File",
+    "preset_policy": "Preset Settings Policy",
+    "messages": "Earlier Messages",
+    "messages_json": "Messages JSON",
+    "role": "Role",
+    "content": "Content",
     "prompt": "Prompt",
     "image_amount": "Image Inputs",
     "model": "Model",

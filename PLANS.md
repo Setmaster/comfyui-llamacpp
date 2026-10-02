@@ -1,3 +1,49 @@
+# Feature Frontier Implementation
+
+Status: In progress
+Date: 2026-10-02
+Branch: `dev`
+Baseline and rollback: `3945082cb9cfa6b034fa4ffb112fcfe69cf3876d`
+Tracking: ENG-99 through ENG-105 in [7dev Linear](https://linear.app/7dev/project/comfyui-llamacpp-b846a629b382)
+Bundle: `changes/2026-10-02-feature-frontier/`
+
+## Objective and completion contract
+
+Implement all seven selected feature slices from the completed comparable-tool
+review. User explicitly authorized implementation and ongoing Linear updates.
+Preserve old workflow behavior, the external runtime boundary, and exact
+ownership, deadline, cancellation and release semantics. Use installed models
+and dependencies. ENG-88 remains the deferred maintainer/release gate only.
+
+Success requires meaningful focused and full Python/JavaScript checks, lint and
+formatting, isolated distribution checks, compatible old/new example workflows,
+real Windows ComfyUI and model verification, classic/Nodes 2.0/App Mode checks
+where relevant, independent review and reviewed diffs. Push clean dev, synchronize
+the maintained Windows clone, verify CI, record evidence before closing each
+Linear issue, update Project KB, and stop owned test runtimes. No master merge,
+tagging, publication, new bundled profiles or expansion of parked research.
+
+## Sequence and ownership
+
+1. ENG-99: result inspector/serializer and native composition/frozen-prompt
+   recipes. Prove native list mapping and identify missing group cleanup.
+2. ENG-100: local router presets, explicit inheritance and same-path reload.
+3. ENG-101 then ENG-102: explicit messages, shared final payload and context
+   budgeting. Existing single-turn budgeting has no hard message dependency.
+4. ENG-103: only the batch coordination native mapping cannot provide, preserving
+   ordered results and terminal cleanup on success, failure and cancellation.
+5. ENG-104 and ENG-105: independent user profile authoring and bounded public ASR.
+6. Integrate all slices, review and validate the combined candidate end to end,
+   then close delivery with Linear/KB/CI evidence.
+
+Independent work may proceed concurrently in disjoint files. Parent owns shared
+request/execution integration, live runtimes, central packaging, Linear and
+completion decisions. Workers own result/examples, router presets and profile UI;
+audio preparation and architecture review start read-only. Evidence, not elapsed
+time or a worker completion message, determines acceptance.
+
+---
+
 # Comparable Tools and Feature Frontier Research
 
 Status: Complete; selected implementation slices remain Backlog
@@ -17,6 +63,15 @@ concrete bounded implementation candidates and proof gates, separate parked and
 rejected ideas, independent review, a full report reread, reviewed documentation
 diffs, and synchronized Linear/Project KB state. This phase is research only.
 Existing release approval and maintainer hands-on ENG-88 remain deferred.
+
+## Implementation checkpoint
+
+All seven selected surfaces are implemented. Source checks pass 1,647 tests plus
+197 subtests and 98 frontend tests. Preset, profile and combined transport reviews
+pass; combined execution review verified the repaired global-release caption
+boundary and is completing its final record. Native Windows/browser acceptance,
+final artifacts and CI remain before issue closure. ENG-106 records the necessary
+SSE response-header deadline repair found during this phase.
 
 ## Sequence
 

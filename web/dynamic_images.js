@@ -86,7 +86,9 @@ export function syncImageInputs(node, requestedCount, beforeInputName = null) {
 export function setupDynamicImageInputs(node, app) {
     const widget = node.widgets?.find((candidate) => candidate.name === "image_amount");
     if (!widget) return;
-    const beforeInputName = node.constructor?.comfyClass === "LlamaCppGenerate"
+    const beforeInputName = ["LlamaCppGenerate", "LlamaCppRequestBudget"].includes(
+        node.constructor?.comfyClass,
+    )
         ? "structured_output"
         : null;
 

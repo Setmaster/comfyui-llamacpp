@@ -17,7 +17,7 @@ steps below for that installation. Setup Check, Quick Text, Generate, task
 profiles, and automatic local projector matching require the unreleased 0.4
 candidate. To test it deliberately, use the [candidate source installation
 instructions](../README.md#test-the-unreleased-04-candidate), restart ComfyUI,
-and confirm startup reports `0.4.0` and 19 nodes. Candidate testing does not
+and confirm startup reports `0.4.0` and 25 nodes. Candidate testing does not
 replace the maintainer's hands-on acceptance gate before release.
 
 ## 2. Make `llama-server` available

@@ -1,7 +1,9 @@
 import { app } from "../../scripts/app.js";
 import { setupDynamicImageInputs } from "./dynamic_images.js";
 
-const TARGETS = new Set(["LlamaCppAdvPrompt", "LlamaCppAdvPPPrompt", "LlamaCppGenerate"]);
+const TARGETS = new Set([
+    "LlamaCppAdvPrompt", "LlamaCppAdvPPPrompt", "LlamaCppGenerate", "LlamaCppRequestBudget",
+]);
 
 function setup(node) {
     if (!TARGETS.has(node.constructor?.comfyClass)) return;

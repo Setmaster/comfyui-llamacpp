@@ -25,7 +25,21 @@ import {
     snapshotTargetsNode,
 } from "./generate_live_state.js";
 
-const TARGET = "LlamaCppGenerate";
+const TARGETS = {
+    LlamaCppGenerate: {
+        discovery: true,
+        status: "Generation Status",
+        response: "Live Response",
+        thinking: "Live Thinking",
+    },
+    LlamaCppTranscribe: { status: "Transcription Status", response: "Raw ASR Response" },
+    LlamaCppCaptions: {
+        status: "Caption Batch Status",
+        response: "Current Caption Response",
+        thinking: "Current Caption Thinking",
+    },
+    LlamaCppRequestBudget: { status: "Request Budget Status" },
+};
 const DISCOVERY_ROUTE = "/llamacpp/runtime/discovery";
 const ACTIVE_ROUTE = "/llamacpp/generation/active";
 const CANCEL_ROUTE = "/llamacpp/generation/cancel";
@@ -150,7 +164,7 @@ function installSampling(node) {
 
 async function refreshDiscovery(node, { automatic = false } = {}) {
     const state = node.__llamacppGenerateState;
-    if (!state) return;
+    if (!state?.model || !state?.modelStatus) return;
     if (state.discoveryPending) {
         if (!automatic) state.discoveryManualAfter = true;
         return;
@@ -225,7 +239,7 @@ async function refreshDiscovery(node, { automatic = false } = {}) {
 
 function scheduleDiscovery(node) {
     const state = node.__llamacppGenerateState;
-    if (!state) return;
+    if (!state?.model || !state?.modelStatus) return;
     if (state.discoveryTimer !== null) clearTimeout(state.discoveryTimer);
     state.discoveryTimer = setTimeout(() => {
         state.discoveryTimer = null;
@@ -245,8 +259,8 @@ function applySnapshot(node, incoming) {
     if (!next || next === state.live) return;
     state.live = next;
     state.liveStatus.value = formatGenerationStatus(next);
-    state.response.value = previewText(next, "response");
-    state.thinking.value = previewText(next, "thinking");
+    if (state.response) state.response.value = previewText(next, "response");
+    if (state.thinking) state.thinking.value = previewText(next, "thinking");
     const action = cancellationAction(next);
     state.cancel.name = action.label;
     state.cancel.label = action.label;
@@ -338,30 +352,35 @@ async function restoreActive({ force = false } = {}) {
 }
 
 export function setupGenerateNode(node, { refresh = true } = {}) {
-    if (node.constructor?.comfyClass !== TARGET) return;
+    const presentation = TARGETS[node.constructor?.comfyClass];
+    if (!presentation) return;
     if (node.__llamacppGenerateState) {
         nodes.add(node);
-        installConfiguredReconciliation(node);
-        installSampling(node);
-        syncSampling(node);
+        if (presentation.discovery) {
+            installConfiguredReconciliation(node);
+            installSampling(node);
+            syncSampling(node);
+        }
         for (const prior of restored.values()) applySnapshot(node, prior);
         if (refresh) scheduleDiscovery(node);
         void restoreActive();
         return;
     }
-    const model = widget(node, "model");
-    if (!model) return;
-    const modelStatus = readOnlyText(
+    const model = presentation.discovery ? widget(node, "model") : null;
+    if (presentation.discovery && !model) return;
+    const modelStatus = presentation.discovery ? readOnlyText(
         node,
         "Managed Model Facts",
         "Managed runtime facts have not been refreshed.",
-    );
-    const refreshButton = transient(
+    ) : null;
+    const refreshButton = presentation.discovery ? transient(
         node.addWidget("button", "Refresh Managed Models", null, () => refreshDiscovery(node)),
-    );
-    const liveStatus = readOnlyText(node, "Generation Status", "Idle");
-    const response = readOnlyText(node, "Live Response", "", { multiline: true });
-    const thinking = readOnlyText(node, "Live Thinking", "", { multiline: true });
+    ) : null;
+    const liveStatus = readOnlyText(node, presentation.status, "Idle");
+    const response = presentation.response
+        ? readOnlyText(node, presentation.response, "", { multiline: true }) : null;
+    const thinking = presentation.thinking
+        ? readOnlyText(node, presentation.thinking, "", { multiline: true }) : null;
     const cancel = transient(
         node.addWidget("button", "Stopping unavailable", null, () => cancelGeneration(node)),
     );
@@ -388,8 +407,10 @@ export function setupGenerateNode(node, { refresh = true } = {}) {
         if (state?.discoveryTimer !== null) clearTimeout(state.discoveryTimer);
         return originalRemoved?.apply(this, args);
     };
-    installConfiguredReconciliation(node);
-    installSampling(node);
+    if (presentation.discovery) {
+        installConfiguredReconciliation(node);
+        installSampling(node);
+    }
     for (const prior of restored.values()) applySnapshot(node, prior);
     fit(node);
     if (refresh) scheduleDiscovery(node);

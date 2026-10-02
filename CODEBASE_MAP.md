@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-10-02 14:37:48Z
-Commit: 1baf736909d1053e619c252b0b4439054b231640
+Generated: 2026-10-02 18:01:27Z
+Commit: fdab5f0efe5b0a0771909877752dc01a6fdfe42b
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -19,15 +19,15 @@ Source: git ls-files (tracked files)
 
 ## Directory structure (depth <= 3)
 - (root files): 18
-- `tests/`: 52 files
-  - `tests/js/`: 9 files
+- `tests/`: 56 files
+  - `tests/js/`: 10 files
   - `tests/benchmarks/`: 8 files
     - `tests/benchmarks/task_profiles/`: 8 files
   - `tests/fixtures/`: 5 files
     - `tests/fixtures/workflows/`: 3 files
-- `docs/`: 39 files
-  - `docs/research/`: 27 files
-    - `docs/research/assets/`: 19 files
+- `docs/`: 45 files
+  - `docs/research/`: 31 files
+    - `docs/research/assets/`: 22 files
 - `changes/`: 31 files
   - `changes/archive/`: 17 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
@@ -39,8 +39,8 @@ Source: git ls-files (tracked files)
   - `changes/2026-07-24-auto-vlm-projector-resolution/`: 4 files
 - `nodes/`: 20 files
 - `example_workflows/`: 18 files
-- `web/`: 17 files
-- `runtime/`: 14 files
+- `web/`: 18 files
+- `runtime/`: 15 files
 - `generation/`: 8 files
 - `models/`: 5 files
 - `.github/`: 1 files
@@ -56,22 +56,22 @@ Source: git ls-files (tracked files)
 - `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 135.0 KiB
 - `runtime/process.py`: 112.7 KiB
 - `tests/test_process.py`: 89.5 KiB
+- `generation/execution.py`: 79.0 KiB
 - `runtime/service.py`: 68.0 KiB
-- `tests/test_canonical_generation.py`: 61.5 KiB
+- `tests/test_canonical_generation.py`: 61.6 KiB
 - `tests/test_streaming.py`: 58.7 KiB
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
-- `generation/execution.py`: 56.3 KiB
 
 ## Hotspots (most lines, sampled from large files)
 - `docs/research/assets/2026-10-02-backlog/heldout/results.json`: 3129 lines
 - `runtime/process.py`: 2843 lines
 - `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 2779 lines
 - `tests/test_process.py`: 2723 lines
-- `tests/test_canonical_generation.py`: 1824 lines
+- `generation/execution.py`: 1901 lines
+- `tests/test_canonical_generation.py`: 1826 lines
 - `runtime/service.py`: 1744 lines
 - `tests/test_streaming.py`: 1643 lines
 - `uv.lock`: 1501 lines
-- `generation/execution.py`: 1406 lines
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines
 
 <!-- agent-evolve:END AUTO -->

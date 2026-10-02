@@ -23,6 +23,9 @@ test("compatibility setup targets every node with advanced metadata", () => {
         "LlamaCppModelInfo",
         "LlamaCppStructuredOutput",
         "LlamaCppGenerate",
+        "LlamaCppRequestBudget",
+        "LlamaCppCaptions",
+        "LlamaCppTranscribe",
     ]);
 });
 

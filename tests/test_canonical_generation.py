@@ -1759,6 +1759,8 @@ def test_generate_node_contract_is_noncacheable_output_capable_and_app_mode_read
         "image_10",
         "structured_output",
         "token_ban",
+        "messages",
+        "budget_policy",
     ]
     assert schema["hidden"] == {
         "unique_id": "UNIQUE_ID",

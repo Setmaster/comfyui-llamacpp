@@ -1,8 +1,9 @@
 # ComfyUI llama.cpp Suite
 
-Focused local `llama-server` integration for ComfyUI. It provides full text and
-vision prompting, structured output, direct and router modes, and explicit
-control over the external process that owns LLM VRAM.
+Focused local `llama-server` integration for ComfyUI. It provides text and vision
+prompting, structured output, direct and router modes, and explicit control over
+the external process that owns LLM VRAM. The development candidate also includes
+bounded image caption groups and short-clip audio transcription.
 
 Version 0.3 keeps the external-process design that motivated this project. A
 model is not hidden inside ComfyUI's Python process, and this pack can release
@@ -34,10 +35,13 @@ live Stop, and release-after-generation are additions in the unreleased 0.4 line
 
 - Direct mode for one GGUF model.
 - Current `llama-server` router mode with exact model identities and terminal
-  load/unload barriers.
+  load/unload barriers, plus validated local per-model INI presets with explicit
+  inheritance on the candidate.
 - Freeform chat completions with sampling, thinking/reasoning output, stop
   sequences, token bans, and prompt-prefix caching.
 - VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
+- Separate ordered captions for 1 to 32 images, with exact item alignment and a
+  shared timeout and terminal release boundary.
 - Metadata-backed local projector selection for known VLM families, with an
   explicit text-only mode and fail-closed ambiguity handling.
 - Non-destructive, backend-applied Image2Prompt and Prompt Enhancer templates.
@@ -49,7 +53,16 @@ live Stop, and release-after-generation are additions in the unreleased 0.4 line
   explicit thinking control, strict partial-output policy, bounded live preview,
   and a versioned result.
 - Small user-owned task profiles that are explicitly copied into portable
-  workflow snapshots. Freeform is the only bundled profile.
+  workflow snapshots, with a current-user editor and JSON import/export.
+  Freeform is the only bundled profile.
+- Explicit portable text history and few-shot examples, supplied through graph
+  inputs without hidden conversation state.
+- Complete-request token budgeting, with fit/overflow/unknown evidence and an
+  optional pre-generation enforcement policy.
+- Result JSON and native Comfy text composition for structured fields, protected
+  literal text and separate reviewed-prompt render workflows.
+- Short English transcription for one mono 16 kHz AUDIO clip up to 10 seconds,
+  restricted to the documented Qwen3-ASR model/projector pair in owned direct mode.
 - Passive managed model discovery that never autoloads a router model and keeps
   missing saved selections visible.
 - Optional release-after-generation that withholds outputs until exact managed
@@ -115,8 +128,8 @@ python -m pip install -r requirements.txt
 ```
 
 Restart ComfyUI. Startup should report version `0.3.0` and 17 registered nodes.
-The post-0.3 `dev` line reports 19 nodes because Generate and Task Profile are
-strictly additive.
+The post-0.3 `dev` line reports 25 nodes. Its eight added node types preserve the
+17 released node IDs and their existing widget positions.
 
 ### Update an existing checkout
 
@@ -144,7 +157,7 @@ python -m pip install -r requirements.txt
 ```
 
 Use the Python that launches ComfyUI, then restart it. Candidate startup reports
-`0.4.0` and 19 nodes. Follow the candidate path in [Start Here](docs/start-here.md)
+`0.4.0` and 25 nodes. Follow the candidate path in [Start Here](docs/start-here.md)
 and the [0.4 acceptance checklist](docs/user-acceptance-0.4.md). The candidate is
 not available from the Registry and still requires maintainer hands-on acceptance
 before promotion. [Rollback instructions](docs/migration-0.4.md#rollback) restore
@@ -220,7 +233,9 @@ The following three-state selection behavior requires the 0.4 candidate:
 - Select `(none - text only)` to disable vision deliberately. Selecting a
   projector filename uses that exact contained file without substitution.
 - Router mode: put each VLM and its matching projector in one dedicated
-  subdirectory. The router controls the exact model ID and projector pairing.
+  subdirectory, or name their local paths in a
+  [router preset](docs/router-presets.md). The router controls the exact model ID
+  and projector pairing.
 - Never pair projectors from a different model size or architecture.
 
 Current automatic matching recognizes projector interfaces it can prove from
@@ -276,7 +291,8 @@ passive discovery, strict failure, and release-after behavior.
 
 1. Add **Start llama.cpp Router**.
 2. Leave `models_directory` on `(auto)`, or choose the configured GGUF root
-   the router should expose.
+   the router should expose. For named local model paths and per-model settings,
+   select a [local router preset](docs/router-presets.md) and its explicit policy.
 3. Optionally sequence **llama.cpp Load Model** from its `success` output.
 4. Choose the model on a prompt node and generate.
 5. Use **llama.cpp Unload Model** for one exact model, or **Release llama.cpp
@@ -285,9 +301,10 @@ passive discovery, strict failure, and release-after behavior.
 Router load and unload nodes return only after `/models` shows the requested
 terminal state. HTTP acceptance by itself is not considered completion.
 **llama.cpp List Models** can optionally ask the router to rescan its catalog.
-Current llama.cpp combines its cache with one selected local root. Root-level
-GGUFs are separate models; each immediate child directory is one logical model
-bundle and should contain one base model plus at most one projector. Multiple
+Current llama.cpp combines cached entries, the selected local root and any named
+preset entries. In directory discovery, root-level GGUFs are separate models;
+each immediate child directory is one logical model bundle and should contain
+one base model plus at most one projector. Multiple
 base models or projectors in one bundle are ambiguous, and deeper directories
 are invisible. Direct-mode dropdowns remain recursive across all configured
 roots, so **List Models** is the authoritative router catalog.
@@ -356,7 +373,13 @@ complete released surface.
 | llama.cpp Server Status | Show mode, lifecycle, ownership, PID/group/job state, capabilities, errors, and bounded logs. |
 | llama.cpp Connection | Reuse a URL, model, API-key environment name, TLS policy, and deadline. |
 | llama.cpp Generate | Recommended strict text, vision, constrained, and prompt generation with live state and a typed result. |
-| llama.cpp Task Profile | Store one portable, explicit snapshot of a small user-owned prompt profile. |
+| llama.cpp Task Profile | Edit a current-user profile library and explicitly save a portable workflow snapshot. |
+| llama.cpp Result JSON | Serialize the full typed result, including completion, errors and release evidence. |
+| llama.cpp Append Message | Append one exact text turn to an immutable explicit history. |
+| llama.cpp Messages from JSON | Import a bounded portable text-history snapshot. |
+| llama.cpp Request Budget | Count the complete prepared request without generating text; report or enforce its context allowance. |
+| llama.cpp Caption Batch | Generate one independent caption per image with aligned IDs and group cleanup. |
+| llama.cpp Transcribe (Experimental) | Transcribe one bounded English AUDIO clip with the supported owned Qwen3-ASR pair. |
 | llama.cpp Basic Prompt | Freeform text generation with the common sampling controls. |
 | llama.cpp ADV Prompt | Text plus 0 to 10 image sockets and optional full Comfy image batches. |
 | llama.cpp ADV++ Prompt | ADV prompting plus templates, token bans, and structured output. |
@@ -373,7 +396,7 @@ complete released surface.
 
 - `keep_context` maps to llama.cpp `cache_prompt`. It reuses a matching prompt
   prefix in the KV cache. It is not chat history, durable memory, or a session
-  database.
+  database. Use the [explicit messages nodes](docs/messages.md) for earlier turns.
 - `enable_chaining` remains for saved-workflow compatibility. A connected
   `trigger` socket is what establishes graph ordering.
 - Stop sequences accept one entry per line, a JSON string array, or the legacy
@@ -382,7 +405,9 @@ complete released surface.
   logit-bias entries.
 - `image_amount` accepts 0 through 10. All ten sockets exist in Python so saved
   workflows survive frontend reload. `include_image_batch` sends every item in
-  a connected Comfy image batch; off preserves the legacy first-image behavior.
+  a connected Comfy image batch in one request; off preserves the legacy
+  first-image behavior. [Caption Batch](docs/captions.md) sends independent
+  requests with explicit per-item outcomes.
 - Templates are applied in Python as well as reflected in the UI, so API-format
   and headless workflows behave consistently. Selection fills exact-empty prompt
   fields only and never overwrites a draft. Whitespace remains an intentional
@@ -397,6 +422,9 @@ complete released surface.
 - Canonical Default sampling omits the complete sampler group so the selected
   model and server retain their own defaults. Custom sends every displayed
   expert sampler together. Thinking Auto likewise omits an override.
+- Generate's [Budget Policy](docs/request-budget.md) defaults to Off. Report
+  records the count, while Enforce requires known input/context facts and room
+  for the requested output. No policy truncates or summarizes the input.
 
 ## Authentication and TLS
 
@@ -480,8 +508,12 @@ On the 0.4 candidate, ComfyUI discovers the curated workflows in
 the first-run paths; the direct, router, vision, structured-output, and VRAM
 handoff workflows originate from the five released 0.3 examples, with router
 widget values adapted for the candidate. Setup Check, Quick Text, and the four
-canonical examples were added after 0.3. Stable users can open the five JSON
-workflows manually from their installed `examples/` directory.
+canonical examples were added after 0.3. The latest candidate also adds native
+text composition, a separate frozen-prompt render, explicit few-shot refinement,
+and aligned per-image caption examples. See the
+[workflow guide](example_workflows/README.md) for each recipe and its limits.
+Stable users can open the five JSON workflows manually from their installed
+`examples/` directory.
 The tested frontend 1.45.20 retains terminal text in native jobs and history
 output but does not render it inline in App Mode's central result pane. The
 canonical workflow exposes transient read-only Generation Status and Live
@@ -496,6 +528,12 @@ recorded separately in the
 [canonical Generate validation report](docs/validation-0.4.md). Current candidate
 hardening and Comfy 0.37/frontend 1.53.6 evidence are recorded in the
 [October validation report](docs/validation-2026-10.md).
+The [backlog validation report](docs/validation-2026-10-backlog.md) records the
+subsequent profile evaluations and bounded audio compatibility trial. These
+reports describe their named revisions. Native Windows and browser acceptance
+for graph composition, router presets, messages, budgeting, captions, the profile
+editor and transcription remains pending during this integration. The earlier
+audio trial is not an acceptance result for the new public node.
 
 For failures, start with **llama.cpp Server Status** and
 [Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
@@ -532,6 +570,13 @@ release validation.
 - [0.3 migration guide](docs/migration-0.3.md)
 - [Post-0.3 migration guide](docs/migration-0.4.md)
 - [Canonical Generate](docs/canonical-generate.md)
+- [Native graph composition and frozen prompts](docs/graph-composition.md)
+- [Local router presets](docs/router-presets.md)
+- [Explicit text messages](docs/messages.md)
+- [Complete-request budgeting](docs/request-budget.md)
+- [Independent image captions](docs/captions.md)
+- [Task profile authoring](docs/task-profile-authoring.md)
+- [Bounded audio transcription](docs/audio-transcription.md)
 - [Lifecycle and VRAM ownership](docs/lifecycle.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [0.3 validation report](docs/validation-0.3.md)

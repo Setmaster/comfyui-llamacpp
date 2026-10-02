@@ -39,6 +39,7 @@ function snapshot(overrides = {}) {
 /** Import the real extension, replacing only Comfy's host-module boundary. */
 async function createHarness({
     savedModel = "(use running model)", discovery = null, activeSnapshots = [],
+    comfyClass = "LlamaCppGenerate", withModel = true, refresh = false,
 } = {}) {
     const listeners = new Map();
     const cancellation = deferred();
@@ -75,9 +76,9 @@ async function createHarness({
         },
     };
     const node = {
-        constructor: { comfyClass: "LlamaCppGenerate" },
+        constructor: { comfyClass },
         graph,
-        widgets: [{ name: "model", value: savedModel, options: {} }],
+        widgets: withModel ? [{ name: "model", value: savedModel, options: {} }] : [],
         size: [420, 100],
         computeSize() { return this.size; },
         setSize() {},
@@ -107,11 +108,12 @@ async function createHarness({
         delete globalThis[key];
     }
     extension.setup();
-    module.setupGenerateNode(node, { refresh: false });
+    module.setupGenerateNode(node, { refresh });
     await new Promise((resolve) => setImmediate(resolve));
     return {
         api, graph, node, requests, cancellation,
         state: node.__llamacppGenerateState,
+        setup: () => module.setupGenerateNode(node, { refresh }),
         emit: (value) => listeners.get("llamacpp.generation")({ detail: value }),
         execute: (detail) => listeners.get("executing")?.({ detail }),
     };
@@ -134,6 +136,59 @@ test("real extension shows preflight failure and ignores unrelated workflow even
     harness.emit(snapshot({ workflow_id: "workflow-b", started_at_ms: 2000 }));
     harness.execute({ node: "7", prompt_id: "unrelated-prompt" });
     assert.equal(harness.state.liveStatus.value, expected);
+});
+
+for (const [comfyClass, statusName, responseName, thinkingName] of [
+    ["LlamaCppTranscribe", "Transcription Status", "Raw ASR Response", null],
+    ["LlamaCppCaptions", "Caption Batch Status", "Current Caption Response", "Current Caption Thinking"],
+    ["LlamaCppRequestBudget", "Request Budget Status", null, null],
+]) {
+    test(`${comfyClass} restores live controls without Generate widgets or discovery`, async () => {
+        const restored = snapshot({ cancel: { scope: "prompt", enabled: true } });
+        const harness = await createHarness({
+            comfyClass, withModel: false, refresh: true, activeSnapshots: [restored],
+        });
+        assert.equal(harness.state.liveStatus.name, statusName);
+        assert.match(harness.state.liveStatus.value, /^generating/);
+        assert.equal(harness.state.response?.name ?? null, responseName);
+        assert.equal(harness.state.thinking?.name ?? null, thinkingName);
+        if (responseName) assert.equal(harness.state.response.value, "draft");
+        assert.equal(harness.state.modelStatus, null);
+        assert.equal(harness.state.refreshButton, null);
+        assert.equal(harness.state.discoveryTimer, null);
+        const widgets = [...harness.node.widgets];
+        harness.setup();
+        assert.deepEqual(harness.node.widgets, widgets);
+        await harness.state.cancel.callback();
+        const interrupt = harness.requests.find(({ url }) => url === "/interrupt");
+        assert.deepEqual(JSON.parse(interrupt.options.body), { prompt_id: "prompt-a" });
+        assert.equal(harness.requests.some(({ url }) => url.includes("/discovery")), false);
+        for (const widget of widgets) {
+            assert.equal(widget.options.serialize, false);
+            assert.equal(widget.serializeValue(), undefined);
+        }
+        harness.emit(snapshot({
+            sequence: 2, phase: "complete", terminal: true,
+            cancel: { scope: "none", enabled: false },
+        }));
+        assert.match(harness.state.liveStatus.value, /^complete/);
+        assert.equal(harness.state.cancel.disabled, true);
+        harness.emit(snapshot({
+            execution_id: "00000000-0000-4000-8000-00000000000b",
+            prompt_id: "prompt-b", started_at_ms: 2000, phase: "starting",
+            response: { text: "" }, thinking: { text: "" },
+        }));
+        if (responseName) assert.equal(harness.state.response.value, "");
+        if (thinkingName) assert.equal(harness.state.thinking.value, "");
+    });
+}
+
+test("pure result and message utilities receive no execution UI", async () => {
+    for (const comfyClass of ["LlamaCppResult", "LlamaCppMessage", "LlamaCppMessages"]) {
+        const harness = await createHarness({ comfyClass, withModel: false });
+        assert.equal(harness.state, undefined);
+        assert.deepEqual(harness.node.widgets, []);
+    }
 });
 
 for (const responseOK of [true, false]) {

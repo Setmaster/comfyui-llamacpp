@@ -72,8 +72,14 @@ def _wheel_import(wheel_root: Path, source_root: Path) -> None:
         expected = set(json.loads(fixture.read_text())["nodes"]) | {
             "LlamaCppGenerate",
             "LlamaCppTaskProfile",
+            "LlamaCppResult",
+            "LlamaCppMessage",
+            "LlamaCppMessages",
+            "LlamaCppRequestBudget",
+            "LlamaCppCaptions",
+            "LlamaCppTranscribe",
         }
-        assert len(expected) == 19
+        assert len(expected) == 25
         assert set(package.NODE_CLASS_MAPPINGS) == expected
         assert set(package.NODE_DISPLAY_NAME_MAPPINGS) == expected
         assert package.__version__ == importlib.metadata.version("comfyui-llamacpp")
@@ -93,7 +99,10 @@ def _wheel_import(wheel_root: Path, source_root: Path) -> None:
         for path in web_root.glob("*.js"):
             assert path.stat().st_size > 0, f"Empty frontend asset: {path.name}"
         json.loads((web_root / "templates.json").read_text(encoding="utf-8"))
-        print(f"Isolated wheel passed: version {package.__version__}, 19 nodes, runtime/web assets")
+        print(
+            f"Isolated wheel passed: version {package.__version__}, "
+            f"{len(expected)} nodes, runtime/web assets"
+        )
 
 
 def _prove_rejection(wheel: Path, sdist: Path, source_root: Path, staging: Path) -> None:

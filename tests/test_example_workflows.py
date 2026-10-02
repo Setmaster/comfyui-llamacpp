@@ -32,6 +32,49 @@ CANONICAL_EXAMPLES = {
     "canonical-text.json",
     "canonical-vlm-image-understanding.json",
 }
+FRONTIER_EXAMPLES = {
+    "graph-structured-field.json",
+    "graph-protected-literal-draft.json",
+    "graph-frozen-render.json",
+    "messages-few-shot.json",
+    "caption-batch-aligned.json",
+}
+# Public schemas read from ComfyUI 8d534945 nodes.py, nodes_string.py and
+# nodes_primitive.py. Native acceptance checks them against live object_info.
+CORE_SCHEMAS = {
+    # The frontend adds the IMAGEUPLOAD widget to LoadImage's saved input list.
+    "LoadImage": ((("image", "COMBO"), ("upload", "IMAGEUPLOAD")), ("IMAGE", "MASK")),
+    "ImageBatch": ((("image1", "IMAGE"), ("image2", "IMAGE")), ("IMAGE",)),
+    "JsonExtractString": ((("json_string", "STRING"), ("key", "STRING")), ("STRING",)),
+    "StringConcatenate": (
+        (("string_a", "STRING"), ("string_b", "STRING"), ("delimiter", "STRING")),
+        ("STRING",),
+    ),
+    "PrimitiveStringMultiline": ((("value", "STRING"),), ("STRING",)),
+    "CheckpointLoaderSimple": ((("ckpt_name", "COMBO"),), ("MODEL", "CLIP", "VAE")),
+    "CLIPTextEncode": ((("text", "STRING"), ("clip", "CLIP")), ("CONDITIONING",)),
+    "EmptyLatentImage": (
+        (("width", "INT"), ("height", "INT"), ("batch_size", "INT")),
+        ("LATENT",),
+    ),
+    "KSampler": (
+        (
+            ("model", "MODEL"),
+            ("seed", "INT"),
+            ("steps", "INT"),
+            ("cfg", "FLOAT"),
+            ("sampler_name", "COMBO"),
+            ("scheduler", "COMBO"),
+            ("positive", "CONDITIONING"),
+            ("negative", "CONDITIONING"),
+            ("latent_image", "LATENT"),
+            ("denoise", "FLOAT"),
+        ),
+        ("LATENT",),
+    ),
+    "VAEDecode": ((("samples", "LATENT"), ("vae", "VAE")), ("IMAGE",)),
+    "SaveImage": ((("images", "IMAGE"), ("filename_prefix", "STRING")), ("IMAGE",)),
+}
 EXPECTED = {
     "setup-check.json": {
         "LlamaCppServerStatus",
@@ -104,6 +147,50 @@ EXPECTED = {
         "LlamaCppTaskProfile",
         "LlamaCppGenerate",
     },
+    "graph-structured-field.json": {
+        "StartLlamaCppServer",
+        "LlamaCppTaskProfile",
+        "LlamaCppGenerate",
+        "LlamaCppStructuredOutput",
+        "JsonExtractString",
+        "LlamaCppResult",
+        "LlamaCppPromptOutput",
+    },
+    "graph-protected-literal-draft.json": {
+        "StartLlamaCppServer",
+        "LlamaCppTaskProfile",
+        "LlamaCppGenerate",
+        "PrimitiveStringMultiline",
+        "StringConcatenate",
+        "LlamaCppPromptOutput",
+    },
+    "graph-frozen-render.json": {
+        "PrimitiveStringMultiline",
+        "CheckpointLoaderSimple",
+        "CLIPTextEncode",
+        "EmptyLatentImage",
+        "KSampler",
+        "VAEDecode",
+        "SaveImage",
+    },
+    "messages-few-shot.json": {
+        "StartLlamaCppServer",
+        "LlamaCppTaskProfile",
+        "LlamaCppGenerate",
+        "LlamaCppMessages",
+        "LlamaCppMessage",
+        "LlamaCppResult",
+        "LlamaCppPromptOutput",
+        "PrimitiveStringMultiline",
+    },
+    "caption-batch-aligned.json": {
+        "StartLlamaCppServer",
+        "LlamaCppTaskProfile",
+        "LlamaCppCaptions",
+        "LoadImage",
+        "ImageBatch",
+        "LlamaCppPromptOutput",
+    },
 }
 CANONICAL_IMAGE_COUNTS = {
     "canonical-app-mode.json": 0,
@@ -159,7 +246,9 @@ def _backend_input_type(input_spec) -> str:
     return "COMBO" if isinstance(declared, list) else declared
 
 
-def _expected_backend_inputs(node: dict, node_package) -> list[tuple[str, str]]:
+def _expected_backend_inputs(
+    node: dict, node_package, *, historical: bool = False
+) -> list[tuple[str, str]]:
     schema = node_package.NODE_CLASS_MAPPINGS[node["type"]].INPUT_TYPES()
     fields = [
         (name, _backend_input_type(input_spec))
@@ -169,6 +258,14 @@ def _expected_backend_inputs(node: dict, node_package) -> list[tuple[str, str]]:
     if node["type"] != "LlamaCppGenerate":
         return fields
 
+    if historical:
+        # Keep earlier canonical assets as compatibility fixtures. These two
+        # optional fields were appended without moving any existing widget.
+        assert "messages" in schema["optional"]
+        assert schema["optional"]["budget_policy"][1]["default"] == "off"
+        fields = [
+            (name, kind) for name, kind in fields if name not in {"messages", "budget_policy"}
+        ]
     image_amount = int(_widget_values(node)["image_amount"])
     return [
         (name, input_type)
@@ -220,10 +317,10 @@ def test_example_is_connected_current_comfy_workflow(name: str, node_package) ->
     assert len({link[0] for link in links}) == len(links)
     assert workflow["last_node_id"] >= max(nodes)
     assert workflow["last_link_id"] >= max(link[0] for link in links)
-    expected_package_version = "0.4.0" if name in CANONICAL_EXAMPLES else "0.3.0"
+    expected_package_version = "0.3.0" if name in LEGACY_EXAMPLE_HASHES else "0.4.0"
     assert workflow["extra"]["llamacpp_example"]["version"] == expected_package_version
 
-    for node_type in node_types - {"LoadImage"}:
+    for node_type in node_types - CORE_SCHEMAS.keys():
         assert node_type in node_package.NODE_CLASS_MAPPINGS
 
     for link_id, source_id, output_index, target_id, input_index, link_type in links:
@@ -247,7 +344,21 @@ def test_canonical_nodes_match_current_backend_input_order_and_types(
         if node["type"] == "LoadImage":
             continue
         observed = [(item["name"], item["type"]) for item in node["inputs"]]
-        assert observed == _expected_backend_inputs(node, node_package)
+        assert observed == _expected_backend_inputs(node, node_package, historical=True)
+
+
+@pytest.mark.parametrize("name", sorted(FRONTIER_EXAMPLES))
+def test_frontier_examples_match_current_package_and_core_schemas(name: str, node_package) -> None:
+    for node in _load(name)["nodes"]:
+        _widget_values(node)  # Serialized values include only declared widgets and seed controls.
+        observed = [(item["name"], item["type"]) for item in node["inputs"]]
+        if node["type"] in CORE_SCHEMAS:
+            inputs, outputs = CORE_SCHEMAS[node["type"]]
+            assert observed == list(inputs)
+        else:
+            assert observed == _expected_backend_inputs(node, node_package)
+            outputs = node_package.NODE_CLASS_MAPPINGS[node["type"]].RETURN_TYPES
+        assert tuple(item["type"] for item in node["outputs"]) == outputs
 
 
 @pytest.mark.parametrize("name", sorted(CANONICAL_EXAMPLES))

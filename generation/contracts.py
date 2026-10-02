@@ -18,6 +18,9 @@ from types import MappingProxyType
 from typing import Any, ClassVar, TypeVar
 from urllib.parse import urlsplit
 
+from .budget import RequestBudget
+from .messages import MAX_MESSAGES, ConversationMessages
+
 SCHEMA_VERSION = 1
 MAX_CONNECTION_SNAPSHOT_BYTES = 65_536
 MAX_REQUEST_JSON_BYTES = 16_777_216
@@ -47,6 +50,38 @@ _CONNECTION_KEYS = frozenset(
     }
 )
 _STRUCTURED_OUTPUT_KINDS = frozenset({"json_schema", "json_object", "grammar"})
+
+
+def _operation_metadata(value: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """Only diagnostic audio facts are portable, never WAV bytes or model paths."""
+    if value is None:
+        return None
+    expected = {
+        "kind",
+        "version",
+        "format",
+        "sample_rate",
+        "channels",
+        "samples",
+        "duration_seconds",
+        "wav_sha256",
+        "model_sha256",
+        "projector_sha256",
+    }
+    _exact_keys(value, expected, "operation")
+    if value["kind"] != "transcribe" or value["format"] != "pcm16_wav":
+        raise ValueError("unsupported generation operation")
+    for key, expected_value in (("version", 1), ("sample_rate", 16000), ("channels", 1)):
+        if type(value[key]) is not int or value[key] != expected_value:
+            raise ValueError(f"operation {key} must be {expected_value}")
+    samples = _strict_int(value["samples"], "audio samples", minimum=1, maximum=160000)
+    duration = _optional_duration(value["duration_seconds"], "audio duration")
+    if duration != samples / 16000:
+        raise ValueError("audio duration does not match sample count")
+    for key in ("wav_sha256", "model_sha256", "projector_sha256"):
+        if not isinstance(value[key], str) or not _SHA256_RE.fullmatch(value[key]):
+            raise ValueError(f"operation {key} must be a SHA-256 digest")
+    return MappingProxyType(dict(value))
 
 
 class ThinkingMode(str, Enum):
@@ -409,18 +444,32 @@ class GenerationRequestSpec:
     token_bias_count: int = 0
     release_policy: ReleasePolicy = ReleasePolicy.REUSE
     partial_output_policy: PartialOutputPolicy = PartialOutputPolicy.RAISE_ERROR
+    messages: ConversationMessages | None = None
+    operation: Mapping[str, Any] | None = None
 
     SCHEMA_VERSION: ClassVar[int] = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "operation", _operation_metadata(self.operation))
+        if self.messages is not None and not isinstance(self.messages, ConversationMessages):
+            raise TypeError("messages must be ConversationMessages")
+        if self.messages is not None and self.messages.has_system and self.system_prompt != "":
+            raise ValueError("history system message conflicts with system_prompt")
         object.__setattr__(self, "connection", _normalize_connection(self.connection))
         object.__setattr__(
             self,
             "prompt",
             _bounded_string(self.prompt, "prompt", MAX_REQUEST_TEXT_CHARS),
         )
-        if not self.prompt.strip():
+        if not self.prompt.strip() and self.operation is None:
             raise ValueError("prompt must not be empty")
+        if self.operation is not None and (
+            self.prompt != ""
+            or self.system_prompt != ""
+            or self.messages is not None
+            or self.image_count
+        ):
+            raise ValueError("transcription cannot contain text, history or images")
         object.__setattr__(
             self,
             "system_prompt",
@@ -493,7 +542,7 @@ class GenerationRequestSpec:
         )
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.SCHEMA_VERSION,
             "connection": dict(self.connection),
             "prompt": self.prompt,
@@ -513,6 +562,11 @@ class GenerationRequestSpec:
             "release_policy": self.release_policy.value,
             "partial_output_policy": self.partial_output_policy.value,
         }
+        if self.messages is not None:
+            result["messages"] = self.messages.as_dict()
+        if self.operation is not None:
+            result["operation"] = dict(self.operation)
+        return result
 
     def to_json(self) -> str:
         return _compact_json(
@@ -543,6 +597,10 @@ class GenerationRequestSpec:
             "release_policy",
             "partial_output_policy",
         }
+        if isinstance(value, Mapping) and "messages" in value:
+            expected.add("messages")
+        if isinstance(value, Mapping) and "operation" in value:
+            expected.add("operation")
         _exact_keys(value, expected, "generation request")
         _schema_version(value["schema_version"], "generation request", cls.SCHEMA_VERSION)
         sampling = value["sampling"]
@@ -569,6 +627,10 @@ class GenerationRequestSpec:
             token_bias_count=value["token_bias_count"],
             release_policy=value["release_policy"],
             partial_output_policy=value["partial_output_policy"],
+            messages=(
+                ConversationMessages.from_dict(value["messages"]) if "messages" in value else None
+            ),
+            operation=value.get("operation"),
         )
 
     @classmethod
@@ -883,10 +945,33 @@ class GenerationResult:
     release: GenerationReleaseInfo = field(default_factory=GenerationReleaseInfo)
     error: GenerationErrorInfo | None = None
     warnings: tuple[str, ...] = ()
+    messages_sha256: str | None = None
+    message_count: int = 0
+    operation: Mapping[str, Any] | None = None
+    budget: RequestBudget | None = None
+    budget_payload_sha256: str | None = None
 
     SCHEMA_VERSION: ClassVar[int] = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        if self.budget is not None:
+            if not isinstance(self.budget, RequestBudget):
+                raise TypeError("budget must be RequestBudget")
+            if not isinstance(self.budget_payload_sha256, str) or not _SHA256_RE.fullmatch(
+                self.budget_payload_sha256
+            ):
+                raise ValueError("budget requires an exact payload SHA-256 digest")
+        elif self.budget_payload_sha256 is not None:
+            raise ValueError("budget payload digest requires budget metadata")
+        object.__setattr__(self, "operation", _operation_metadata(self.operation))
+        _strict_int(self.message_count, "message_count", maximum=MAX_MESSAGES)
+        if self.messages_sha256 is not None:
+            if not isinstance(self.messages_sha256, str) or not _SHA256_RE.fullmatch(
+                self.messages_sha256
+            ):
+                raise ValueError("messages_sha256 must be a lowercase SHA-256 hex digest")
+        elif self.message_count:
+            raise ValueError("message_count requires messages_sha256")
         object.__setattr__(self, "state", _enum_value(GenerationState, self.state, "state"))
         object.__setattr__(
             self,
@@ -981,7 +1066,7 @@ class GenerationResult:
         return self.state == GenerationState.CANCELLED
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.SCHEMA_VERSION,
             "state": self.state.value,
             "response": self.response,
@@ -1007,6 +1092,15 @@ class GenerationResult:
             "partial": self.partial,
             "cancelled": self.cancelled,
         }
+        if self.messages_sha256 is not None:
+            result["messages_sha256"] = self.messages_sha256
+            result["message_count"] = self.message_count
+        if self.operation is not None:
+            result["operation"] = dict(self.operation)
+        if self.budget is not None:
+            result["budget"] = self.budget.as_dict()
+            result["budget_payload_sha256"] = self.budget_payload_sha256
+        return result
 
     def to_json(self) -> str:
         return _compact_json(
@@ -1043,6 +1137,12 @@ class GenerationResult:
             "partial",
             "cancelled",
         }
+        if isinstance(value, Mapping) and "messages_sha256" in value:
+            expected.update({"messages_sha256", "message_count"})
+        if isinstance(value, Mapping) and "operation" in value:
+            expected.add("operation")
+        if isinstance(value, Mapping) and "budget" in value:
+            expected.update({"budget", "budget_payload_sha256"})
         _exact_keys(value, expected, "generation result")
         _schema_version(value["schema_version"], "generation result", cls.SCHEMA_VERSION)
         usage = value["usage"]
@@ -1078,6 +1178,11 @@ class GenerationResult:
             release=GenerationReleaseInfo.from_dict(release),
             error=GenerationErrorInfo.from_dict(error) if error else None,
             warnings=value["warnings"],
+            messages_sha256=value.get("messages_sha256"),
+            message_count=value.get("message_count", 0),
+            operation=value.get("operation"),
+            budget=RequestBudget.from_dict(value["budget"]) if "budget" in value else None,
+            budget_payload_sha256=value.get("budget_payload_sha256"),
         )
         derived = {
             "success": result.success,

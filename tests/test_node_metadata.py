@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 
 import pytest
 
@@ -33,9 +34,21 @@ EXPECTED_CATEGORIES = {
     "LlamaCppStructuredOutput": "LlamaCpp/Utilities",
     "LlamaCppGenerate": "LlamaCpp/Generate",
     "LlamaCppTaskProfile": "LlamaCpp/Generate",
+    "LlamaCppMessage": "LlamaCpp/Generate",
+    "LlamaCppMessages": "LlamaCpp/Generate",
+    "LlamaCppResult": "LlamaCpp/Utilities",
+    "LlamaCppTranscribe": "LlamaCpp/Generate",
+    "LlamaCppCaptions": "LlamaCpp/Generate",
+    "LlamaCppRequestBudget": "LlamaCpp/Generate",
 }
 
 EXPECTED_SEARCH_ALIASES = {
+    "LlamaCppMessage": ["conversation", "few shot", "history", "append message"],
+    "LlamaCppMessages": ["conversation json", "history snapshot", "import messages"],
+    "LlamaCppResult": ["generation result", "result json", "usage", "release evidence"],
+    "LlamaCppTranscribe": ["transcribe", "speech to text", "audio", "ASR"],
+    "LlamaCppCaptions": ["caption batch", "image captions", "dataset", "per image"],
+    "LlamaCppRequestBudget": ["request budget", "context budget", "input tokens", "context window"],
     "StartLlamaCppServer": [
         "llm",
         "gguf",
@@ -159,6 +172,27 @@ EXPECTED_SEARCH_ALIASES = {
 }
 
 EXPECTED_ADVANCED_INPUTS = {
+    "LlamaCppMessage": set(),
+    "LlamaCppMessages": set(),
+    "LlamaCppResult": set(),
+    "LlamaCppTranscribe": {"request_timeout"},
+    "LlamaCppCaptions": {
+        "server_url",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "partial_output_policy",
+    },
+    "LlamaCppRequestBudget": {
+        "server_url",
+        "stop_sequences",
+        "api_key_env",
+        "verify_tls",
+        "request_timeout",
+        "include_image_batch",
+        "partial_output_policy",
+    },
     "StartLlamaCppServer": {
         "gpu_layers",
         "main_gpu",
@@ -282,7 +316,7 @@ EXPECTED_ADVANCED_INPUTS = {
 
 
 def test_every_registered_node_has_a_concise_description(node_package):
-    assert len(node_package.NODE_CLASS_MAPPINGS) == 19
+    assert len(node_package.NODE_CLASS_MAPPINGS) == 25
 
     for node_id, node_class in node_package.NODE_CLASS_MAPPINGS.items():
         description = getattr(node_class, "DESCRIPTION", None)
@@ -301,6 +335,15 @@ def test_every_registered_output_has_a_tooltip(node_package):
         assert all(isinstance(value, str) and value.strip() for value in output_tooltips), (
             f"{node_id} has an empty output tooltip"
         )
+
+
+@pytest.mark.parametrize(
+    "node_id", ["LlamaCppTranscribe", "LlamaCppCaptions", "LlamaCppRequestBudget"]
+)
+def test_runtime_operations_queue_without_a_consumer_and_recheck_the_runtime(node_package, node_id):
+    node = node_package.NODE_CLASS_MAPPINGS[node_id]
+    assert node.OUTPUT_NODE is True
+    assert math.isnan(node.IS_CHANGED())
 
 
 def test_categories_and_search_aliases_cover_the_registered_surface(node_package):

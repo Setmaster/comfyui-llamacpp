@@ -15,6 +15,7 @@ from ..generation.execution import (
     CanonicalGenerationError,
     CanonicalGenerationExecutor,
 )
+from ..generation.messages import ConversationMessages
 from ..generation.profiles import TaskProfileSnapshot
 from ..model_manager import get_local_models
 from ..runtime.live_generation import ExecutionIdentity
@@ -398,6 +399,23 @@ class LlamaCppGenerate:
                     "LOGIT_BIAS",
                     _option_group({"tooltip": "Optional token bans from llama.cpp Token Ban."}),
                 ),
+                "messages": (
+                    "LLAMACPP_MESSAGES",
+                    {
+                        "tooltip": "Explicit earlier text turns. Current prompt and images are appended."
+                    },
+                ),
+                "budget_policy": (
+                    ["off", "report", "enforce"],
+                    {
+                        "default": "off",
+                        "tooltip": (
+                            "Off skips counting. Report counts the complete request before "
+                            "generation. Enforce requires known input plus requested output "
+                            "to fit the effective context; it never truncates."
+                        ),
+                    },
+                ),
             }
         )
         schema = {
@@ -477,6 +495,8 @@ class LlamaCppGenerate:
         unique_id: object = None,
         dynprompt: Any = None,
         extra_pnginfo: Any = None,
+        messages: ConversationMessages | None = None,
+        budget_policy: str = "off",
         **kwargs: Any,
     ) -> dict[str, Any]:
         del kwargs
@@ -526,10 +546,11 @@ class LlamaCppGenerate:
                     )
                 ) from None
 
-        response, thinking, result = CanonicalGenerationExecutor().generate(
+        return self._execute_generation(
             prompt,
             connection=connection,
             profile=profile,
+            messages=messages,
             server_url=server_url,
             model=model,
             system_prompt=system_prompt,
@@ -556,7 +577,13 @@ class LlamaCppGenerate:
             token_ban=token_ban,
             identity=_execution_identity(unique_id, dynprompt, extra_pnginfo),
             cancel_check=_interrupt_check,
+            budget_policy=budget_policy,
         )
+
+    def _execute_generation(self, prompt: str, **options: Any) -> dict[str, Any]:
+        """Dispatch after the shared image, identity, and option preparation."""
+
+        response, thinking, result = CanonicalGenerationExecutor().generate(prompt, **options)
         return {
             # Keep Comfy's native text-output contract for history/API clients
             # and App Mode frontends whose result parser accepts inline text.

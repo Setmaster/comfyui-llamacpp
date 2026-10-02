@@ -9,9 +9,37 @@ import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
+from hashlib import sha256
 from typing import Any
 from urllib.parse import urlsplit
 
+from .audio import (
+    APPROVED_MODEL,
+    APPROVED_PROJECTOR,
+    ASR_MAX_TOKENS,
+    SUPPORTED_ASR_PAIR,
+    ApprovedPairIdentity,
+    AudioPreparationCancelled,
+    AudioResponseError,
+    PreparedAudio,
+    UnsupportedAudioModelError,
+    parse_asr_response,
+    prepare_audio,
+    verify_approved_pair,
+)
+from .budget import (
+    CONTEXT_LIMIT_SOURCE,
+    INPUT_TOKEN_SOURCE,
+    RequestBudget,
+    effective_context_limit,
+    enforce_request_budget,
+)
+from .captions import (
+    MAX_CAPTION_IMAGE_BYTES,
+    MAX_CAPTION_RESULT_BYTES,
+    CaptionBatchSpec,
+    caption_batch_outputs,
+)
 from .contracts import (
     MAX_TOKEN_BIAS_COUNT,
     MAX_TOKEN_BIAS_JSON_BYTES,
@@ -29,6 +57,7 @@ from .contracts import (
     SamplingSettings,
     ThinkingMode,
 )
+from .messages import ConversationMessages
 from .payloads import normalize_structured_output
 from .profiles import FREEFORM_PROFILE, TaskProfileSnapshot, apply_task_profile
 from .types import parse_text_list
@@ -40,6 +69,9 @@ if "." in __package__:
         DeadlineExceeded,
         LlamaClientError,
         LlamaServerClient,
+        OperationCancelled,
+        ResponseBodyLimitError,
+        ResponseProtocolError,
         StreamControlSupport,
         redact_secrets,
     )
@@ -59,6 +91,9 @@ else:  # standalone pure-module tests
         DeadlineExceeded,
         LlamaClientError,
         LlamaServerClient,
+        OperationCancelled,
+        ResponseBodyLimitError,
+        ResponseProtocolError,
         StreamControlSupport,
         redact_secrets,
     )
@@ -166,6 +201,12 @@ def _classify_exception(
     message = str(exc).casefold()
     if status_code in {401, 403}:
         category = ErrorCategory.AUTHENTICATION
+    elif isinstance(exc, (AudioPreparationCancelled, OperationCancelled)):
+        category = ErrorCategory.CANCELLED
+    elif isinstance(exc, UnsupportedAudioModelError):
+        category = ErrorCategory.CAPABILITY_UNSUPPORTED
+    elif isinstance(exc, (AudioResponseError, ResponseProtocolError, ResponseBodyLimitError)):
+        category = ErrorCategory.PROTOCOL
     elif _looks_like_tls_failure(message):
         category = ErrorCategory.TLS
     elif status_code == 404 and "model" in message:
@@ -516,6 +557,7 @@ def build_canonical_payload(
     images: Sequence[str] = (),
     structured_output: Any = None,
     token_ban: Any = None,
+    audio: PreparedAudio | None = None,
 ) -> dict[str, Any]:
     """Build the strict request without changing legacy GenerationOptions."""
 
@@ -540,7 +582,18 @@ def build_canonical_payload(
     messages: list[dict[str, Any]] = []
     if request.system_prompt != "":
         messages.append({"role": "system", "content": request.system_prompt})
+    if request.messages is not None:
+        messages.extend(message.as_dict() for message in request.messages.messages)
     messages.append({"role": "user", "content": user_content})
+    if request.operation is not None:
+        if (
+            not isinstance(audio, PreparedAudio)
+            or request.operation["wav_sha256"] != audio.wav_sha256
+        ):
+            raise ValueError("audio payload does not match operation metadata")
+        messages = [{"role": "user", "content": [audio.content_part()]}]
+    elif audio is not None:
+        raise ValueError("audio payload requires explicit operation metadata")
 
     payload: dict[str, Any] = {
         "stream": True,
@@ -708,12 +761,94 @@ class CanonicalGenerationExecutor:
         )
         self.clock = clock
 
+    def budget(self, prompt: str, **options: Any) -> dict[str, Any]:
+        """Explicit observation; a later node must check its own request again."""
+        policy = options.pop("budget_policy", "report")
+        return self.generate(
+            prompt,
+            budget_policy="report" if policy == "off" else policy,
+            _budget_only=True,
+            **options,
+        )
+
+    def captions(
+        self,
+        prompt: str,
+        *,
+        item_count: int,
+        prepare_images: Callable,
+        ids_json: str = "",
+        prompts_json: str = "",
+        seeds_json: str = "",
+        seed: int = 0,
+        progress: Callable[[int, int], Any] | None = None,
+        **options: Any,
+    ) -> tuple[list[str], str]:
+        spec = CaptionBatchSpec.from_inputs(
+            item_count,
+            prompt,
+            seed,
+            ids_json=ids_json,
+            prompts_json=prompts_json,
+            seeds_json=seeds_json,
+        )
+        return self.generate(
+            spec.rows[0].prompt,
+            seed=spec.rows[0].seed,
+            _caption_spec=spec,
+            _caption_prepare=prepare_images,
+            _caption_progress=progress,
+            **options,
+        )
+
+    def transcribe(
+        self,
+        audio: Any,
+        *,
+        supported_pair: str = SUPPORTED_ASR_PAIR,
+        server_url: str = "",
+        request_timeout: int = 60,
+        release_after_generation: bool = False,
+        identity: ExecutionIdentity | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> tuple[str, str, str, GenerationResult, str]:
+        raw, _, result = self.generate(
+            "",
+            server_url=server_url,
+            request_timeout=request_timeout,
+            release_after_generation=release_after_generation,
+            identity=identity,
+            cancel_check=cancel_check,
+            max_tokens=ASR_MAX_TOKENS,
+            thinking_mode=ThinkingMode.OFF,
+            sampling_mode=SamplingMode.CUSTOM,
+            temperature=0.0,
+            seed=0,
+            _audio_input=audio,
+            _supported_pair=supported_pair,
+        )
+        parsed = parse_asr_response(raw)
+        metadata = dict(result.operation or {})
+        metadata.update(
+            language=parsed.language,
+            prefix_status=parsed.prefix_status,
+            warnings=list(parsed.warnings),
+        )
+        return (
+            parsed.transcript,
+            raw,
+            parsed.language,
+            result,
+            json.dumps(metadata, ensure_ascii=False),
+        )
+
     def generate(
         self,
         prompt: str,
         *,
         connection: Any = None,
         profile: TaskProfileSnapshot | None = None,
+        messages: ConversationMessages | None = None,
         server_url: str = "",
         model: str = RUNNING_MODEL,
         system_prompt: str = "",
@@ -741,6 +876,13 @@ class CanonicalGenerationExecutor:
         token_ban: Any = None,
         identity: ExecutionIdentity | None = None,
         cancel_check: Callable[[], bool] | None = None,
+        _audio_input: Any = None,
+        _supported_pair: str | None = None,
+        budget_policy: str = "off",
+        _budget_only: bool = False,
+        _caption_spec: CaptionBatchSpec | None = None,
+        _caption_prepare: Callable | None = None,
+        _caption_progress: Callable[[int, int], Any] | None = None,
     ) -> tuple[str, str, GenerationResult]:
         started = self.clock()
         resolved_connection: ConnectionConfig | None = None
@@ -752,6 +894,12 @@ class CanonicalGenerationExecutor:
         warnings: list[str] = []
         cleanup_warning: str | None = None
         deadline_at: float | None = None
+        prepared_audio: PreparedAudio | None = None
+        request_budget: RequestBudget | None = None
+        budget_payload_sha256: str | None = None
+        caption_rows: list[dict[str, Any]] = []
+        caption_state = "complete"
+        caption_failure: CanonicalGenerationError | None = None
 
         def remaining(*, require_positive: bool, stage: str) -> float:
             if deadline_at is None:  # pragma: no cover - internal ordering invariant
@@ -766,6 +914,18 @@ class CanonicalGenerationExecutor:
                     retryable=True,
                 )
             return budget
+
+        def cancelled() -> bool:
+            if live is not None and live.token.cancelled:
+                return True
+            return bool(cancel_check()) if cancel_check is not None else False
+
+        def caption_progress(completed: int) -> None:
+            if _caption_progress is not None and _caption_spec is not None:
+                try:
+                    _caption_progress(completed, _caption_spec.item_count)
+                except Exception:
+                    pass  # Optional host progress must not bypass operation cleanup.
 
         try:
             if identity is not None and self.live_registry is not None:
@@ -784,10 +944,8 @@ class CanonicalGenerationExecutor:
                     live = None
             if not isinstance(model, str):
                 raise TypeError("model must be a string")
-            if prepare_images is not None:
-                if images:
-                    raise ValueError("supply encoded images or image preparation, not both")
-                images = prepare_images()
+            if budget_policy not in {"off", "report", "enforce"}:
+                raise ValueError("budget_policy must be off, report or enforce")
             profile = profile or FREEFORM_PROFILE
             if not isinstance(profile, TaskProfileSnapshot):
                 raise _error(
@@ -795,6 +953,13 @@ class CanonicalGenerationExecutor:
                     "profile input is not a saved llama.cpp task profile",
                     fallback="invalid task profile",
                 )
+            if messages is not None:
+                if not isinstance(messages, ConversationMessages):
+                    raise TypeError("messages input is not a llama.cpp text history")
+                if messages.has_system and (system_prompt != "" or profile.system_prompt != ""):
+                    raise ValueError(
+                        "history system message conflicts with system prompt or profile"
+                    )
             effective_prompt, effective_system = apply_task_profile(
                 profile,
                 prompt,
@@ -815,8 +980,57 @@ class CanonicalGenerationExecutor:
                 verify_tls=verify_tls,
                 request_timeout=request_timeout,
             )
+            deadline_at = started + float(resolved_timeout)
+
+            def check_operation() -> None:
+                if cancelled():
+                    raise OperationCancelled("operation cancelled")
+                remaining(require_positive=True, stage="request preparation")
+
+            if _caption_spec is not None:
+                if _budget_only or _supported_pair is not None or budget_policy != "off":
+                    raise ValueError("caption groups do not support another operation mode")
+                if images or prepare_images is not None or not callable(_caption_prepare):
+                    raise ValueError(
+                        "caption groups require exactly one image preparation callback"
+                    )
+                caption_progress(0)
+                images = _caption_prepare(check_operation)
+                if len(images) != _caption_spec.item_count:
+                    raise ValueError("caption images must exactly match the item count")
+                if sum(len(item.encode("utf-8")) for item in images) > MAX_CAPTION_IMAGE_BYTES:
+                    raise ValueError("caption images exceed the encoded group limit")
+                caption_rows = [
+                    {
+                        "item_id": item.item_id,
+                        "seed": item.seed,
+                        "state": "not_attempted",
+                        "response": "",
+                        "thinking": "",
+                        "result": None,
+                        "error": None,
+                    }
+                    for item in _caption_spec.rows
+                ]
+            elif prepare_images is not None:
+                if images:
+                    raise ValueError("supply encoded images or image preparation, not both")
+                images = prepare_images()
+            if _supported_pair is not None:
+                if _supported_pair != SUPPORTED_ASR_PAIR:
+                    raise UnsupportedAudioModelError("select the explicitly supported ASR pair")
+                prepared_audio = prepare_audio(
+                    _audio_input,
+                    cancel_check=cancelled,
+                    deadline_check=lambda: remaining(
+                        require_positive=True, stage="audio preparation"
+                    ),
+                )
             exact_model = selected_model or None
             normalized_images = _normalize_images(images)
+            caption_images = normalized_images if _caption_spec is not None else ()
+            if _caption_spec is not None:
+                normalized_images = normalized_images[:1]
             try:
                 constraint = normalize_structured_output(structured_output)
                 selected_sampling_mode = SamplingMode(sampling_mode)
@@ -857,6 +1071,14 @@ class CanonicalGenerationExecutor:
                         else ReleasePolicy.REUSE
                     ),
                     partial_output_policy=partial_output_policy,
+                    messages=messages,
+                    operation=(
+                        prepared_audio.operation_metadata(
+                            ApprovedPairIdentity(APPROVED_MODEL.sha256, APPROVED_PROJECTOR.sha256)
+                        )
+                        if prepared_audio is not None
+                        else None
+                    ),
                 )
                 # Validate all pure payload inputs before admitting a managed
                 # lease. The exact router ID is substituted after admission.
@@ -865,6 +1087,7 @@ class CanonicalGenerationExecutor:
                     images=normalized_images,
                     structured_output=constraint,
                     token_ban=normalized_token_ban,
+                    audio=prepared_audio,
                 )
             except CanonicalGenerationError:
                 raise
@@ -876,7 +1099,27 @@ class CanonicalGenerationExecutor:
                     fallback="invalid generation request",
                 ) from exc
 
-            deadline_at = started + float(resolved_timeout)
+            caption_requests = []
+            if _caption_spec is not None:
+                for item, image in zip(_caption_spec.rows, caption_images, strict=True):
+                    item_prompt, item_system = apply_task_profile(
+                        profile, item.prompt, system_prompt
+                    )
+                    item_request = replace(
+                        request,
+                        prompt=item_prompt,
+                        system_prompt=item_system,
+                        seed=item.seed,
+                        image_count=1,
+                    )
+                    build_canonical_payload(
+                        item_request,
+                        images=(image,),
+                        structured_output=constraint,
+                        token_ban=normalized_token_ban,
+                    )
+                    caption_requests.append(item_request)
+
             try:
                 resolved_connection, managed = self.manager.connection_for(
                     endpoint,
@@ -901,11 +1144,6 @@ class CanonicalGenerationExecutor:
                     connection=resolved_connection,
                     fallback="attached endpoints cannot be released",
                 )
-
-            def cancelled() -> bool:
-                if live is not None and live.token.cancelled:
-                    return True
-                return bool(cancel_check()) if cancel_check is not None else False
 
             runtime_service = self.manager.runtime_service
             lease = None
@@ -934,6 +1172,213 @@ class CanonicalGenerationExecutor:
                         stage="router model resolution",
                     ),
                 )
+
+            def check_caption_release() -> None:
+                if (
+                    _caption_spec is not None
+                    and lease is not None
+                    and getattr(runtime_service, "release_pending", False)
+                ):
+                    # A global release supersedes this group's dormant scoped
+                    # intent. Stop at a request boundary and let the one finalizer
+                    # exit the lease so the accepted release can complete.
+                    raise OperationCancelled("caption group stopped for requested runtime release")
+
+            def run_stream(payload: Mapping[str, Any]) -> None:
+                nonlocal stream_control, stream_result
+                check_caption_release()
+                probe_budget = min(
+                    2.0,
+                    remaining(require_positive=True, stage="stream capability probe"),
+                )
+                try:
+                    probe, stream_control = client.prepare_stream_control(
+                        probe_timeout=probe_budget,
+                        delete_timeout=2.0,
+                    )
+                except Exception as exc:
+                    raise _classify_exception(exc, connection=resolved_connection) from exc
+                if probe.support == StreamControlSupport.SUPPORTED:
+                    if stream_control is None:
+                        raise _error(
+                            ErrorCategory.PROTOCOL,
+                            "supported stream control probe returned no exact control",
+                            connection=resolved_connection,
+                            fallback="stream control protocol mismatch",
+                        )
+                    if live is not None:
+                        exact_stream_control = stream_control
+
+                        def cancel_generation() -> bool:
+                            # The registry sets its stable cancellation token
+                            # before invoking this callback. Capture only the
+                            # exact upstream control so terminal live-state
+                            # cleanup cannot race this DELETE through `live`.
+                            return bool(exact_stream_control.delete())
+
+                        live.set_cancel(CancelScope.GENERATION, cancel_generation)
+                else:
+                    stream_control = None
+                    if live is not None:
+                        reason = probe.reason or probe.support.value
+                        warnings.append(f"generation-scoped cancellation unavailable: {reason}")
+                if live is not None:
+                    live.set_phase("loading", model=exact_model)
+
+                check_caption_release()
+                stream_budget = remaining(
+                    require_positive=True,
+                    stage="prompt submission",
+                )
+                stream_result = client.stream_chat(
+                    payload,
+                    timeout=stream_budget,
+                    chunk_timeout=min(60.0, stream_budget),
+                    on_update=on_update,
+                    cancel=cancelled,
+                    stream_control=stream_control,
+                )
+
+            def validate_stream() -> None:
+                nonlocal primary, stream_failure
+                if stream_result is None:  # pragma: no cover - defensive invariant
+                    primary = _error(
+                        ErrorCategory.PROTOCOL,
+                        "stream returned no result",
+                        connection=resolved_connection,
+                        fallback="stream returned no result",
+                    )
+                else:
+                    stream_failure = (
+                        None
+                        if stream_result.success
+                        else _stream_error(
+                            stream_result,
+                            resolved_connection,
+                            image_unsupported_message=image_unsupported_message,
+                        )
+                    )
+                    partial_policy = PartialOutputPolicy(partial_output_policy)
+                    if stream_failure is not None and not (
+                        stream_result.partial
+                        and partial_policy == PartialOutputPolicy.RETURN_MARKED_PARTIAL
+                        and _caption_spec is None
+                    ):
+                        if cleanup_warning is not None:
+                            info = stream_failure.info
+                            primary = CanonicalGenerationError(
+                                GenerationErrorInfo(
+                                    category=info.category,
+                                    message=f"{info.message}; {cleanup_warning}"[:4096],
+                                    status_code=info.status_code,
+                                    retryable=info.retryable,
+                                )
+                            )
+                        else:
+                            primary = stream_failure
+                    elif request.structured_output_kind in {"json_object", "json_schema"}:
+                        try:
+                            parsed_json = json.loads(
+                                stream_result.response,
+                                parse_constant=_reject_json_constant,
+                            )
+                            if request.structured_output_kind == "json_object" and not isinstance(
+                                parsed_json, Mapping
+                            ):
+                                raise ValueError("JSON object response must be an object")
+                        except (json.JSONDecodeError, ValueError) as exc:
+                            primary = _error(
+                                ErrorCategory.STRUCTURED_JSON,
+                                exc,
+                                connection=resolved_connection,
+                                fallback="structured response is not valid JSON",
+                            )
+                    if (
+                        primary is None
+                        and managed
+                        and router_mode
+                        and stream_result.model
+                        and stream_result.model != exact_model
+                    ):
+                        primary = _error(
+                            ErrorCategory.PROTOCOL,
+                            (
+                                f"router returned model {stream_result.model!r} "
+                                f"for requested exact model {exact_model!r}"
+                            ),
+                            connection=resolved_connection,
+                            fallback="router response model mismatch",
+                        )
+
+                    if primary is None and prepared_audio is not None:
+                        try:
+                            if stream_result.finish_reason == "length":
+                                raise AudioResponseError(
+                                    "transcription reached its 128-token limit; no transcript was accepted"
+                                )
+                            parsed_audio = parse_asr_response(stream_result.response)
+                            warnings.extend(parsed_audio.warnings)
+                        except Exception as exc:
+                            primary = _classify_exception(exc, connection=resolved_connection)
+
+            def make_result(
+                item_release: GenerationReleaseInfo, item_release_seconds: float | None
+            ) -> GenerationResult:
+                state = (
+                    GenerationState.COMPLETE
+                    if stream_result.success
+                    else (
+                        GenerationState.CANCELLED
+                        if stream_result.cancelled
+                        else GenerationState.PARTIAL
+                    )
+                )
+                timing = GenerationTiming(
+                    first_chunk_seconds=(
+                        first_update - generation_started if first_update is not None else None
+                    ),
+                    generation_seconds=generation_finished - generation_started,
+                    release_seconds=item_release_seconds,
+                    total_seconds=self.clock() - started,
+                )
+                try:
+                    result = GenerationResult(
+                        state=state,
+                        response=stream_result.response,
+                        thinking=stream_result.thinking,
+                        requested_model=selected_model or None,
+                        effective_model=stream_result.model or exact_model,
+                        profile_id=profile.profile_id,
+                        profile_sha256=profile.content_sha256,
+                        seed=request.seed,
+                        image_count=request.image_count,
+                        structured_output_kind=request.structured_output_kind,
+                        usage=GenerationUsage.from_mapping(stream_result.usage),
+                        finish_reason=stream_result.finish_reason,
+                        response_id=stream_result.response_id,
+                        chunks=stream_result.chunks,
+                        terminal=(
+                            stream_result.done_received or stream_result.finish_reason is not None
+                        ),
+                        done_received=stream_result.done_received,
+                        timing=timing,
+                        release=item_release,
+                        error=stream_failure.info if stream_failure is not None else None,
+                        warnings=tuple(warnings),
+                        messages_sha256=messages.content_sha256 if messages is not None else None,
+                        message_count=len(messages.messages) if messages is not None else 0,
+                        operation=request.operation,
+                        budget=request_budget,
+                        budget_payload_sha256=budget_payload_sha256,
+                    )
+                except Exception as exc:
+                    raise _error(
+                        ErrorCategory.PROTOCOL,
+                        exc,
+                        connection=resolved_connection,
+                        fallback="invalid normalized stream result",
+                    ) from exc
+                return result
 
             try:
                 if managed:
@@ -998,8 +1443,37 @@ class CanonicalGenerationExecutor:
                     images=normalized_images,
                     structured_output=constraint,
                     token_ban=normalized_token_ban,
+                    audio=prepared_audio,
                 )
                 client = self.client_factory(resolved_connection)
+                if prepared_audio is not None:
+                    if not managed or router_mode:
+                        raise UnsupportedAudioModelError(
+                            "transcription requires an owned direct ASR runtime"
+                        )
+                    config = self.manager.current_config
+                    model_path = getattr(config, "model_path", None)
+                    projector_path = getattr(config, "mmproj_path", None)
+                    if not model_path or not projector_path:
+                        raise UnsupportedAudioModelError(
+                            "select the supported ASR model and audio projector explicitly"
+                        )
+                    verify_approved_pair(
+                        model_path,
+                        projector_path,
+                        supported_pair=_supported_pair,
+                        cancel_check=cancelled,
+                        deadline_check=lambda: remaining(
+                            require_positive=True, stage="ASR identity verification"
+                        ),
+                    )
+                    props = client.passive_props(
+                        timeout=remaining(require_positive=True, stage="audio capability probe")
+                    )
+                    if getattr(props, "modalities", {}).get("audio") is not True:
+                        raise UnsupportedAudioModelError(
+                            "the selected ASR runtime must explicitly advertise audio support"
+                        )
                 if managed and not router_mode:
                     try:
                         projector_status = getattr(self.manager, "projector_status", None)
@@ -1032,56 +1506,164 @@ class CanonicalGenerationExecutor:
                             fallback=_VISION_UNAVAILABLE_MESSAGE,
                         )
 
-                probe_budget = min(
-                    2.0,
-                    remaining(require_positive=True, stage="stream capability probe"),
-                )
-                try:
-                    probe, stream_control = client.prepare_stream_control(
-                        probe_timeout=probe_budget,
-                        delete_timeout=2.0,
-                    )
-                except Exception as exc:
-                    raise _classify_exception(exc, connection=resolved_connection) from exc
-                if probe.support == StreamControlSupport.SUPPORTED:
-                    if stream_control is None:
-                        raise _error(
-                            ErrorCategory.PROTOCOL,
-                            "supported stream control probe returned no exact control",
-                            connection=resolved_connection,
-                            fallback="stream control protocol mismatch",
+                if _budget_only or budget_policy != "off":
+                    if cancelled():
+                        raise OperationCancelled("request budget cancelled")
+                    budget_warnings = []
+                    try:
+                        props = client.passive_props(
+                            exact_model if router_mode or not managed else None,
+                            timeout=remaining(require_positive=True, stage="context lookup"),
+                            cancel=cancelled,
                         )
-                    if live is not None:
-                        exact_stream_control = stream_control
+                    except LlamaClientError as exc:
+                        if exc.status_code not in {404, 405}:
+                            raise
+                        props = None
+                        budget_warnings.append("effective per-slot context is unavailable")
+                    context_limit = effective_context_limit(getattr(props, "raw", {}))
+                    count = client.count_chat_input_tokens(
+                        payload,
+                        autoload=False,
+                        timeout=remaining(require_positive=True, stage="request token count"),
+                        cancel=cancelled,
+                    )
+                    if count.input_tokens is None:
+                        budget_warnings.append(
+                            "the server does not expose complete-request token counting"
+                        )
+                    request_budget = RequestBudget(
+                        input_tokens=count.input_tokens,
+                        context_limit=context_limit,
+                        max_tokens=request.max_tokens,
+                        model=exact_model
+                        or getattr(props, "model_alias", None)
+                        or getattr(props, "model_path", None),
+                        input_source=INPUT_TOKEN_SOURCE if count.input_tokens is not None else None,
+                        context_source=CONTEXT_LIMIT_SOURCE if context_limit is not None else None,
+                        warnings=tuple(budget_warnings),
+                    )
+                    budget_payload_sha256 = sha256(
+                        json.dumps(
+                            payload,
+                            ensure_ascii=False,
+                            allow_nan=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest()
+                    enforce_request_budget(
+                        request_budget, policy=budget_policy if budget_policy != "off" else "report"
+                    )
+                    if cancelled():
+                        raise OperationCancelled("request budget cancelled")
 
-                        def cancel_generation() -> bool:
-                            # The registry sets its stable cancellation token
-                            # before invoking this callback. Capture only the
-                            # exact upstream control so terminal live-state
-                            # cleanup cannot race this DELETE through `live`.
-                            return bool(exact_stream_control.delete())
-
-                        live.set_cancel(CancelScope.GENERATION, cancel_generation)
-                else:
-                    stream_control = None
-                    if live is not None:
-                        reason = probe.reason or probe.support.value
-                        warnings.append(f"generation-scoped cancellation unavailable: {reason}")
-                if live is not None:
-                    live.set_phase("loading", model=exact_model)
-
-                stream_budget = remaining(
-                    require_positive=True,
-                    stage="prompt submission",
-                )
-                stream_result = client.stream_chat(
-                    payload,
-                    timeout=stream_budget,
-                    chunk_timeout=min(60.0, stream_budget),
-                    on_update=on_update,
-                    cancel=cancelled,
-                    stream_control=stream_control,
-                )
+                if _caption_spec is not None:
+                    for item_index, (item_request, item_image) in enumerate(
+                        zip(caption_requests, caption_images, strict=True)
+                    ):
+                        request = replace(item_request, requested_model=exact_model)
+                        normalized_images = (item_image,)
+                        payload = build_canonical_payload(
+                            request,
+                            images=normalized_images,
+                            structured_output=constraint,
+                            token_ban=normalized_token_ban,
+                        )
+                        stream_result = None
+                        stream_control = None
+                        stream_failure = None
+                        stream_cleanup_snapshot = None
+                        cleanup_warning = None
+                        first_update = None
+                        generation_started = self.clock()
+                        if live is not None:
+                            live.update(
+                                response="",
+                                thinking="",
+                                prompt_progress=None,
+                                finish_reason=None,
+                                usage=None,
+                                error=None,
+                                chunks=0,
+                                stream_cleanup=None,
+                                force_emit=True,
+                            )
+                        try:
+                            check_operation()
+                            run_stream(payload)
+                            generation_finished = self.clock()
+                            if stream_result is not None:
+                                cleanup_warning = _stream_cleanup_warning(stream_result)
+                                if cleanup_warning is not None:
+                                    warnings.append(cleanup_warning)
+                            validate_stream()
+                            if primary is not None:
+                                raise primary
+                            if not stream_result.response.strip():
+                                raise _error(
+                                    ErrorCategory.PROTOCOL,
+                                    "caption response is empty",
+                                    fallback="caption response is empty",
+                                )
+                            item_result = make_result(GenerationReleaseInfo(), None)
+                            row = caption_rows[item_index]
+                            row.update(
+                                state="complete",
+                                response=item_result.response,
+                                thinking=item_result.thinking,
+                                result=item_result.as_dict(),
+                            )
+                            # Stop before the next request if accumulated evidence would exceed
+                            # the final bound. Reserve room for error and terminal release metadata.
+                            if (
+                                len(json.dumps(caption_rows, ensure_ascii=False).encode("utf-8"))
+                                > MAX_CAPTION_RESULT_BYTES - 65536
+                            ):
+                                row.update(
+                                    state="not_attempted", response="", thinking="", result=None
+                                )
+                                raise ValueError("caption results exceed the group result limit")
+                        except Exception as exc:
+                            caption_failure = _classify_exception(
+                                exc, connection=resolved_connection
+                            )
+                            caption_rows[item_index].update(
+                                state="failed",
+                                response="",
+                                thinking="",
+                                result=None,
+                                error={
+                                    "category": caption_failure.category.value,
+                                    "message": caption_failure.info.message,
+                                },
+                            )
+                            caption_state = (
+                                "cancelled"
+                                if caption_failure.category == ErrorCategory.CANCELLED
+                                else "partial"
+                                if item_index
+                                else "failed"
+                            )
+                            if (
+                                PartialOutputPolicy(partial_output_policy)
+                                == PartialOutputPolicy.RAISE_ERROR
+                            ):
+                                raise caption_failure from None
+                            primary = None
+                            break
+                        finally:
+                            caption_progress(item_index + 1)
+                            if live is not None:
+                                # The group token remains stable; an ended item's DELETE must
+                                # never be used as the cancellation target between requests.
+                                live.set_cancel(
+                                    CancelScope.PROMPT
+                                    if identity and identity.prompt_id
+                                    else CancelScope.NONE
+                                )
+                elif not _budget_only:
+                    run_stream(payload)
             except BaseException as exc:
                 primary = exc
             finally:
@@ -1122,79 +1704,13 @@ class CanonicalGenerationExecutor:
                     live = None
                 raise primary.with_traceback(primary.__traceback__)
 
-            if stream_result is not None:
+            if stream_result is not None and _caption_spec is None:
                 cleanup_warning = _stream_cleanup_warning(stream_result)
                 if cleanup_warning is not None:
                     warnings.append(cleanup_warning)
 
-            if primary is None:
-                if stream_result is None:  # pragma: no cover - defensive invariant
-                    primary = _error(
-                        ErrorCategory.PROTOCOL,
-                        "stream returned no result",
-                        connection=resolved_connection,
-                        fallback="stream returned no result",
-                    )
-                else:
-                    stream_failure = (
-                        None
-                        if stream_result.success
-                        else _stream_error(
-                            stream_result,
-                            resolved_connection,
-                            image_unsupported_message=image_unsupported_message,
-                        )
-                    )
-                    partial_policy = PartialOutputPolicy(partial_output_policy)
-                    if stream_failure is not None and not (
-                        stream_result.partial
-                        and partial_policy == PartialOutputPolicy.RETURN_MARKED_PARTIAL
-                    ):
-                        if cleanup_warning is not None:
-                            info = stream_failure.info
-                            primary = CanonicalGenerationError(
-                                GenerationErrorInfo(
-                                    category=info.category,
-                                    message=f"{info.message}; {cleanup_warning}"[:4096],
-                                    status_code=info.status_code,
-                                    retryable=info.retryable,
-                                )
-                            )
-                        else:
-                            primary = stream_failure
-                    elif request.structured_output_kind in {"json_object", "json_schema"}:
-                        try:
-                            parsed_json = json.loads(
-                                stream_result.response,
-                                parse_constant=_reject_json_constant,
-                            )
-                            if request.structured_output_kind == "json_object" and not isinstance(
-                                parsed_json, Mapping
-                            ):
-                                raise ValueError("JSON object response must be an object")
-                        except (json.JSONDecodeError, ValueError) as exc:
-                            primary = _error(
-                                ErrorCategory.STRUCTURED_JSON,
-                                exc,
-                                connection=resolved_connection,
-                                fallback="structured response is not valid JSON",
-                            )
-                    if (
-                        primary is None
-                        and managed
-                        and router_mode
-                        and stream_result.model
-                        and stream_result.model != exact_model
-                    ):
-                        primary = _error(
-                            ErrorCategory.PROTOCOL,
-                            (
-                                f"router returned model {stream_result.model!r} "
-                                f"for requested exact model {exact_model!r}"
-                            ),
-                            connection=resolved_connection,
-                            fallback="router response model mismatch",
-                        )
+            if primary is None and not _budget_only and _caption_spec is None:
+                validate_stream()
 
             release_seconds: float | None = None
             if (
@@ -1284,58 +1800,48 @@ class CanonicalGenerationExecutor:
                     connection=resolved_connection,
                     fallback="terminal runtime release failed",
                 )
+            if _caption_spec is not None:
+                outputs = caption_batch_outputs(
+                    _caption_spec,
+                    caption_rows,
+                    state=caption_state,
+                    release=release_info.as_dict(),
+                    warnings=tuple(dict.fromkeys(warnings)),
+                )
+                if live is not None:
+                    live.finish(
+                        phase="complete"
+                        if caption_state == "complete"
+                        else "cancelled"
+                        if caption_state == "cancelled"
+                        else "failed",
+                        result=stream_result,
+                        release=release_info.as_dict(),
+                        stream_cleanup=stream_cleanup_snapshot,
+                        error=caption_failure.info.as_dict() if caption_failure else None,
+                    )
+                    live = None
+                return outputs
+
+            if _budget_only:
+                assert request_budget is not None
+                observation = {
+                    "schema_version": 1,
+                    "budget": request_budget.as_dict(),
+                    "payload_sha256": budget_payload_sha256,
+                    "runtime_epoch": getattr(lease, "runtime_epoch", None),
+                    "release": release_info.as_dict(),
+                    "elapsed_seconds": self.clock() - started,
+                }
+                if live is not None:
+                    live.finish(phase="complete", release=release_info.as_dict())
+                    live = None
+                return observation
+
             assert stream_result is not None
 
-            state = (
-                GenerationState.COMPLETE
-                if stream_result.success
-                else (
-                    GenerationState.CANCELLED
-                    if stream_result.cancelled
-                    else GenerationState.PARTIAL
-                )
-            )
-            error_info = stream_failure.info if stream_failure is not None else None
-            timing = GenerationTiming(
-                first_chunk_seconds=(
-                    first_update - generation_started if first_update is not None else None
-                ),
-                generation_seconds=generation_finished - generation_started,
-                release_seconds=release_seconds,
-                total_seconds=self.clock() - started,
-            )
-            try:
-                result = GenerationResult(
-                    state=state,
-                    response=stream_result.response,
-                    thinking=stream_result.thinking,
-                    requested_model=selected_model or None,
-                    effective_model=stream_result.model or exact_model,
-                    profile_id=profile.profile_id,
-                    profile_sha256=profile.content_sha256,
-                    seed=seed,
-                    image_count=len(normalized_images),
-                    structured_output_kind=request.structured_output_kind,
-                    usage=GenerationUsage.from_mapping(stream_result.usage),
-                    finish_reason=stream_result.finish_reason,
-                    response_id=stream_result.response_id,
-                    chunks=stream_result.chunks,
-                    terminal=(
-                        stream_result.done_received or stream_result.finish_reason is not None
-                    ),
-                    done_received=stream_result.done_received,
-                    timing=timing,
-                    release=release_info,
-                    error=error_info,
-                    warnings=tuple(warnings),
-                )
-            except Exception as exc:
-                raise _error(
-                    ErrorCategory.PROTOCOL,
-                    exc,
-                    connection=resolved_connection,
-                    fallback="invalid normalized stream result",
-                ) from exc
+            result = make_result(release_info, release_seconds)
+            error_info = result.error
             if live is not None:
                 live.finish(
                     phase=(
@@ -1368,7 +1874,9 @@ class CanonicalGenerationExecutor:
             normalized = _classify_exception(exc, connection=resolved_connection)
             if live is not None:
                 live.finish(
-                    phase="failed",
+                    phase=(
+                        "cancelled" if normalized.category == ErrorCategory.CANCELLED else "failed"
+                    ),
                     result=stream_result,
                     release=release_info.as_dict(),
                     stream_cleanup=stream_cleanup_snapshot,
