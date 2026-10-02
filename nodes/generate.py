@@ -422,6 +422,14 @@ class LlamaCppGenerate:
         return apply_input_presentation("LlamaCppGenerate", schema)
 
     @classmethod
+    def VALIDATE_INPUTS(cls, model=RUNNING_MODEL):
+        # Discovery can supply exact router/attached IDs absent from the local
+        # combo suggestions. Naming only model retains Comfy's other checks.
+        # Comfy passes None for unresolved links as well as literal null; the
+        # executor rejects non-string resolved values before contacting a server.
+        return True if model is None or isinstance(model, str) else "model must be a string"
+
+    @classmethod
     def IS_CHANGED(cls, **kwargs):
         del kwargs
         return float("nan")

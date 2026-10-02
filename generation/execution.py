@@ -782,6 +782,8 @@ class CanonicalGenerationExecutor:
                     # Live state is additive, including during request and
                     # image preparation. It must never block headless use.
                     live = None
+            if not isinstance(model, str):
+                raise TypeError("model must be a string")
             if prepare_images is not None:
                 if images:
                     raise ValueError("supply encoded images or image preparation, not both")

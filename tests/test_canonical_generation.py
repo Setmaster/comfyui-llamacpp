@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import math
 import traceback
 import uuid
@@ -1668,6 +1669,46 @@ def test_comfy_base_exception_terminal_event_preserves_exact_stream_cleanup_evid
     assert terminal["release"]["policy"] == "release_after_generation"
     assert terminal["release"]["terminal"] is False
     assert handle.wait_calls == []
+
+
+def test_model_validator_is_scoped_and_does_not_consult_catalog(node_package, monkeypatch):
+    module = importlib.import_module(f"{node_package.__name__}.nodes.generate")
+
+    def unexpected_catalog_read():
+        raise AssertionError("validation must not consult the local catalog")
+
+    monkeypatch.setattr(module, "get_local_models", unexpected_catalog_read)
+    validate = module.LlamaCppGenerate.VALIDATE_INPUTS
+    signature = inspect.signature(validate)
+    assert tuple(signature.parameters) == ("model",)
+    for value in (RUNNING_MODEL, "router-id", "attached/model", "missing/model.gguf", " x ", None):
+        assert validate(model=value) is True
+    for value in (1, True, 1.5, {}, [], object()):
+        assert validate(model=value) == "model must be a string"
+
+
+@pytest.mark.parametrize("model", [None, 1, True, 1.5, {}, []])
+def test_nonstring_resolved_model_fails_before_preparation_or_client_use(model):
+    events = []
+    registry = LiveGenerationRegistry(sender=lambda name, payload, client: events.append(payload))
+    identity = ExecutionIdentity.create(prompt_id="prompt-a", node_id="7", client_id="client-a")
+    runner, manager, client = executor(live_registry=registry)
+
+    def unexpected_preparation():
+        raise AssertionError("invalid model must fail before image preparation")
+
+    with pytest.raises(CanonicalGenerationError) as caught:
+        runner.generate(
+            "hello", model=model, identity=identity, prepare_images=unexpected_preparation
+        )
+
+    assert caught.value.category == ErrorCategory.INVALID_REQUEST
+    assert caught.value.info.message == "model must be a string"
+    assert manager.connection_calls == []
+    assert client.calls == []
+    assert events[-1]["phase"] == "failed"
+    assert events[-1]["error"]["category"] == "invalid_request"
+    assert registry.active_count == 0
 
 
 def test_generate_node_contract_is_noncacheable_output_capable_and_app_mode_ready(
