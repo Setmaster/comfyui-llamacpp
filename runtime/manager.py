@@ -275,6 +275,57 @@ def _port_is_bound(host: str, port: int) -> bool:
     return False
 
 
+def _bind_hosts_may_overlap(left: str, right: str) -> bool:
+    """Conservatively recognize listeners that can belong to the current bind.
+
+    DNS aliases and wildcards must not make a replacement reject its own
+    listener. An unresolved address or a potentially dual-stack IPv6 wildcard
+    cannot prove disjointness, so those cases retain the post-stop check.
+    """
+
+    if left.strip().rstrip(".").casefold() == right.strip().rstrip(".").casefold():
+        return True
+    if "*" in (left.strip(), right.strip()):
+        return True
+
+    def addresses(host: str) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address] | None:
+        try:
+            resolved = socket.getaddrinfo(host.strip(), None, type=socket.SOCK_STREAM)
+        except OSError:
+            return None
+        result: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+        for family, _, _, _, address in resolved:
+            if family not in {socket.AF_INET, socket.AF_INET6}:
+                continue
+            try:
+                # Ignore IPv6 scope IDs conservatively when comparing binds.
+                value = ipaddress.ip_address(address[0].partition("%")[0])
+            except ValueError:
+                return None
+            if isinstance(value, ipaddress.IPv6Address) and value.ipv4_mapped is not None:
+                value = value.ipv4_mapped
+            result.add(value)
+        return result or None
+
+    left_addresses = addresses(left)
+    right_addresses = addresses(right)
+    if left_addresses is None or right_addresses is None:
+        return True
+    for left_address in left_addresses:
+        for right_address in right_addresses:
+            if left_address == right_address:
+                return True
+            if left_address.is_unspecified or right_address.is_unspecified:
+                if left_address.version == right_address.version:
+                    return True
+                # An IPv6 wildcard may accept IPv4 through a dual-stack socket.
+                if (left_address.version == 6 and left_address.is_unspecified) or (
+                    right_address.version == 6 and right_address.is_unspecified
+                ):
+                    return True
+    return False
+
+
 def _canonical_endpoint(url: str) -> tuple[str, str, int, str]:
     parsed = urlsplit(url)
     scheme = parsed.scheme.lower()
@@ -700,6 +751,19 @@ class LlamaCppServerManager:
                 ):
                     self._projector_status = sanitized_projector_status
                     return True, None
+
+                if (
+                    self._process.has_owned_process
+                    and self._config is not None
+                    and (
+                        self._config.port != config.port
+                        or not _bind_hosts_may_overlap(self._config.host, config.host)
+                    )
+                    and _port_is_bound(config.host, config.port)
+                ):
+                    raise RuntimeError(
+                        f"Port {config.host}:{config.port} is already in use; refusing to adopt it"
+                    )
 
                 if self._process.has_owned_process:
                     destructive_start = True

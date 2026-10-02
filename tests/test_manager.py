@@ -586,6 +586,161 @@ def test_port_collision_is_rejected_without_adopting_process(tmp_path, monkeypat
     assert process.has_owned_process is False
 
 
+@pytest.fixture
+def bind_hostnames(monkeypatch):
+    getaddrinfo = manager_module.socket.getaddrinfo
+    aliases = {
+        "owned.test": ("127.0.0.1",),
+        "alias.test": ("127.0.0.1", "::1"),
+        "other.test": ("127.0.0.2",),
+    }
+
+    def resolve(host, port, **kwargs):
+        if host == "unknown.test":
+            raise manager_module.socket.gaierror("fixture resolution unavailable")
+        if host in aliases:
+            return [
+                result
+                for address in aliases[host]
+                for result in getaddrinfo(address, port, **kwargs)
+            ]
+        return getaddrinfo(host, port, **kwargs)
+
+    monkeypatch.setattr(manager_module.socket, "getaddrinfo", resolve)
+
+
+@pytest.mark.parametrize("router", (False, True))
+@pytest.mark.parametrize(
+    "old_host,new_host,old_port,new_port",
+    (
+        ("127.0.0.1", "127.0.0.1", 18080, 18081),
+        ("0.0.0.0", "127.0.0.1", 18080, 18081),
+        ("127.0.0.1", "127.0.0.2", 18080, 18080),
+        ("::1", "127.0.0.1", 18080, 18080),
+        ("owned.test", "other.test", 18080, 18080),
+    ),
+)
+def test_occupied_disjoint_replacement_preserves_healthy_runtime(
+    tmp_path, monkeypatch, bind_hostnames, router, old_host, new_host, old_port, new_port
+):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    monkeypatch.setattr(
+        manager_module,
+        "_port_is_bound",
+        lambda host, port: (host, port) == (new_host, new_port),
+    )
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(
+            connection, role="router" if router else None, model_path=str(model)
+        ),
+    )
+    config_class = RouterConfig if router else ServerConfig
+    model_path = str(tmp_path) if router else str(model)
+    original_config = config_class(model_path, host=old_host, port=old_port)
+    start = manager.start_router if router else manager.start
+    assert start(original_config, timeout=2) == (True, None)
+    original_client = manager.client
+    original_epoch = service.runtime_epoch
+    original_command = tuple(process.command)
+
+    success, error = start(config_class(model_path, host=new_host, port=new_port), timeout=2)
+
+    assert success is False
+    assert "already in use; refusing to adopt" in error
+    assert process.stop_calls == 0
+    assert process.is_running is True
+    assert tuple(process.command) == original_command
+    assert manager.status == ServerStatus.RUNNING
+    assert manager.current_config is original_config
+    assert manager.client is original_client
+    assert original_client.closed is False
+    assert service.runtime_epoch == original_epoch
+
+
+@pytest.mark.parametrize(
+    "old_host,new_host",
+    (
+        ("127.0.0.1", "127.0.0.1"),
+        ("0.0.0.0", "127.0.0.1"),
+        ("127.0.0.1", "0.0.0.0"),
+        ("*", "::1"),
+        ("127.0.0.1", "*"),
+        ("::", "127.0.0.1"),
+        ("127.0.0.1", "::"),
+        ("::1", "0:0:0:0:0:0:0:1"),
+        ("::ffff:127.0.0.1", "127.0.0.1"),
+        ("owned.test", "alias.test"),
+        ("alias.test", "::1"),
+        ("127.0.0.1", "unknown.test"),
+        ("unknown.test", "127.0.0.1"),
+    ),
+)
+def test_overlapping_replacement_does_not_reject_its_own_listener(
+    tmp_path, monkeypatch, bind_hostnames, old_host, new_host
+):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    probe_states = []
+
+    def port_is_bound(host, port):
+        probe_states.append(process.running)
+        return process.running
+
+    monkeypatch.setattr(manager_module, "_port_is_bound", port_is_bound)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    assert manager.start(ServerConfig(str(model), host=old_host), timeout=2) == (True, None)
+    original_client = manager.client
+    replacement = ServerConfig(str(model), host=new_host, context_size=8192)
+
+    assert manager.start(replacement, timeout=2) == (True, None)
+
+    assert process.stop_calls == 1
+    assert manager.status == ServerStatus.RUNNING
+    assert manager.current_config is replacement
+    assert original_client.closed is True
+    assert probe_states == [False, False]
+
+
+def test_disjoint_replacement_rechecks_port_after_stopping_for_races(tmp_path, monkeypatch):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"fixture")
+    process = FakeProcess()
+    service = RuntimeService(process)  # type: ignore[arg-type]
+    probes = []
+
+    def port_is_bound(host, port):
+        occupied = port == 18081 and process.stop_calls > 0
+        probes.append((port, occupied))
+        return occupied
+
+    monkeypatch.setattr(manager_module, "_port_is_bound", port_is_bound)
+    manager = LlamaCppServerManager(
+        runtime_service=service,
+        probe_binary=lambda path: capabilities(tmp_path),
+        client_factory=lambda connection: FakeClient(connection, model_path=str(model)),
+    )
+    assert manager.start(ServerConfig(str(model), port=18080), timeout=2) == (True, None)
+
+    success, error = manager.start(ServerConfig(str(model), port=18081), timeout=2)
+
+    assert success is False
+    assert "already in use; refusing to adopt" in error
+    assert process.stop_calls == 1
+    assert process.has_owned_process is False
+    assert probes == [(18080, False), (18081, False), (18081, True)]
+
+
 def test_symbolic_gpu_layers_are_rejected_for_integer_only_binary(tmp_path, monkeypatch):
     model = tmp_path / "model.gguf"
     model.write_bytes(b"fixture")
