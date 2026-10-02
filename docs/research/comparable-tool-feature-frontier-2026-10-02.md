@@ -493,9 +493,10 @@ Product-source equality is checked with:
 git diff --exit-code c39e6a6 -- runtime generation models nodes web tests
 ```
 
-No product test suite, competitor test suite, inference benchmark or browser
-acceptance was run for this documentation-only phase. This avoids presenting
-source inspection as runtime proof. New endpoint/UI compatibility, generated
+No local product test suite, competitor test suite, inference benchmark or browser
+acceptance was run for this source-inspection phase. Normal branch CI runs after
+the documentation push; it does not establish the proposed features' runtime
+behavior. New endpoint/UI compatibility, generated
 quality, throughput and resource use remain the future issues' explicit gates.
 The prior completed candidate validations remain the evidence for current code.
 
