@@ -6,16 +6,24 @@ Date: 2026-10-02
 
 - [x] Reconcile research, authorization, baseline and native goal.
 - [x] Record completion contract and Linear execution state.
-- [ ] ENG-99 result inspector and native composition proof.
-- [ ] ENG-100 presets and native router proof.
-- [ ] ENG-101 explicit messages and round-trip/native proof.
-- [ ] ENG-102 context budgets and exact endpoint/resource proof.
-- [ ] ENG-103 caption coordination and failure/cancel cleanup proof.
-- [ ] ENG-104 profile authoring and real browser proof.
-- [ ] ENG-105 bounded AUDIO adapter and real Comfy/model proof.
-- [ ] Independent review, full/package/native/browser acceptance.
-- [ ] Push/synchronize dev and Windows clone; verify CI; close Linear with evidence.
-- [ ] Archive bundle, update/sync KB, stop owned runtimes and complete native goal.
+- [x] ENG-99 result inspector and native composition proof.
+- [x] ENG-100 presets and native router proof.
+- [x] ENG-101 explicit messages and round-trip/native proof.
+- [x] ENG-102 context budgets and exact endpoint/resource proof.
+- [x] ENG-103 caption coordination and failure/cancel cleanup proof.
+- [x] ENG-104 profile authoring and real browser proof.
+- [x] ENG-105 bounded AUDIO adapter and real Comfy/model proof.
+- [x] ENG-106 response deadlines/Windows cancellation and ENG-107 pinned Stop compatibility.
+- [x] Independent review, full/package/native/browser acceptance.
+- [x] Archive the implementation bundle and stop owned test runtimes.
+
+## Post-commit delivery gate
+
+The private `feature-implementation/final-delivery.json` receipt and Linear own
+the exact delivery revision: push/synchronize dev and the Windows clone, read
+back CI, compare packaged content, post issue evidence before Done, and sync the
+Project KB. Complete the native goal only after those readbacks pass. This
+archived implementation checklist does not predeclare that later goal update.
 
 ## Verification commands
 

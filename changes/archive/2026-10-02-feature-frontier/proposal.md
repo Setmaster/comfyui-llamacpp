@@ -15,6 +15,8 @@ ENG-99 result/graph interop; ENG-100 router presets; ENG-101 messages; ENG-102
 request budgets; ENG-103 per-image captions; ENG-104 profile authoring; ENG-105
 experimental short-clip ASR. The source report and issue acceptance criteria are
 the bounded contracts, with implementation decisions recorded in design.md.
+ENG-106 and ENG-107 track necessary response-read and pinned Stop corrections
+discovered while verifying those shared operation paths.
 
 ## Non-goals
 

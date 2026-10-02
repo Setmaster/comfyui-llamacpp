@@ -29,9 +29,12 @@ and the matching Linear issue. Include malformed/oversized input, conflict and
 failure/cancel paths, old saved workflows, direct/router exact targeting, native
 Windows models and applicable classic/Nodes 2.0/App Mode surfaces.
 
-## Open questions
+## Resolved coordination questions
 
-No operator input is currently required. Native token-count cancellation and
-group cleanup will be resolved through source inspection and targeted execution
-before selecting the shared coordinator seam. Do not infer server-side work
-cessation solely from local transport cancellation.
+Messages, budgeting, caption groups and transcription share the canonical
+admission, payload, deadline and finalization path. Caption items retain one
+lease and client, with one terminal group release; native mapping alone does not
+provide failure cleanup. Count cancellation uses request-local response guards,
+including bounded Windows reads, with independent current/minimum/native proof.
+Client transport cancellation alone does not prove upstream work stopped;
+terminal owned release supplies that separate lifecycle evidence.

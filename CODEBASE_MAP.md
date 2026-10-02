@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-10-02 18:01:27Z
-Commit: fdab5f0efe5b0a0771909877752dc01a6fdfe42b
+Generated: 2026-10-02 19:36:48Z
+Commit: 3251d0085ffebbce0cc1989aba3a0616f42dcff5
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -19,29 +19,30 @@ Source: git ls-files (tracked files)
 
 ## Directory structure (depth <= 3)
 - (root files): 18
-- `tests/`: 56 files
+- `tests/`: 65 files
   - `tests/js/`: 10 files
   - `tests/benchmarks/`: 8 files
     - `tests/benchmarks/task_profiles/`: 8 files
   - `tests/fixtures/`: 5 files
     - `tests/fixtures/workflows/`: 3 files
-- `docs/`: 45 files
+- `docs/`: 51 files
   - `docs/research/`: 31 files
     - `docs/research/assets/`: 22 files
-- `changes/`: 31 files
-  - `changes/archive/`: 17 files
+- `changes/`: 35 files
+  - `changes/archive/`: 21 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
     - `changes/archive/2026-07-10-lifecycle-concurrency-hardening/`: 4 files
+    - `changes/archive/2026-10-02-feature-frontier/`: 4 files
     - `changes/archive/2026-10-02-october-candidate-hardening/`: 4 files
     - `changes/archive/2026-10-02-remaining-backlog/`: 4 files
   - `changes/2026-07-11-canonical-generate-work-block-b/`: 5 files
   - `changes/2026-07-11-ux-work-block-a/`: 5 files
   - `changes/2026-07-24-auto-vlm-projector-resolution/`: 4 files
-- `nodes/`: 20 files
-- `example_workflows/`: 18 files
+- `nodes/`: 25 files
+- `example_workflows/`: 23 files
 - `web/`: 18 files
 - `runtime/`: 15 files
-- `generation/`: 8 files
+- `generation/`: 12 files
 - `models/`: 5 files
 - `.github/`: 1 files
   - `.github/workflows/`: 1 files
@@ -56,7 +57,7 @@ Source: git ls-files (tracked files)
 - `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 135.0 KiB
 - `runtime/process.py`: 112.7 KiB
 - `tests/test_process.py`: 89.5 KiB
-- `generation/execution.py`: 79.0 KiB
+- `generation/execution.py`: 80.0 KiB
 - `runtime/service.py`: 68.0 KiB
 - `tests/test_canonical_generation.py`: 61.6 KiB
 - `tests/test_streaming.py`: 58.7 KiB
@@ -67,7 +68,7 @@ Source: git ls-files (tracked files)
 - `runtime/process.py`: 2843 lines
 - `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 2779 lines
 - `tests/test_process.py`: 2723 lines
-- `generation/execution.py`: 1901 lines
+- `generation/execution.py`: 1921 lines
 - `tests/test_canonical_generation.py`: 1826 lines
 - `runtime/service.py`: 1744 lines
 - `tests/test_streaming.py`: 1643 lines

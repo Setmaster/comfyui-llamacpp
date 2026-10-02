@@ -1,14 +1,14 @@
 # October feature implementation validation
 
 Date: 2026-10-02
-Status: Source checks, independent execution review, interim distribution checks,
-native feature scenarios, profile browser acceptance and CI on `6fab80a` pass.
-Remaining native failure/Stop scenarios, final artifacts and delivery identity
-are pending.
+Status: Implementation and required source, native, browser, GPU and package
+acceptance pass. Post-commit delivery, CI, clone and Linear readbacks belong to
+the project evidence ledger and determine native goal completion.
 
 This report tracks ENG-99 through ENG-105 from the
 [feature frontier research](research/comparable-tool-feature-frontier-2026-10-02.md),
-plus the necessary ENG-106 transport repair found during implementation review.
+plus the necessary ENG-106 transport repair and ENG-107 pinned Stop correction
+found during implementation and native browser review.
 It continues the [backlog validation](validation-2026-10-backlog.md), whose
 runtime and investigation results belong to earlier revisions.
 
@@ -33,13 +33,15 @@ The implementation is committed in bounded slices on `dev`:
 | Bounded test parameter IDs for Windows environment limits | `4ebbc976931cc70cc4f7401c90cb3ff2023d4c8f` |
 | Windows cancellation/constructor repair | `6fab80acb1483f73977858ad07ac00739e5933e9` |
 | Sampling control visibility on Caption Batch and Request Budget | `370a13f` |
+| Stable App Mode Stop identity and saved-pin compatibility | `3251d0085ffebbce0cc1989aba3a0616f42dcff5` |
 
 The latest full source run includes the transport repair subsequently committed
-as `6fab80a`. Interim packages were built from an immutable export of `7a353a6`.
+as `6fab80a`. Final packages use immutable source `3251d00`. The passing
+`bb35dc4` packages are superseded by that frontend correction; their original
+receipts are retained without alteration.
 The successful native API stages below used the integrated usage-enabled surface;
-`4ebbc97` changes test IDs, not runtime behavior. Final acceptance must record the
-repaired executable commit, artifact hashes and later documentation-only commits
-separately.
+`4ebbc97` changes test IDs, not runtime behavior. Backend, frontend, package
+source and later documentation-only identities are recorded separately.
 
 Source checks ran on Linux/WSL with Python 3.14.2 and Node.js 24.13.0, using
 Requests 2.34.2 and urllib3 2.7.0. Runtime dependency declarations and the lock
@@ -50,8 +52,9 @@ ComfyUI 0.37.0 (`8d534945`), frontend 1.53.6, llama.cpp b9957 (`c4ae9a88f`),
 Torch 2.9.1+cu130 and RTX 5090 driver 610.88. The disposable Comfy user, database,
 input and output roots are separate from user data. Only this custom-node package
 is enabled for these checks. A current `/system_stats` receipt confirms the
-Python, Comfy, frontend, Torch and GPU inventory. Final environment and executable
-identity reconciliation remains pending after the transport repair.
+Python, Comfy, frontend, Torch and GPU inventory. The repaired backend was
+restarted on `6fab80a`; later runtime changes are frontend-only: sampling
+visibility in `370a13f` and stable Stop identity in `3251d00`.
 
 Text and vision scenarios use the installed Qwen3-VL-4B-Instruct Q5_K_M model
 with its existing Q8 projector. Audio uses the explicitly approved Qwen3-ASR-0.6B
@@ -105,8 +108,9 @@ could interrupt response construction before `fp` existed, and a Windows timed
 socket read could remain blocked after another thread closed the socket. The
 `6fab80a` repair initializes partial response state and polls cancellable socket
 reads while preserving the original inactivity and absolute deadlines. It does
-not reuse a `SocketIO` reader after a timeout. These changes need the final
-artifact rerun even though the earlier `7a353a6` package run passed once.
+not reuse a `SocketIO` reader after a timeout. These changes are included in the
+final artifact rerun; the earlier passing `7a353a6` package run alone was not
+sufficient evidence for the repair.
 
 The latest independent review passes **177 targeted tests plus 86 subtests** on
 current dependencies. Requests 2.31.0 with urllib3 1.26.20 passes **139 transport
@@ -126,8 +130,8 @@ exposed the constructor/capture races. Native Windows also exposed oversized
 pytest parameter IDs exceeding its environment-variable limit; `4ebbc97` gives
 those cases bounded IDs without changing payloads or assertions. The subsequent
 [CI run 37048580031](https://github.com/Setmaster/comfyui-llamacpp/actions/runs/37048580031)
-passes all seven jobs on `6fab80a`. Later delivery commits still require their own
-CI readback.
+passes all seven jobs on `6fab80a`. All seven also pass on final package source
+`3251d00`, run 37052975647. Delivery readback remains tied to its exact commit.
 
 The isolated minimum-version environment did not run the additional budget
 contract suite because a matching NumPy wheel was not cached. Those tests pass
@@ -142,13 +146,13 @@ tokenization stopped; owned terminal release supplies separate cessation evidenc
 | --- | --- |
 | Full source Python suite, including the `6fab80a` transport repair | **1,655 passed plus 197 subtests**, 22.52 seconds |
 | Full maintained Windows clone suite on `6fab80a` | **1,611 passed, 44 platform skips, 197 subtests**, 31.29 seconds |
-| Full frontend suite after sampling visibility correction | **105 passed**, zero failures or skips |
+| Full frontend suite after sampling and Stop corrections | **110 passed**, zero failures or skips |
 | Ruff check and formatting | Pass; **108 files already formatted** |
 | Example, graph, routes, messages and caption integration | **192 passed** |
 | Bridge/profile-route inventory correction | **25 passed** |
 | Combined execution review and supplemental probes | **145 passed**, no unresolved P0/P1/P2 findings |
 | Focused usage-option review | **132 passed plus 34 subtests**, no P0/P1/P2 findings |
-| GitHub Actions on `6fab80a` | **All seven jobs passed**, run 37048580031 |
+| GitHub Actions on package source `3251d00` | **All seven jobs passed**, run 37052975647 |
 
 These are separate verification runs; their counts must not be added together.
 The source suites use isolated fixtures and import-time Comfy stubs where needed,
@@ -157,8 +161,8 @@ not an actual model runtime.
 The Windows run used its installed Python and the retained `run-tests.py`
 wrapper against the maintained clone. All 44 skips are POSIX/Linux process-group,
 signal, identity or pidfd assertions. The clone was then restarted successfully
-on `6fab80a`; that healthy restart is distinct from the remaining native feature
-scenarios on the repaired executable.
+on `6fab80a`; that healthy restart is distinct from the scenario-specific native
+evidence on the repaired executable recorded below.
 
 Independent reviews completed for router presets, explicit messages and profile
 authoring. Router review corrected a reserved projector flag alias and qualified
@@ -186,6 +190,22 @@ hooks. Default/custom toggles, configure/reload, linked inputs, exact saved valu
 and Transcribe isolation pass seven new frontend tests. Independent source review
 passes; the final native browser recheck is recorded separately below.
 
+ENG-107 fixes a separate App Mode failure found during real ASR cancellation.
+The action was pinned under its initial widget name, then live updates renamed
+it and made the pin unresolvable. A slower CPU trial confirmed that the button
+was missing while generation was active, rather than merely missed by a fast
+click. `3251d00` retains the existing name and changes only its display label.
+The installed frontend 1.53.6 uses that name for widget identity and supports the
+separate label in both canvas and Vue controls.
+
+Known saved active labels migrate before graph configuration for the four root
+operation types. Both legacy tuples and canonical widget IDs are covered; saved
+captions and configuration survive. Foreign, malformed, duplicate or ambiguous
+node paths are left untouched. Migration of old active-label subgraph pins is
+not claimed. Independent source review and 47 focused frontend tests pass; the
+previous implementation fails six new regression cases. The full suite passes
+110 tests. Native rendering and actual button cancellation are separate evidence.
+
 Commands used for source and focused checks include:
 
 ```bash
@@ -207,7 +227,8 @@ repository-only commands reproduce those extra cases.
 
 ## Distribution evidence
 
-An immutable export of `7a353a6` passed the complete interim package gate using
+An immutable export of `3251d0085ffebbce0cc1989aba3a0616f42dcff5` passed the
+complete package gate using
 cached build and validation tools. Manifests contain **80 runtime assets,
 22 workflow assets, 65 source-test files and two benchmark protocols**, with no
 duplicate members. The isolated wheel imports all 25 registrations and all its
@@ -215,8 +236,8 @@ Python modules from the extracted wheel. Runtime/frontend assets are present.
 Removing `runtime/client.py` or `web/generate.js` is rejected, and a missing
 runtime module cannot import through a checkout fallback.
 
-The extracted source archive passed **1,648 Python tests plus 197 subtests** and
-**98 JavaScript tests**. Research documents remain excluded from the runtime
+The extracted source archive passed **1,655 Python tests plus 197 subtests** and
+**110 JavaScript tests**. Research documents remain excluded from the runtime
 wheel. Twine passed both archives. Registry validation exited successfully but
 warned about `exec` in the AST-based test helper
 `tests/test_comfy_model_validation.py`; the validator says that rule may become
@@ -226,13 +247,15 @@ The requirements audit reported no known vulnerabilities. Its scope is the
 resolved `requirements.txt` dependencies, not every platform-specific lock-file
 entry or the native llama-server executable.
 
-| Interim artifact from `7a353a6` | Bytes | SHA-256 |
+| Final artifact from `3251d00` | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `comfyui_llamacpp-0.4.0-py3-none-any.whl` | 656,252 | `b677861c13dc05616a87cb10280c49c9974e59e8fef72943eca0a154e8118b84` |
-| `comfyui_llamacpp-0.4.0.tar.gz` | 844,035 | `66dcfe4d090bafce76873d32fd98e47b0f2bbfd2e49f1f4b30e588c7049e8c37` |
+| `comfyui_llamacpp-0.4.0-py3-none-any.whl` | 657,352 | `1c72a95978e71c7473c87e8ef627eb4b3da3f9aee8c153b6245c6965184bfcc3` |
+| `comfyui_llamacpp-0.4.0.tar.gz` | 847,494 | `8f72ce20a5b1eea6f2fe86ab784ef3c417a1e14117324e827625ae4847b72537` |
 
-These are interim hashes. Final artifacts must be rebuilt after the transport
-repair. The gate used uv 0.9.28, Twine 7.0.0, comfy-cli 1.12.0 and pip-audit
+These artifacts include the transport, sampler-visibility and ENG-107 Stop
+repairs. The older passing `bb35dc4` archives remain preserved as superseded
+evidence and are not the delivery artifacts.
+The gate used uv 0.9.28, Twine 7.0.0, comfy-cli 1.12.0 and pip-audit
 2.10.1. The commands below show the same checks with `dist` as the output
 placeholder; the recorded run used its own disposable artifact directory:
 
@@ -295,6 +318,45 @@ isolated-test evidence. Unknown count/context, missing audio capability, prefix
 variants and slow-peer deadlines use executor and loopback transport fixtures.
 They are not presented as naturally occurring failures of the installed model.
 
+The final contract audit required actual two-stage refinement beyond the earlier
+single-request history checks. A native graph now takes the first Generate's
+response, appends it as an assistant turn after the exact first user prompt,
+then feeds that history into a second Generate with a refinement prompt. The
+identical graph is queued twice. History counts remain three for the first
+request and five for the second, with exact serialized hashes and no hidden
+accumulation. Both Generate nodes execute on both queues, are absent from cache
+receipts and produce four distinct streamed response IDs. Both final releases
+complete. Independent saved-evidence review confirms this closes the ENG-101
+proof gap; it is a wiring/lifecycle test, not a model-quality comparison.
+
+A second supplemental native stage closes ENG-100's differing-GPU preset proof.
+Two local identities launch with child arguments `ctx-size=1024,
+n-gpu-layers=0` and `ctx-size=2048, n-gpu-layers=99`. Their selected `/props`
+responses confirm effective context 1,024 and 2,048 with one slot. An explicit
+node override launches the selected child at context 3,072 and GPU layers 1.
+All three requests execute and the final owned stop completes. This proves the
+effective child arguments and context contract, not the count of layers actually
+offloaded by llama.cpp. Both identities use the same installed weights.
+
+The final GPU handoff repeats two 512 by 512, four-step frozen renders after
+owned model release. Seeds 731061202 and 731061203 force fresh sampling; both
+KSampler and VAE Decode are absent from cache-hit receipts. PNG text remains
+exact, with no llama.cpp graph nodes, process, active operation, or runtime
+epoch/log change. Comfy's CUDA-derived driver-wide used-memory observation rises
+from 1,872,297,984 to 8,818,065,408 bytes, a 6,945,767,424-byte increase. This
+supports successful downstream allocation; it is not isolated per-process VRAM
+accounting or an image-quality benchmark.
+
+The first supplemental memory assertion used active Torch allocator bytes and
+failed despite completed renders and increased CUDA use. That failed receipt is
+preserved. Even in the successful fresh run on this `cudaMallocAsync` host,
+Torch active bytes rose only about 1.7 MB. The corrected check follows Comfy's
+reporting contract, deriving driver
+use as total minus reported free plus Torch free memory. Independent source
+review confirms that formula. The successful fresh run first freed the isolated
+Comfy model cache and retained its allocation threshold and uncached-execution
+assertions; no product or tolerance change was needed.
+
 ## Native profile browser acceptance
 
 Independent browser acceptance passes in classic graph, Nodes 2.0 and App Mode,
@@ -332,24 +394,65 @@ evidence.
 
 A separate browser round-trip gate imports, serializes and reloads all 16
 workflow JSON files in both classic graph and Nodes 2.0: **32 round trips pass**.
-It submits no prompt and performs no runtime operation. Checks of the additional
-node controls are still in progress; workflow import success does not establish
-their live Stop behavior.
+It submits no prompt and performs no runtime operation. All six new nodes also
+pass saved-control checks in both renderers, preserving transient-field exclusion.
+The sampler correction passes 12 native node/mode checks across both renderers,
+including default/custom toggles and reload.
 
-## Remaining acceptance and delivery gates
+After `3251d00`, retained real snapshot shapes were replayed through all four
+operation types across classic, Nodes 2.0 and App Mode: **48 phase checks pass**.
+This is UI replay evidence, not 48 model executions. **16 saved-pin round trips**
+cover the two active-label aliases in legacy and canonical forms. Controls retain
+their identity, correct labels/disabled state and transient-field exclusion.
 
-- Complete the independent native sampler-visibility recheck and actual browser
-  Stop controls for Caption Batch and Transcribe. Their execution/cancellation
-  contracts have separate source, fixture and native API evidence above.
-- Rebuild and validate final wheel/source artifacts, with new hashes.
-- Reconcile final native environment, model/projector identities and all required
-  scenarios against the repaired executable.
-- Read back CI for the final delivery commit; all seven jobs already pass on
-  `6fab80a` and `370a13f` (run 37049655249).
-- Confirm the maintained Windows clone matches the verified candidate.
-- Confirm owned test model and Comfy processes are stopped; the profile browser
-  session is already closed.
-- Reconcile final evidence before closing ENG-99 through ENG-106.
+Both actual Stop reruns pass on that frontend. Caption Batch receives a visible
+button click in Nodes 2.0 during streamed output. ASR runs the approved pair with
+zero GPU layers and one CPU thread, keeping an 8.385-second repeated fixture
+within the public input bound while allowing a physical mouse click on App
+Mode's enabled Stop button. Each cancellation POST matches the observed
+execution, prompt and node identity, returns HTTP 202 with upstream confirmation,
+and reaches a terminal cancelled state with a disabled button, confirmed stream
+cleanup and complete owned release. The final runtime is unowned with no PID,
+zero active generations and an empty queue.
+
+Caption execution is `194e4e59-6ec8-437f-93fe-6df8823654df`, prompt
+`0c8bc053-6fdd-454a-acae-ac392133aa5f`, node `4`. Transcribe execution is
+`0fbd9099-436f-4b42-9616-b392e8ceee3e`, prompt
+`831851de-b375-4d4a-b9c0-d232bc25ec00`, node `2`. Earlier missing-button attempts
+remain preserved as failures, not accepted cancellation proof. No direct button
+callback or global Comfy interrupt substitutes for these actual UI clicks.
+
+The synthetic App Mode layout does not expose the advanced request-timeout
+control even when pinned; its value remains saved and editable in graph mode.
+No curated workflow depends on that pin. The ASR fixture also shows Comfy's media
+input warning for the uploaded file; accepted execution and cancellation are
+established by the native receipts, not by that warning. These checks do not
+establish accessibility or mobile layout quality.
+
+## Delivery and cleanup
+
+All required issue-specific implementation and acceptance scenarios are covered
+above. Independent reviews distinguish source fixtures, native model execution,
+UI replay, actual browser clicks and package checks. The final contract audit
+also required and verified the supplemental message and preset scenarios rather
+than treating earlier single-request checks as equivalent.
+
+The delivery gate compares every one of the 174 packaged source files and the
+build inputs against immutable package source `3251d00`, including detection of
+new package/test/workflow files. Later documentation, plan and map edits must
+leave those inputs unchanged. CI is read back for the exact delivery commit;
+package source already passes all seven jobs in
+[run 37052975647](https://github.com/Setmaster/comfyui-llamacpp/actions/runs/37052975647).
+The gate records final commit/CI URLs, clean dev/Windows equality and Linear
+status readbacks in the private delivery receipt and Linear evidence comments,
+avoiding a self-referential commit hash in this document.
+
+Both named browser sessions are closed with their owned process trees verified
+gone. After the final native handoff, the parent confirmed an empty queue and an
+unowned runtime with no PID or active generation, requested isolated Comfy model
+cleanup, and stopped only its test launcher and child. Windows PIDs 94440 and
+96592 are gone; ports 8188 and 18080 are closed. The final cleanup receipt retains
+the backend identity `6fab80a`. No user Comfy data or model file was removed.
 
 The baseline remains the rollback reference. Revert only the reviewed feature
 commits if necessary; preserve unrelated work and user model/profile data.

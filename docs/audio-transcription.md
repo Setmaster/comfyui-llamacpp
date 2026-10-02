@@ -86,7 +86,8 @@ It did not establish accuracy for long, noisy, accented or multilingual speech.
 Audio generation, timestamps, multiple clips and incremental microphone input
 remain outside this feature.
 
-Native acceptance must still verify the actual Load Audio wiring, transcript
-outputs, downstream text workflow, Stop, deadline, missing-capability rejection
-and terminal release with the integrated candidate. Offline preparation tests do
-not substitute for that host evidence.
+Native Windows checks verify Load Audio wiring, transcript outputs, same-process
+reuse, invalid clips, wrong-pair rejection, downstream text generation and
+terminal release. Missing-positive-capability, prefix variants and slow-peer
+deadlines use isolated executor and transport fixtures. The feature validation
+report records browser Stop evidence separately from those fixture checks.

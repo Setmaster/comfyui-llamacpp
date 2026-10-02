@@ -1,11 +1,11 @@
 # Feature Frontier Implementation
 
-Status: In progress
+Status: Implementation and acceptance complete; exact-commit delivery is recorded separately
 Date: 2026-10-02
 Branch: `dev`
 Baseline and rollback: `3945082cb9cfa6b034fa4ffb112fcfe69cf3876d`
-Tracking: ENG-99 through ENG-105 in [7dev Linear](https://linear.app/7dev/project/comfyui-llamacpp-b846a629b382)
-Bundle: `changes/2026-10-02-feature-frontier/`
+Tracking: ENG-99 through ENG-107 in [7dev Linear](https://linear.app/7dev/project/comfyui-llamacpp-b846a629b382)
+Bundle: `changes/archive/2026-10-02-feature-frontier/`
 
 ## Objective and completion contract
 
@@ -42,23 +42,35 @@ completion decisions. Workers own result/examples, router presets and profile UI
 audio preparation and architecture review start read-only. Evidence, not elapsed
 time or a worker completion message, determines acceptance.
 
-## Implementation checkpoint
+## Outcome
 
-All seven selected features are implemented. Source verification passes 1,655
-Python tests plus 197 subtests; native Windows passes 1,611 plus 197 with 44
-platform skips. Frontend verification passes 105 tests after the native-discovered
-sampler visibility fix. CI passes all seven jobs on 6fab80a and 370a13f.
-Independent implementation and transport reviews pass. Native graph composition,
-preset replacement/isolation, explicit history, exact budgets, caption failure
-and cancellation, profile authoring, ASR rejection/reuse/text chaining and GPU
-rendering pass. Final browser Stop proof, artifact rebuild, documentation and
-external-state reconciliation remain before issue and goal completion.
+All seven selected features and necessary ENG-106/107 corrections are complete.
+Source and extracted packages pass 1,655 Python tests plus 197 subtests; native
+Windows passes 1,611 plus 197 with 44 platform skips. Frontend verification passes
+110 tests. All seven CI jobs pass on package source 3251d00. The post-commit
+delivery gate requires exact-commit CI and clean source/Windows equality, with
+readbacks in Linear and the private evidence ledger before native goal completion.
+
+Independent code, native browser, original-contract and documentation reviews
+pass. Actual Caption Nodes 2.0 and ASR App Mode Stop preserve exact cancellation
+and release. Browser proof includes 32 workflow roundtrips, 48 phase checks and
+16 saved-pin migrations. Supplemental native checks prove real two-stage
+messages without hidden accumulation, differing router preset GPU/context
+parameters, and uncached GPU rendering after owned model release.
+
+The [validation report](docs/validation-2026-10-features.md) records source/native
+identity boundaries, exact artifact hashes, commands, failed probe disposition
+and limitations. Owned test browsers, llama runtimes and isolated Comfy are
+stopped. Package source is 3251d00; later evidence-only delivery changes are
+checked against its 174 packaged source files and build inputs. Master, release
+tag 0.3.0 and Registry publication remain unchanged. ENG-99 through ENG-107 require
+final evidence before Done; ENG-88 remains the separate user-deferred gate.
 
 ---
 
 # Comparable Tools and Feature Frontier Research
 
-Status: Complete; selected slices are now executing in the phase above
+Status: Complete; selected slices were subsequently implemented in the phase above
 Date: 2026-10-02
 Branch: `dev`
 Baseline: `c39e6a63b645a6de2e31bc3ba8cf16500967f296`
@@ -91,7 +103,8 @@ Research report: [Comparable tools and the next feature frontier](docs/research/
 Refreshed 33 reference repositories: 17 fast-forwarded, 12 current, four cloned.
 Independent review passed with no remaining findings; 64 pinned source URLs and
 reference provenance checks passed. Product source is unchanged from the baseline.
-ENG-99 through ENG-105 track seven bounded implementation slices in Backlog.
+At the research handoff, ENG-99 through ENG-105 tracked seven bounded
+implementation slices in Backlog; the phase above records their later delivery.
 Recommended order: result/graph composition, router presets, messages, request
 budgeting, caption coordination, then independent profile editor and short-clip ASR.
 ENG-88 remains the separate maintainer/release gate. Parked and rejected frontiers
