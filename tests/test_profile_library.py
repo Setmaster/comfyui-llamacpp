@@ -88,6 +88,17 @@ def test_external_file_change_and_missing_file_recreation_are_conflicts(tmp_path
         b"\xff",
         "[" * 1100 + "]" * 1100,
     ],
+    ids=[
+        "duplicate-key",
+        "escaped-duplicate-key",
+        "unsupported-version",
+        "unexpected-path",
+        "reserved-profile",
+        "duplicate-profile-id",
+        "oversized-document",
+        "invalid-utf8",
+        "excessive-nesting",
+    ],
 )
 def test_invalid_import_never_changes_existing_library(tmp_path, bad):
     path = tmp_path / "profiles.json"

@@ -213,7 +213,9 @@ def test_negative_boolean_aliases_render_one_canonical_option(preset):
     assert "mmap = true" in text
 
 
-@pytest.mark.parametrize("content", [b"\xff", b"#" * (256 * 1024 + 1)])
+@pytest.mark.parametrize(
+    "content", [b"\xff", b"#" * (256 * 1024 + 1)], ids=["invalid-utf8", "oversized-preset"]
+)
 def test_preset_input_is_bounded_utf8(preset, content):
     preset.write_bytes(content)
     with pytest.raises(ValueError):
