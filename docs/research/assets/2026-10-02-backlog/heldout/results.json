@@ -1,0 +1,3129 @@
+{
+  "schema_version": 1,
+  "experiment": "ENG-95 Visible Evidence held-out evaluation",
+  "date": "2026-10-02",
+  "publication_scope": "Exact generated responses, finalized rubric scores and measured latency; environment allowlist and source hashes, without machine-specific paths or process/client identifiers.",
+  "source_integrity": {
+    "experiment_content_sha256": "a50d91fcf4d97df88d793cab815f099ab21d8dab6390e751fcb5ce599ef14906",
+    "experiment_file_sha256": "5ca73bbad1623cdf2cf8ffa156ec698b7b259265283cc13bdee2a1f959319efc",
+    "summary_file_sha256": "00c8bdddd653289d4bdee011323e74dee51b51517d3092447885b16de05534c1",
+    "merged_scorecards_file_sha256": "dc657561dedf69a26af2531e75d9ff4fe4ca62bbc2ec9ffb601727aceae0b3f6",
+    "scoring_key_file_sha256": "fa3a8bb71a51f4f3e85317273fa2ff9e1d525556ff0cba63c935a8ccbc85c490",
+    "scoring_provenance_file_sha256": "6d821b8fa080158e2f10284cfbcc47133eeb27a3e52eea6a7ee33b1899a017e4",
+    "paths_before_clarity_review_file_sha256": "47c7e7c8902d7af60caae37f0a6b1cd1b14a8c51cf42fd7222dc7d7bb898572a",
+    "frozen_sources": {
+      "heldout.py": "68251fb8d77d261fa03854e19178fcaff073e1529e0624a9c7d2195e9344cde7",
+      "heldout_cases.json": "7494394b2b8b1908c8248ea5eacf9abca7af368af4d43c3e7f1fe11a079afc7c",
+      "bakeoff.py": "660a4776332d7925d5c5ee96497d2fcdc9eaf3b0cddd80d1e35745190b556e57",
+      "profiles.json": "36cb595b70eab9ece8405a8727b02f6028582d137b66e6668f20189a4d527650",
+      "generation/profiles.py": "2253e4dac4097d44cc8677080761aa9a8b0e5dfedc6733a691b7ae9726b45104"
+    },
+    "prior_experiment": {
+      "plan_sha256": "372fbdc0e69c33cededa29e776f1ab04401744372aad616a19ed128f49b5d887",
+      "files": {
+        "plan.json": "09f42eb8075c6844ebf9b5a5913655673eb969a27082970e12664d4991701da1",
+        "results.jsonl": "9fe0f6390b334043acadfb8f531a9a34e952c7ddb3748312f7833eddd6ddde6b",
+        "summary.json": "e6df26866a36766e04bcb227fec10207709197558b0ddc3806bce46b093f2e1a"
+      },
+      "protocol_sha256": "7fe4ef6a1e6a6c042b67b29c91c56cd842ea9b5357de25921962c305b16e5ce9"
+    },
+    "models": {
+      "qwen": {
+        "plan_content_sha256": "5a6d20f610c7df6258bad58203cf01d26dbb828a8d9e73c9ecca03980eb692d0",
+        "plan_file_sha256": "e905174a47a623509ee84916083259dc56eabe14f5e5de2f59e6f56aa3db04fc",
+        "results_file_sha256": "585cc651adcf2023419d5fef944bdf61f7105ea4666bf00fb096856ca8a424ea",
+        "recorded_environment_file_sha256": "4d8a11310cf2d062316ab355a23d5741f041dd3eb3988aa21411f2b35ac41da1",
+        "supplied_environment_file_sha256": "cff4116eba23deaa0f3746259a301cdd64d1ff5f66478125076b3bd2a84f0514"
+      },
+      "secondary": {
+        "plan_content_sha256": "3a1254304d634cd23ac85734768b5ab886b8f721bd9f9bcc91dcc3d7ec5099d1",
+        "plan_file_sha256": "0354e1a260cfab7e826ada5abb1bbdceb57facc09b8083d851b9979d2327f19b",
+        "results_file_sha256": "46f3256bcd221204ddf74f8bc92f33f209268016e7ba019be715c7c1543b9692",
+        "recorded_environment_file_sha256": "280f75cab6c9d4a84608a5dad8972a4d988918de165d222f292f9671c1b8665d",
+        "supplied_environment_file_sha256": "82fb876638838166ac2327803f730cb3678f489e5586bd1ba72252f3971d83b6"
+      }
+    }
+  },
+  "protocol": {
+    "specification": {
+      "schema_version": 1,
+      "seeds": [
+        17,
+        29
+      ],
+      "cases": [
+        {
+          "id": "heldout-symbol-grid",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "heldout-symbol-grid",
+          "system_prompt": "",
+          "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+          "max_words": 90,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "orange_count",
+              "description": "Three orange diamonds in total."
+            },
+            {
+              "id": "orange_fill",
+              "description": "Two orange diamonds are filled; one is outlined or hollow."
+            },
+            {
+              "id": "blue_count",
+              "description": "Three blue circles in total."
+            },
+            {
+              "id": "blue_fill",
+              "description": "One blue circle is filled; two are outlined or hollow."
+            },
+            {
+              "id": "top_row",
+              "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle."
+            },
+            {
+              "id": "bottom_row",
+              "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 90 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No invented material, purpose, text, or extra shape."
+            }
+          ],
+          "unsupported_examples": [
+            "plastic tokens",
+            "a game board",
+            "numbers inside the shapes"
+          ]
+        },
+        {
+          "id": "heldout-digit-bars",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "heldout-digit-bars",
+          "system_prompt": "",
+          "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+          "max_words": 80,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "digit_left",
+              "description": "The left label is the digit 3."
+            },
+            {
+              "id": "digit_middle",
+              "description": "The middle label is the digit 7."
+            },
+            {
+              "id": "digit_right",
+              "description": "The right label is the digit 2."
+            },
+            {
+              "id": "bar_colors",
+              "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange."
+            },
+            {
+              "id": "height_order",
+              "description": "Middle bar tallest, right bar intermediate, left bar shortest."
+            },
+            {
+              "id": "scale_unknown",
+              "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 80 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values."
+            }
+          ],
+          "unsupported_examples": [
+            "sales figures",
+            "centimeters",
+            "a value of seven for the middle bar"
+          ]
+        },
+        {
+          "id": "heldout-screened-paths",
+          "family": "vision",
+          "candidate": "visible-evidence-v1",
+          "image": "heldout-screened-paths",
+          "system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+          "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+          "max_words": 85,
+          "format": "paragraph",
+          "facts": [
+            {
+              "id": "left_pieces",
+              "description": "The left panel has two visible orange horizontal line pieces at the same height."
+            },
+            {
+              "id": "right_pieces",
+              "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece."
+            },
+            {
+              "id": "covers",
+              "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces."
+            },
+            {
+              "id": "left_unknown",
+              "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient."
+            },
+            {
+              "id": "right_unknown",
+              "description": "The right panel also does not establish whether the pieces connect behind the rectangle."
+            }
+          ],
+          "constraints": [
+            {
+              "id": "word_limit",
+              "description": "At most 85 words."
+            },
+            {
+              "id": "format",
+              "description": "One paragraph; no heading, markdown, or commentary."
+            },
+            {
+              "id": "visible_only",
+              "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose."
+            }
+          ],
+          "unsupported_examples": [
+            "one continuous wire",
+            "the lines are disconnected",
+            "a bent path behind the right rectangle"
+          ]
+        }
+      ],
+      "settings": {
+        "thinking_mode": "off",
+        "max_tokens": 256,
+        "sampling_mode": "custom",
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "top_k": 40,
+        "min_p": 0.05,
+        "repeat_penalty": 1.0,
+        "presence_penalty": 0.0,
+        "frequency_penalty": 0.0,
+        "cache_prompt": false,
+        "stop_sequences": "",
+        "request_timeout": 120,
+        "include_image_batch": false,
+        "release_after_generation": false,
+        "partial_output_policy": "raise_error"
+      }
+    },
+    "profiles": {
+      "freeform": {
+        "schema_version": 1,
+        "id": "freeform",
+        "name": "Freeform",
+        "description": "No prompt transformation.",
+        "system_prompt": "",
+        "prompt_prefix": "",
+        "prompt_suffix": ""
+      },
+      "candidate": {
+        "schema_version": 1,
+        "id": "visible-evidence-v1",
+        "name": "Visible Evidence (evaluation candidate)",
+        "description": "Describe visible image evidence while keeping occluded and unsupported information unknown.",
+        "system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+        "prompt_prefix": "",
+        "prompt_suffix": "\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length."
+      }
+    },
+    "gates": {
+      "model_mean_min": 0.0,
+      "model_task_mean_min": -0.5,
+      "combined_mean_min": 0.5,
+      "candidate_constraints_all_pass": true,
+      "candidate_unsupported_at_most_freeform": true,
+      "model_median_latency_max": 1.25
+    },
+    "context_size": 4096,
+    "warmups_per_model": 1,
+    "measured_runs_per_model": 12,
+    "model_keys": [
+      "qwen",
+      "secondary"
+    ]
+  },
+  "environment": {
+    "qwen": {
+      "repo_revision": "5a5f2894c83a42e787e15a975bd814586f3f7759",
+      "live_runtime_revision": "612bdad1f85fdb3a19dd5f63533eaaddd55e41fc",
+      "model_sha256": "026ad07482ca4a1121349fbb7b77abf9b81c0cbc156e3cf52ee7bb8d0229cde4",
+      "projector_sha256": "33d19545c921a784354b7cc099fa1f0e5b48352b73ab82bf077600e5ff9c6834",
+      "llama_build": "b9957 c4ae9a88f",
+      "comfy_revision": "8d534945",
+      "frontend_version": "1.53.6",
+      "gpu": "NVIDIA GeForce RTX 5090, driver 610.88",
+      "context_size": 4096,
+      "python": "3.13.7",
+      "torch": "2.9.1+cu130",
+      "llama_executable_sha256": "20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab",
+      "model_selector": "qwen3-vl-4b-instruct-bakeoff/Qwen_Qwen3-VL-4B-Instruct-Q5_K_M.gguf",
+      "projector_selector": "qwen-vl-4B-Instruct/Qwen3-VL-4B-Instruct-abliterated-v1-mmproj-Q8_0.gguf",
+      "launch_options": {
+        "context_size": 4096,
+        "gpu_layers": 999,
+        "main_gpu": 0,
+        "batch_size": 512
+      },
+      "supplied_and_recorded_environment_match": true,
+      "owned_direct_runtime_identity_continuity_verified": true
+    },
+    "secondary": {
+      "repo_revision": "5a5f2894c83a42e787e15a975bd814586f3f7759",
+      "live_runtime_revision": "612bdad1f85fdb3a19dd5f63533eaaddd55e41fc",
+      "model_sha256": "25ef74e858803818d474f81835ce58309df3dbfa32a8ca6e01176e981bcd1614",
+      "projector_sha256": "7a7225a32e8d453aaa3d22d8c579b5bf833c253f784cdb05c99c9a76fd616df8",
+      "llama_build": "b9957 c4ae9a88f",
+      "comfy_revision": "8d534945",
+      "frontend_version": "1.53.6",
+      "gpu": "NVIDIA GeForce RTX 5090, driver 610.88",
+      "context_size": 4096,
+      "python": "3.13.7",
+      "torch": "2.9.1+cu130",
+      "llama_executable_sha256": "20b7b426afaa175e3374e16f2e99b2ecb1d63a2784c4a45e5c58141b0e6ff6ab",
+      "model_selector": "minicpm-v-4_5-bakeoff/MiniCPM-V-4_5-Q5_K_M.gguf",
+      "projector_selector": "minicpm-v-4_5-bakeoff/mmproj-model-f16.gguf",
+      "launch_options": {
+        "context_size": 4096,
+        "gpu_layers": 999,
+        "main_gpu": 0,
+        "batch_size": 512
+      },
+      "supplied_and_recorded_environment_match": true,
+      "owned_direct_runtime_identity_continuity_verified": true
+    }
+  },
+  "fixtures": {
+    "heldout-symbol-grid": {
+      "file": "heldout-symbol-grid.png",
+      "size": [
+        800,
+        600
+      ],
+      "rgb_sha256": "06b747194826ecbe9baa0d3e12e352a714494c0f098e8587d5b87138b287a043",
+      "png_sha256": "2220551d5327036e938f963a7a601a4d45d482a9a58a2084d10cd5e0443e51f1"
+    },
+    "heldout-digit-bars": {
+      "file": "heldout-digit-bars.png",
+      "size": [
+        800,
+        600
+      ],
+      "rgb_sha256": "1e9da8436b56c1fc9725a0210441619db7483168282cd7a368a632b2712134fd",
+      "png_sha256": "349666109ab64b36bc021235ee31d809d0472c9970956134694e3c3d0e96fbf5"
+    },
+    "heldout-screened-paths": {
+      "file": "heldout-screened-paths.png",
+      "size": [
+        800,
+        600
+      ],
+      "rgb_sha256": "6c0bc4c5e4ac7aa58a20a3ec7d9692dafb56804719b083477798e9443f0fed80",
+      "png_sha256": "9a28a29a9bd730842098ea7578b13b7d7956c789c35c5361236761c9998f4a66"
+    }
+  },
+  "scoring_provenance": {
+    "task_reviews": {
+      "symbols": {
+        "reviewer": "generation_ui_review",
+        "sha256": "85a9cd484d19687618ab5abc27e8b02a79c7957bf53332f3ffffdac1e15a81e2",
+        "arm_and_model_blind": true,
+        "parent_review": "Before arm/model reveal; no score adjustments."
+      },
+      "digits": {
+        "reviewer": "gemma_fix",
+        "sha256": "adcc3dd356ee414c3cf2640fbb2ca09886956dc7e1e0d577c9956df3780c5bd6",
+        "arm_and_model_blind": true,
+        "parent_review": "Before arm/model reveal; no score adjustments."
+      },
+      "paths": {
+        "reviewer": "deadline_fix",
+        "sha256": "63b48a0d560689b3d7c6250bc30da878f6dfc6a33d2c9b806db47498f4d5729b",
+        "arm_and_model_blind": true,
+        "parent_review": "Before arm/model reveal; paths clarity adjusted for two coherent responses to avoid duplicating fact-accuracy deductions."
+      }
+    },
+    "method": "Three independent Codex task scorers, eight cards each, without arm/model labels; parent reviewed before unblinding. This is model-based assessment, not a human rating panel.",
+    "clarity_review_timing": "Before model/arm mapping was revealed. Fact scores, constraint decisions, responses and rubric remained unchanged.",
+    "paths_clarity_review": [
+      {
+        "blind_id": "9bcafc64fcda70ae",
+        "model_key": "secondary",
+        "run_id": "heldout-screened-paths-17-freeform",
+        "changes": {
+          "clarity": {
+            "before": 1,
+            "after": 2
+          },
+          "clarity_evidence": {
+            "before": "Readable paragraph with a clear panel comparison, but the incorrect above/below description of the left pieces needs correction and the answer about proof remains implicit.",
+            "after": "Coherent, readable panel-by-panel description with understandable spatial references. The inaccurate left-panel geometry and incomplete proof answer are assessed only in the fact scores; neither creates a separate writing defect."
+          }
+        }
+      },
+      {
+        "blind_id": "c4e690746f0a0ce6",
+        "model_key": "qwen",
+        "run_id": "heldout-screened-paths-17-freeform",
+        "changes": {
+          "clarity_evidence": {
+            "before": "The uncertainty conclusion is clear, but \"centered,\" \"symmetric,\" and \"shifted\" leave the central alignment comparison imprecise and the rightward-offset description needs correction.",
+            "after": "The uncertainty conclusion is clear, but \"centered,\" \"symmetric,\" and \"shifted\" leave the axis and reference for the comparison ambiguous. Minor editing is needed to clarify those spatial references."
+          }
+        }
+      },
+      {
+        "blind_id": "eee3084e6af15d6b",
+        "model_key": "secondary",
+        "run_id": "heldout-screened-paths-29-candidate",
+        "changes": {
+          "clarity": {
+            "before": 1,
+            "after": 2
+          },
+          "clarity_evidence": {
+            "before": "The right-panel geometry and proof limitation are clear and usable, but the left-panel top/bottom description needs correction.",
+            "after": "Clear panel-by-panel description and an explicit, understandable no-proof conclusion. The incorrect left-panel top/bottom geometry affects fact accuracy, not the clarity of the wording."
+          }
+        }
+      },
+      {
+        "blind_id": "3b597fd5dfefd8e0",
+        "model_key": "qwen",
+        "run_id": "heldout-screened-paths-29-freeform",
+        "changes": {
+          "clarity_evidence": {
+            "before": "The uncertainty conclusion is clear, but the geometry uses vague \"symmetric\"/\"skewed\" language and an incorrect rightward offset, requiring minor editing.",
+            "after": "The uncertainty conclusion is clear, but \"symmetric\" and \"skewed\" leave the spatial relationship being compared vague. Minor editing is needed to clarify those references."
+          }
+        }
+      },
+      {
+        "blind_id": "a7f8907f350b3576",
+        "model_key": "secondary",
+        "run_id": "heldout-screened-paths-17-candidate",
+        "changes": {
+          "clarity_evidence": {
+            "before": "Concise and readable, but comparing the pieces with the rectangle rather than each other makes the alignment description ambiguous; the proof conclusion is implicit.",
+            "after": "Concise and readable, but \"horizontally aligned with the gray rectangle\" and \"vertically offset from the gray rectangle\" leave unclear which rectangle edges or reference level are being compared. This is a separate wording ambiguity."
+          }
+        }
+      },
+      {
+        "blind_id": "0433c29b2a6bf24d",
+        "model_key": "qwen",
+        "run_id": "heldout-screened-paths-29-candidate",
+        "changes": {
+          "clarity_evidence": {
+            "before": "Readable but repetitive; the alignment terms are imprecise, the rightward-offset description needs correction, and the proof conclusion stays implicit.",
+            "after": "Readable but repetitive: the nonvisibility conclusion is repeated, while \"symmetric\" and \"shifted\" leave the spatial comparison ambiguous. Minor editing would clarify those references and remove the repetition."
+          }
+        }
+      }
+    ],
+    "numeric_clarity_adjustments": 2,
+    "evidence_only_clarity_revisions": 4
+  },
+  "runs": [
+    {
+      "id": "warmup-heldout-symbol-grid-7-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 7,
+      "arm": "freeform",
+      "warmup": true,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "39b4c458304794dc96f8de48c9465e14353b6660c2067d1f94476820e293272e",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Top row: two orange diamonds, one blue outlined circle. Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle. Layout: left to right, each row contains three shapes, alternating colors and styles, with orange diamonds on left, blue circles on right.",
+      "execution_ms": 777,
+      "wall_ms": 1196.486722008558,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "92526e1615a5e07d50bc9010d4a56d39fca6b29b4c04beb518dbaa85908b326d",
+      "submitted_graph_content_sha256": "f182c908d2bb8d8a81d305adf8f9d6e2a37328054ae1f0ab998ea3dbd4142872"
+    },
+    {
+      "id": "heldout-symbol-grid-17-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "a57d61012590582181fab67061551385fe3690cdaa70fd4a1f75f2ca840ad452",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Top row: two orange diamonds, one blue outlined circle. Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle. Layout: left to right, each row contains three shapes, alternating colors and styles, with no overlapping or hidden elements.",
+      "execution_ms": 623,
+      "wall_ms": 772.3157920117956,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "166165503480fe495cdfebd8edb54b059c1b94bd63720f98649f965c81d7bc2d",
+      "submitted_graph_content_sha256": "9294164255005ef0dab331f4b290704890f12d407d3cb1787f6d7fdefcca7005"
+    },
+    {
+      "id": "heldout-symbol-grid-17-candidate",
+      "case_id": "heldout-symbol-grid",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "a57d61012590582181fab67061551385fe3690cdaa70fd4a1f75f2ca840ad452",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Top row: two orange diamonds, one blue circle. Bottom row: one orange diamond, one blue circle, one blue circle. All shapes are distinct and non-overlapping. No filled or outlined distinction visible beyond the shapes' outlines. Layout is left to right as described.",
+      "execution_ms": 633,
+      "wall_ms": 742.5344089861028,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "0cbeb4af5ff0b98abe125602701cbfdeaf970f94a8364099a0c53ee602fbf9ea",
+      "submitted_graph_content_sha256": "a161bd85b444cfdd988e43aa0a978f38efd9f3985e170c89e36c08266f62b24b"
+    },
+    {
+      "id": "heldout-symbol-grid-29-candidate",
+      "case_id": "heldout-symbol-grid",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "5b25fe9178a97c0609df1fc467414529d61f3fc926127e6a30acf283cd78e609",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Top row: two orange diamonds, one blue circle. Bottom row: one orange diamond, one blue circle, one blue circle. All shapes are distinct, non-overlapping, and positioned left to right as described. No filled or outlined distinction is visible for shapes; all appear as outlines.",
+      "execution_ms": 887,
+      "wall_ms": 1018.6349479772616,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "861d034e0ca724e5fbcbd145bdfc7fc89afef791bccfc77fde6f95a57640ae2f",
+      "submitted_graph_content_sha256": "f840fd519e43af608b55dd6efa122106506a9326ada87abd93990b0c4d7bb032"
+    },
+    {
+      "id": "heldout-symbol-grid-29-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "5b25fe9178a97c0609df1fc467414529d61f3fc926127e6a30acf283cd78e609",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Top row: two orange diamonds, one blue outlined circle. Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle. Layout: left to right, each row contains three shapes, alternating colors and styles, with diamonds on left, circles on right.",
+      "execution_ms": 801,
+      "wall_ms": 977.6920189906377,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "f8101268697dc50485f2c8ba074e665872489e65f93981ef087b99dfabeda3ba",
+      "submitted_graph_content_sha256": "2cded7f1aa381c24307ac78c9e8aa12c2c55db6d389b5b6fb873cc895673fe9b"
+    },
+    {
+      "id": "heldout-digit-bars-17-candidate",
+      "case_id": "heldout-digit-bars",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "edfe441990e060fc19f4e555795028d4e5dc08e0dd5a370574ae775b6e95ec78",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Labels read 3, 1, 2. Bars are purple, teal, and gold. Heights: teal tallest, purple second, gold shortest. No numeric measurement scale is visible.",
+      "execution_ms": 573,
+      "wall_ms": 741.296037012944,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "731cfa2b95e15d2846e421c448472cf1300d81d1ab1258c5d5ef5dfc5108a3b0",
+      "submitted_graph_content_sha256": "151f5d4c4d2eb641aa1e0e020d8a50363b6a92a870ead199d2b09daa27e54915"
+    },
+    {
+      "id": "heldout-digit-bars-17-freeform",
+      "case_id": "heldout-digit-bars",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "edfe441990e060fc19f4e555795028d4e5dc08e0dd5a370574ae775b6e95ec78",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Labels: 3, 1, 2. Bars: purple, teal, gold. Heights: purple tallest, teal middle, gold shortest. No numeric scale shown.",
+      "execution_ms": 494,
+      "wall_ms": 634.1058640100528,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "fe9fce941ec8f8dab0fd9fdc9fac51d19e60466ecdf66f18adafc6c35393bb7a",
+      "submitted_graph_content_sha256": "0759da5d1ee397fbb5020eaa7c4ba165645691138a51d640c0adf45e86a5756c"
+    },
+    {
+      "id": "heldout-digit-bars-29-freeform",
+      "case_id": "heldout-digit-bars",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "87fa146ff16cd3c3352312c0c08f96213067b1e965eef7ef069a96acaebcaf8b",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Labels: 3, 1, 2. Bars: purple, teal, gold. Heights: purple tallest, teal middle, gold shortest. No numeric scale shown.",
+      "execution_ms": 464,
+      "wall_ms": 529.7338139789645,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "81b4bbe658e08bb854088ab84356621dc429eb26c2b014207bf5473274251fd0",
+      "submitted_graph_content_sha256": "ff2919aa60702c5b5f081bd03d8fba35c2bd3f05819ec986dd497f457e825f78"
+    },
+    {
+      "id": "heldout-digit-bars-29-candidate",
+      "case_id": "heldout-digit-bars",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "87fa146ff16cd3c3352312c0c08f96213067b1e965eef7ef069a96acaebcaf8b",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Labels read 3, 1, 2 from left to right. Bars are purple, teal, and gold. The teal bar is tallest, followed by the gold bar, then the purple bar. No numeric measurement scale is visible.",
+      "execution_ms": 592,
+      "wall_ms": 737.2196979995351,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "d04a2e6ea469db993005aaf01f0abbf30ee6716cbf932e2c6cd8295767636aa3",
+      "submitted_graph_content_sha256": "1d94fc813be4fae963d6d88d0d83c17273ac090024bc0edd8c3c7c1b3eaa5b58"
+    },
+    {
+      "id": "heldout-screened-paths-17-freeform",
+      "case_id": "heldout-screened-paths",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "128092074f7cff56763087defa819a04b4fb4bfd411482adaf5411a922092143",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered on the gray rectangle, while right panel’s lines are offset to the right. Neither panel shows hidden connections between line pieces. Vertical alignment differs: left lines are symmetric, right lines are shifted. No visible geometry confirms hidden connections between line pieces.",
+      "execution_ms": 734,
+      "wall_ms": 837.2558560222387,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "42345c70fe819cbaac189d2d3a263c373337085e3bd97d328714d7c15a8f3a20",
+      "submitted_graph_content_sha256": "7eeaa21481dd47957574e58d70999f9328613a6aaddb2f2f611cc81c891fae04"
+    },
+    {
+      "id": "heldout-screened-paths-17-candidate",
+      "case_id": "heldout-screened-paths",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "128092074f7cff56763087defa819a04b4fb4bfd411482adaf5411a922092143",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Each panel contains a gray rectangle and two orange horizontal lines. Left panel’s lines are centered on the gray rectangle; right panel’s lines are offset right. Neither panel shows hidden connections. Vertical alignment differs: left lines align centrally, right lines are shifted. No visible evidence confirms hidden line connections between panels.",
+      "execution_ms": 650,
+      "wall_ms": 738.2981299888343,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "5e3453dd18c33c8fbc20c06da17405b605e5c37443ab0f518e02025c2eb4a437",
+      "submitted_graph_content_sha256": "7f3779bfaeac46c7d70aeaa63f51a19d37b20008ffb7ad567f6ee7cbf2bccb7f"
+    },
+    {
+      "id": "heldout-screened-paths-29-candidate",
+      "case_id": "heldout-screened-paths",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "239d5313905a3821c890378aa937e8c749e01c4777692f8f4936cf1f9a4ca6d1",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered on the gray rectangle, while right panel’s lines are offset right. Neither panel shows hidden lines or connections. Vertical alignment differs: left lines are symmetric, right lines are shifted. No hidden connections are visible.",
+      "execution_ms": 633,
+      "wall_ms": 736.8058870197274,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "03a99f35ac2803ecd634c1c1714a1cef18c49ac08d27e8e935f0d0e446f08e5a",
+      "submitted_graph_content_sha256": "691a3b8b6c3674370fac7507abff1f77239fa095fa41c72798df585da1cd67e2"
+    },
+    {
+      "id": "heldout-screened-paths-29-freeform",
+      "case_id": "heldout-screened-paths",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "239d5313905a3821c890378aa937e8c749e01c4777692f8f4936cf1f9a4ca6d1",
+      "model_key": "qwen",
+      "status": "complete",
+      "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered, while right panel’s lines are offset right. Neither panel shows hidden connections between line pieces. Vertical alignment differs: left’s lines are symmetric, right’s are skewed. No visible geometry confirms hidden connections between line pieces in either panel.",
+      "execution_ms": 695,
+      "wall_ms": 842.6273099903483,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "540eb9939b0791ea6ca66f0f974332bf196ddd9352cddcaaca4866343c274db8",
+      "submitted_graph_content_sha256": "dfaf32a3c9401add0391e403f11c20ca623ea02565676e94c12d2823a3388594"
+    },
+    {
+      "id": "warmup-heldout-symbol-grid-7-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 7,
+      "arm": "freeform",
+      "warmup": true,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "8ca0667309e9592a6d47ef4352418e1f1440d516b0f9433502eed6a77c0cf65e",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Two filled orange diamonds are on the top left, followed by a blue outlined circle. On the bottom left, an outlined orange diamond is followed by a filled blue circle, then a blue outlined circle.",
+      "execution_ms": 1242,
+      "wall_ms": 1662.6166600035504,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "0c3d7dc1c7aa33b118272d94c1cb189dbf9ad3a7cc4b4f9c7a18005aad4a8668",
+      "submitted_graph_content_sha256": "5ca4fb2e75b44164a4c3018777ff6c707761705b5879d23b225cdd2578d6ddf8"
+    },
+    {
+      "id": "heldout-symbol-grid-17-candidate",
+      "case_id": "heldout-symbol-grid",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "8005665e91181d50275421b8a8eec229073f7f2ad0cd5651a0d109503806f8b3",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "There are two orange diamonds and two blue circles. In the top row, from left to right: an orange diamond, another orange diamond, a blue circle. In the bottom row, from left to right: an outlined orange diamond, a blue circle, a blue circle.",
+      "execution_ms": 1231,
+      "wall_ms": 1478.4668829815928,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "306c6ec3532fc78d47bd6e6415c7c463589bf0fdef19eb0578418a9e7db502dc",
+      "submitted_graph_content_sha256": "74a286ada2a04ddd27462cc46314cada726d912faff19f8ee344ee841bef0ad3"
+    },
+    {
+      "id": "heldout-symbol-grid-17-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "8005665e91181d50275421b8a8eec229073f7f2ad0cd5651a0d109503806f8b3",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Two filled orange diamonds appear in the top row, followed by a filled blue circle. In the bottom row, an outlined orange diamond is on the left, a filled blue circle is in the middle, and an outlined blue circle is on the right.",
+      "execution_ms": 1109,
+      "wall_ms": 1243.627624004148,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "6b80e0ddc39974dba5b478a498507fa9a02039f11fb39debf4ea53710904f1b4",
+      "submitted_graph_content_sha256": "08b096fa876a39d6a78a36c54df57dae750530fea45799191faec17e32dfa133"
+    },
+    {
+      "id": "heldout-symbol-grid-29-freeform",
+      "case_id": "heldout-symbol-grid",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "24b77536256edc636a8f542f744ec57845b842c18226cd686acba16dcc61c3bd",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "There are two filled orange diamonds and one outlined orange diamond. Two filled blue circles and one outlined blue circle. Top row: two filled orange diamonds, one outlined blue circle. Bottom row: one outlined orange diamond, one filled blue circle, one outlined blue circle.",
+      "execution_ms": 1187,
+      "wall_ms": 1405.1613430201542,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "a942af89084e463fccc2c90f94b74eb6cccc351aec0962fae24226718ea48727",
+      "submitted_graph_content_sha256": "3208c20c6182228fa0a11b8d9f44ba7d7edfe5c811a91d66df39600cbaeda3ce"
+    },
+    {
+      "id": "heldout-symbol-grid-29-candidate",
+      "case_id": "heldout-symbol-grid",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "24b77536256edc636a8f542f744ec57845b842c18226cd686acba16dcc61c3bd",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "There are two orange diamonds and two blue circles. In the top row, from left to right: an orange diamond, an orange diamond, a blue circle. In the bottom row, from left to right: an outlined orange diamond, a blue circle, a blue circle.",
+      "execution_ms": 1253,
+      "wall_ms": 1473.9592080004513,
+      "effective_prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "16944766fbd01db65acc063bac97dc13fb63f8aff989917812224c3c3b50a048",
+      "submitted_graph_content_sha256": "0127a5744c461ad866e422f6dce8ec870fc1a8883c2ccab5ec26e7e161bab080"
+    },
+    {
+      "id": "heldout-digit-bars-17-freeform",
+      "case_id": "heldout-digit-bars",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "f4ef41c9ddba8d8396c426ddc13ab4295684d636da5b5cadf3bca13a4a98ca44",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "The large single-digit labels from left to right are 3, 7, and 2. The three bars are purple, teal, and yellow. Their heights rank from tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+      "execution_ms": 1204,
+      "wall_ms": 1359.2857350013219,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "877996819e3846ef766d35924b99ebfc8959ecde72b6a2d50aa707d291718ab8",
+      "submitted_graph_content_sha256": "c3aff5a39984f755f26ea474bec16dca4f7072ace5b7985770be807217b4c4f7"
+    },
+    {
+      "id": "heldout-digit-bars-17-candidate",
+      "case_id": "heldout-digit-bars",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "f4ef41c9ddba8d8396c426ddc13ab4295684d636da5b5cadf3bca13a4a98ca44",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Labels: 3, 7, 2. Bar colors: purple, teal, yellow. Heights: teal (tallest), yellow (middle), purple (shortest). No exact numeric measurement scale is shown.",
+      "execution_ms": 1109,
+      "wall_ms": 1251.9612140022218,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "595e6f906992e297a61dd48ce72bd7989b95461703e22859ee986ca7f445f069",
+      "submitted_graph_content_sha256": "86abec9c610915767bbdc7639c162eb72facb4b2b2927813b4ac65c6365a27f7"
+    },
+    {
+      "id": "heldout-digit-bars-29-candidate",
+      "case_id": "heldout-digit-bars",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "9d9cffdb5307afda56c23468f092fe469cbecedda2a950935bca19b5f9aef3f9",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "The large single-digit labels are 3, 7, 2. The bars are purple, teal, and yellow. From tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+      "execution_ms": 1110,
+      "wall_ms": 1248.2591510051861,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe images using visible evidence. Distinguish readable text and visible geometry from uncertain, occluded, or absent information. Do not invent an object's material, purpose, identity, or hidden contents.",
+      "native_record_content_sha256": "075369fb6c79b624a020eb4838aba9166d7622b1b56748ee6c3837a55a8f1f85",
+      "submitted_graph_content_sha256": "0a5b692708a71a35a99e8f3a28d6937414857eb8d4b9565c975ab9d15966b852"
+    },
+    {
+      "id": "heldout-digit-bars-29-freeform",
+      "case_id": "heldout-digit-bars",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "9d9cffdb5307afda56c23468f092fe469cbecedda2a950935bca19b5f9aef3f9",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "The large single-digit labels from left to right are 3, 7, and 2. The three bars are purple, teal, and yellow. Their heights rank from tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+      "execution_ms": 1174,
+      "wall_ms": 1592.1766079845838,
+      "effective_prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "",
+      "native_record_content_sha256": "7cc6ad71a3d9c6ad24aa3f98f3650e08682cd60b93b8bf8432346fdfbc7d65d5",
+      "submitted_graph_content_sha256": "78b4e917308cf917c5ccdb10e20790b2a2e97313b82971a1178d1d77b3674714"
+    },
+    {
+      "id": "heldout-screened-paths-17-candidate",
+      "case_id": "heldout-screened-paths",
+      "seed": 17,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "0a8c89352653edc84660aa441919a99411004a7e565fdea54b60422adbaafe3b",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Each panel contains a gray vertical rectangle and two orange horizontal lines. In the left panel, the orange lines are horizontally aligned with the gray rectangle. In the right panel, the orange lines are vertically offset from the gray rectangle. Neither panel shows any connection between the hidden ends of the orange lines.",
+      "execution_ms": 1278,
+      "wall_ms": 1453.1351509795059,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "fd387ae741e202a56b21ff39817bd2cc28f7bf4c3bde8aee2d433e8852a85e2d",
+      "submitted_graph_content_sha256": "f668250efbcc21b63462a3875f47624af70c527b030a89dab2304732453efd93"
+    },
+    {
+      "id": "heldout-screened-paths-17-freeform",
+      "case_id": "heldout-screened-paths",
+      "seed": 17,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "0a8c89352653edc84660aa441919a99411004a7e565fdea54b60422adbaafe3b",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "The left panel shows a gray rectangle with two horizontal orange lines, one above and one below its center. The right panel has the same gray rectangle, but the lower orange line is shorter and positioned to the right. Neither panel shows hidden line pieces connecting; the vertical alignment of the orange lines differs between panels.",
+      "execution_ms": 1242,
+      "wall_ms": 1446.7670879967045,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "d53203ab46bf034d8647943b61e01fb48740277c2c74167d03b8273fccc88e9d",
+      "submitted_graph_content_sha256": "0765cc1c1c6817333e91f495565ced59e498d7047598b6b26ad91e4169716bf3"
+    },
+    {
+      "id": "heldout-screened-paths-29-freeform",
+      "case_id": "heldout-screened-paths",
+      "seed": 29,
+      "arm": "freeform",
+      "warmup": false,
+      "profile_sha256": "062834c398150be4f1c86475c85d0f0981869955498aa4434906cce54d311fe6",
+      "pair_sha256": "1277d57d2617e290d5c4a13a4a851bd39b2016c8505a937ce7987c20a1c2c2ed",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Each panel contains a vertical gray rectangle and two horizontal orange lines. In the left panel, the orange lines are aligned horizontally at the same vertical level. In the right panel, the orange lines are vertically offset, with the top line higher than the bottom line. Neither panel shows any connection between the hidden ends of the orange lines, so it cannot be determined if they connect.",
+      "execution_ms": 1365,
+      "wall_ms": 1552.057374996366,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "8e1d1da2a7a1e0bbfa0e9a10e70bcc95e27907478d0aa1590cee7f1f99471dfe",
+      "submitted_graph_content_sha256": "311bd0447af4ff35ec7b682e3fa6136ec0b62636e81a27e0737eff49aae07ced"
+    },
+    {
+      "id": "heldout-screened-paths-29-candidate",
+      "case_id": "heldout-screened-paths",
+      "seed": 29,
+      "arm": "candidate",
+      "warmup": false,
+      "profile_sha256": "d2fa35df4ac7f45263e222b622bb00194d539672f8fd03804a48d4454e6cced3",
+      "pair_sha256": "1277d57d2617e290d5c4a13a4a851bd39b2016c8505a937ce7987c20a1c2c2ed",
+      "model_key": "secondary",
+      "status": "complete",
+      "response": "Each panel contains a gray vertical rectangle and two horizontal orange lines. The left panel's orange lines are horizontally aligned with the gray rectangle's top and bottom. The right panel's orange lines are vertically offset, with the top line left of the gray rectangle and the bottom line right of it. Neither panel shows hidden line pieces connecting, so no connection can be proven.",
+      "execution_ms": 1370,
+      "wall_ms": 1563.3200379961636,
+      "effective_prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.\n\nCheck visible counts, colors, positions, overlap, and readable text against the image before answering. If the requested fact cannot be established from the pixels, say that it is not visible. Follow the user's requested format and length.",
+      "effective_system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "native_record_content_sha256": "f0c0e3f35d10b852194a32336d368b02a407f000d0d053c6601c0a327bf2c622",
+      "submitted_graph_content_sha256": "50a8fea9eea9f52ae4900bb68c5a4331179d4c26031d90e3c708630cc01e0252"
+    }
+  ],
+  "scores": [
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-symbol-grid-17-freeform",
+      "total": 6.3333,
+      "card": {
+        "blind_id": "1092f191245e0161",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "Top row: two orange diamonds, one blue outlined circle. Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle. Layout: left to right, each row contains three shapes, alternating colors and styles, with no overlapping or hidden elements.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds\" and \"Bottom row: one orange diamond (outlined)\" correctly total three orange diamonds."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0.5,
+            "evidence": "\"one orange diamond (outlined)\" correctly identifies the hollow bottom-left diamond, but \"two orange diamonds\" does not identify the top pair as filled."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "The top row contains \"one blue outlined circle\" and the bottom row contains \"one blue filled circle, one blue outlined circle\", correctly totaling three."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 1,
+            "evidence": "\"one blue outlined circle\" above plus \"one blue filled circle, one blue outlined circle\" below correctly accounts for one filled and two outlined blue circles."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Top row: two orange diamonds, one blue outlined circle\" gives the correct shapes but omits the diamond fills. The later claim \"each row contains three shapes, alternating colors and styles\" additionally contradicts this row: its first two shapes are both orange and filled. This is a contradictory row fact, not merely an omission."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle\" is correct, but \"each row contains three shapes, alternating colors and styles\" contradicts its color sequence: the last two shapes are both blue. The correct list and false pattern claim are unresolved."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "42 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 0,
+        "clarity_evidence": "The row lists place matching colors next to each other, yet the final sentence asserts alternating colors in each row. That internal contradiction prevents a coherent reading and receives zero clarity. The pattern error is scored as a listed row fact, not also as an unsupported addition.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-symbol-grid-17-candidate",
+      "total": 7.0,
+      "card": {
+        "blind_id": "cb9f493bf0f94423",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "Top row: two orange diamonds, one blue circle. Bottom row: one orange diamond, one blue circle, one blue circle. All shapes are distinct and non-overlapping. No filled or outlined distinction visible beyond the shapes' outlines. Layout is left to right as described.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds\" and \"Bottom row: one orange diamond\" correctly account for all three visible orange diamonds."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0,
+            "evidence": "\"No filled or outlined distinction visible beyond the shapes' outlines.\" incorrectly denies the visible distinction: the two top orange diamonds are solid, while the bottom-left diamond has a white interior."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds, one blue circle.\" and \"Bottom row: one orange diamond, one blue circle, one blue circle.\" correctly account for all three visible blue circles."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "\"No filled or outlined distinction visible beyond the shapes' outlines.\" fails to identify the solid bottom-middle circle and the two hollow circles at the right, despite their visibly different interiors."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"Top row: two orange diamonds, one blue circle.\" correctly gives the left-to-right colors, shapes, and counts, but supplies none of their fill states."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"Bottom row: one orange diamond, one blue circle, one blue circle.\" correctly gives the left-to-right shapes and colors, but omits the outlined, filled, outlined sequence."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "42 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "The row lists are understandable, but \"No filled or outlined distinction visible beyond the shapes' outlines\" is awkward and unclear, and \"Layout is left to right as described\" is a redundant self-reference. Minor prose editing is needed independently of the scored fill errors.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-symbol-grid-29-candidate",
+      "total": 6.3333,
+      "card": {
+        "blind_id": "213748ab67cc3c79",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "Top row: two orange diamonds, one blue circle. Bottom row: one orange diamond, one blue circle, one blue circle. All shapes are distinct, non-overlapping, and positioned left to right as described. No filled or outlined distinction is visible for shapes; all appear as outlines.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds\" and \"Bottom row: one orange diamond\" correctly total three orange diamonds."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0,
+            "evidence": "\"all appear as outlines\" incorrectly classifies the two solid top-row diamonds as outlined; only the bottom-left diamond is hollow."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds, one blue circle.\" and \"Bottom row: one orange diamond, one blue circle, one blue circle.\" correctly account for all three visible blue circles."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "\"all appear as outlines\" incorrectly classifies the solid bottom-middle blue circle; the PNG has one filled circle and two outlined circles."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Top row: two orange diamonds, one blue circle\" gives the correct shapes and order, but the explicit blanket statement \"all appear as outlines\" contradicts the filled interiors of both top-row diamonds."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Bottom row: one orange diamond, one blue circle, one blue circle\" gives the correct shapes and order, but \"all appear as outlines\" contradicts the filled bottom-middle circle."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "44 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "The row lists are readable, but \"No filled or outlined distinction is visible for shapes\" is awkward, and \"positioned left to right as described\" adds a redundant self-reference. Minor prose editing is warranted; the explicit all-outlined assertion is scored under facts.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-symbol-grid-29-freeform",
+      "total": 6.3333,
+      "card": {
+        "blind_id": "e7f92cffd775fc2e",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "Top row: two orange diamonds, one blue outlined circle. Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle. Layout: left to right, each row contains three shapes, alternating colors and styles, with diamonds on left, circles on right.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"Top row: two orange diamonds\" and \"Bottom row: one orange diamond (outlined)\" correctly total three orange diamonds."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0.5,
+            "evidence": "\"one orange diamond (outlined)\" correctly identifies the hollow bottom-left diamond, but \"two orange diamonds\" does not identify the top pair as filled."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "The top row contains \"one blue outlined circle\" and the bottom row contains \"one blue filled circle, one blue outlined circle\", correctly totaling three."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 1,
+            "evidence": "\"one blue outlined circle\" above plus \"one blue filled circle, one blue outlined circle\" below correctly accounts for one filled and two outlined blue circles."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Top row: two orange diamonds, one blue outlined circle\" gives the correct shapes but omits the diamond fills. The later claim \"each row contains three shapes, alternating colors and styles\" additionally contradicts this row: its first two shapes are both orange and filled. This is a contradictory row fact, not merely an omission."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Bottom row: one orange diamond (outlined), one blue filled circle, one blue outlined circle\" is correct, but \"each row contains three shapes, alternating colors and styles\" contradicts its color sequence: the last two shapes are both blue. The correct list and false pattern claim are unresolved."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "43 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 0,
+        "clarity_evidence": "The row lists place matching colors next to each other, yet the final sentence asserts alternating colors in each row. That internal contradiction prevents a coherent reading and receives zero clarity. The pattern error is scored as a listed row fact, not also as an unsupported addition.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-digit-bars-17-candidate",
+      "total": 8.6667,
+      "card": {
+        "blind_id": "75b53baf9b7840c1",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "Labels read 3, 1, 2. Bars are purple, teal, and gold. Heights: teal tallest, purple second, gold shortest. No numeric measurement scale is visible.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"Labels read 3, 1, 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 0,
+            "evidence": "\"Labels read 3, 1, 2.\" places 1 second, but the visible middle label is 7."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"Labels read 3, 1, 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"Bars are purple, teal, and gold.\" correctly gives the ordered purple, teal and golden-yellow bars. Gold accurately describes the right bar."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 0,
+            "evidence": "\"Heights: teal tallest, purple second, gold shortest.\" Teal tallest is correct, but purple and gold are reversed: gold/right is intermediate and purple/left is shortest. This is an incorrect full ranking, not merely an omitted relation."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No numeric measurement scale is visible.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "24 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No numeric measurement scale is visible.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-digit-bars-17-freeform",
+      "total": 8.6667,
+      "card": {
+        "blind_id": "0895d5027dabe576",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "Labels: 3, 1, 2. Bars: purple, teal, gold. Heights: purple tallest, teal middle, gold shortest. No numeric scale shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 1, 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 0,
+            "evidence": "\"Labels: 3, 1, 2.\" places 1 second, but the visible middle label is 7."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 1, 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"Bars: purple, teal, gold.\" correctly gives the ordered purple, teal and golden-yellow bars. Gold accurately describes the right bar."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 0,
+            "evidence": "\"Heights: purple tallest, teal middle, gold shortest.\" This ranking contradicts the PNG: purple/left is shortest, teal/middle is tallest, and gold/right is intermediate."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No numeric scale shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "19 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No numeric scale shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-digit-bars-29-freeform",
+      "total": 8.6667,
+      "card": {
+        "blind_id": "6bb28e464e18a850",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "Labels: 3, 1, 2. Bars: purple, teal, gold. Heights: purple tallest, teal middle, gold shortest. No numeric scale shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 1, 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 0,
+            "evidence": "\"Labels: 3, 1, 2.\" places 1 second, but the visible middle label is 7."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 1, 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"Bars: purple, teal, gold.\" correctly gives the ordered purple, teal and golden-yellow bars. Gold accurately describes the right bar."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 0,
+            "evidence": "\"Heights: purple tallest, teal middle, gold shortest.\" This ranking contradicts the PNG: purple/left is shortest, teal/middle is tallest, and gold/right is intermediate."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No numeric scale shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "19 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No numeric scale shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-digit-bars-29-candidate",
+      "total": 9.3333,
+      "card": {
+        "blind_id": "2546b2a0f007b915",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "Labels read 3, 1, 2 from left to right. Bars are purple, teal, and gold. The teal bar is tallest, followed by the gold bar, then the purple bar. No numeric measurement scale is visible.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"Labels read 3, 1, 2 from left to right.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 0,
+            "evidence": "\"Labels read 3, 1, 2 from left to right.\" places 1 second, but the visible middle label is 7."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"Labels read 3, 1, 2 from left to right.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"Bars are purple, teal, and gold.\" correctly gives the ordered purple, teal and golden-yellow bars. Gold accurately describes the right bar."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 1,
+            "evidence": "\"The teal bar is tallest, followed by the gold bar, then the purple bar.\" This correctly ranks the middle teal bar above the right gold bar, with the left purple bar shortest."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No numeric measurement scale is visible.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "35 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No numeric measurement scale is visible.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-screened-paths-17-freeform",
+      "total": 7.4,
+      "card": {
+        "blind_id": "c4e690746f0a0ce6",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered on the gray rectangle, while right panel’s lines are offset to the right. Neither panel shows hidden connections between line pieces. Vertical alignment differs: left lines are symmetric, right lines are shifted. No visible geometry confirms hidden connections between line pieces.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0.5,
+            "evidence": "Identifies \"two orange horizontal lines\" and describes the left lines as \"centered\" and \"symmetric,\" without unambiguously saying that both pieces have the same height."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0,
+            "evidence": "\"right panel’s lines are offset to the right\" substitutes a rightward displacement for the observed vertical offset and does not identify the lower right piece."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray rectangle\" identifies the covers, but neither vertical orientation nor covering the intervening region is specified."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 1,
+            "evidence": "\"No visible geometry confirms hidden connections between line pieces\" applies to both panels and correctly withholds proof of connectivity despite the described left-panel symmetry."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 1,
+            "evidence": "\"Neither panel shows hidden connections between line pieces\" followed by \"No visible geometry confirms hidden connections\" correctly denies that the right panel establishes a hidden connection."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "57 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "The uncertainty conclusion is clear, but \"centered,\" \"symmetric,\" and \"shifted\" leave the axis and reference for the comparison ambiguous. Minor editing is needed to clarify those spatial references.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-screened-paths-17-candidate",
+      "total": 6.6,
+      "card": {
+        "blind_id": "927b693e92e68935",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray rectangle and two orange horizontal lines. Left panel’s lines are centered on the gray rectangle; right panel’s lines are offset right. Neither panel shows hidden connections. Vertical alignment differs: left lines align centrally, right lines are shifted. No visible evidence confirms hidden line connections between panels.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0.5,
+            "evidence": "\"two orange horizontal lines\" and \"left lines align centrally\" identify the pieces and central alignment, but do not clearly specify that the two pieces are at the same height."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0,
+            "evidence": "\"right panel’s lines are offset right\" and \"right lines are shifted\" give a rightward displacement instead of the visible right piece being lower than the left piece."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray rectangle\" identifies both covers, but does not describe their vertical orientation or their position between the pieces."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows hidden connections\" notes nonvisibility, but the final proof statement concerns connections \"between panels,\" not the left panel's hidden pieces."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows hidden connections\" notes nonvisibility, but \"No visible evidence confirms hidden line connections between panels\" does not directly resolve the right panel's internal hidden connection."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "51 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "The prose is readable, but the vague alignment language and the switch to connections \"between panels\" need editing to answer the requested comparison precisely.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-screened-paths-29-candidate",
+      "total": 6.6,
+      "card": {
+        "blind_id": "0433c29b2a6bf24d",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered on the gray rectangle, while right panel’s lines are offset right. Neither panel shows hidden lines or connections. Vertical alignment differs: left lines are symmetric, right lines are shifted. No hidden connections are visible.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0.5,
+            "evidence": "Identifies \"two orange horizontal lines\" and describes the left lines as \"centered\" and \"symmetric,\" but does not clearly state that both pieces are at the same height."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0,
+            "evidence": "\"right panel’s lines are offset right\" gives a rightward displacement rather than identifying the right piece below the left; \"shifted\" does not correct that description."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray rectangle\" identifies the covers but omits their vertical orientation and covering position between the line pieces."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows hidden lines or connections\" and \"No hidden connections are visible\" establish nonvisibility, without explicitly stating that the left hidden connection is indeterminate or unproved."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 0.5,
+            "evidence": "The statements that connections are not visible also apply to the right panel, but do not directly say whether its hidden pieces can be proved to connect."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "50 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Readable but repetitive: the nonvisibility conclusion is repeated, while \"symmetric\" and \"shifted\" leave the spatial comparison ambiguous. Minor editing would clarify those references and remove the repetition.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "qwen",
+      "run_id": "heldout-screened-paths-29-freeform",
+      "total": 7.4,
+      "card": {
+        "blind_id": "3b597fd5dfefd8e0",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray rectangle with two orange horizontal lines. Left panel’s lines are centered, while right panel’s lines are offset right. Neither panel shows hidden connections between line pieces. Vertical alignment differs: left’s lines are symmetric, right’s are skewed. No visible geometry confirms hidden connections between line pieces in either panel.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0.5,
+            "evidence": "Identifies \"two orange horizontal lines\" and calls the left lines \"centered\" and \"symmetric,\" but does not unambiguously specify equal height."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0,
+            "evidence": "\"right panel’s lines are offset right\" describes a rightward displacement instead of the visible right piece being lower; \"skewed\" does not supply the correct relation."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray rectangle\" identifies the covers, without specifying their vertical orientation or the region covered between the orange pieces."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 1,
+            "evidence": "\"No visible geometry confirms hidden connections between line pieces in either panel\" explicitly withholds proof in the left panel despite its described symmetry."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 1,
+            "evidence": "The same statement, \"in either panel,\" explicitly says the right panel's visible geometry does not establish a hidden connection."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "53 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "The uncertainty conclusion is clear, but \"symmetric\" and \"skewed\" leave the spatial relationship being compared vague. Minor editing is needed to clarify those references.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-symbol-grid-17-candidate",
+      "total": 5.0,
+      "card": {
+        "blind_id": "6d17a8e0c841697e",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "There are two orange diamonds and two blue circles. In the top row, from left to right: an orange diamond, another orange diamond, a blue circle. In the bottom row, from left to right: an outlined orange diamond, a blue circle, a blue circle.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 0,
+            "evidence": "\"There are two orange diamonds\" explicitly gives the wrong total; the PNG contains three. The later list of two in the top row and one below does not resolve this contradiction."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0.5,
+            "evidence": "\"an outlined orange diamond\" in the bottom row correctly identifies the hollow diamond, but neither top-row diamond is identified as filled."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 0,
+            "evidence": "\"two blue circles\" explicitly gives the wrong total; the PNG contains three. The subsequent one-above, two-below list contradicts the stated total."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "All three are called \"a blue circle\" without any filled/outlined distinction; the required one-filled, two-outlined breakdown is missing."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"an orange diamond, another orange diamond, a blue circle\" gives the correct left-to-right shapes and colors, but omits all three fill states."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"an outlined orange diamond, a blue circle, a blue circle\" places the shapes correctly and identifies the hollow diamond, but omits the filled middle circle and outlined right circle."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "44 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 0,
+        "clarity_evidence": "The paragraph is internally contradictory: its opening asserts two of each shape, while its row lists enumerate three of each. The rubric assigns zero clarity to contradictory responses.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-symbol-grid-17-freeform",
+      "total": 8.6667,
+      "card": {
+        "blind_id": "e5dd8a9688e0309b",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "Two filled orange diamonds appear in the top row, followed by a filled blue circle. In the bottom row, an outlined orange diamond is on the left, a filled blue circle is in the middle, and an outlined blue circle is on the right.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"Two filled orange diamonds\" in the top row and \"an outlined orange diamond\" below correctly total three."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 1,
+            "evidence": "\"Two filled orange diamonds\" above and \"an outlined orange diamond\" below correctly identify two solid diamonds and one hollow diamond."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "\"a filled blue circle\" in the top row plus a middle \"filled blue circle\" and right \"outlined blue circle\" in the bottom row correctly enumerate three circles. Their incorrect fill classification is scored separately."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "The response describes two circles as \"filled\", one in each row, and only one as \"outlined\". The top-right circle is visibly hollow, so the correct breakdown is one filled and two outlined."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0,
+            "evidence": "\"Two filled orange diamonds appear in the top row, followed by a filled blue circle.\" explicitly misclassifies the top-right circle as filled; its white center makes it outlined. The listed row fact is therefore wrong, despite the correct shape order."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 1,
+            "evidence": "\"an outlined orange diamond is on the left, a filled blue circle is in the middle, and an outlined blue circle is on the right\" exactly matches the bottom row."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "44 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "The prose is concise, internally coherent, and gives clear left/middle/right positions without distracting material. The visually wrong top-circle fill is scored under facts, not treated as an internal prose contradiction.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-symbol-grid-29-freeform",
+      "total": 7.3333,
+      "card": {
+        "blind_id": "b6acc79c91b79ba7",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "There are two filled orange diamonds and one outlined orange diamond. Two filled blue circles and one outlined blue circle. Top row: two filled orange diamonds, one outlined blue circle. Bottom row: one outlined orange diamond, one filled blue circle, one outlined blue circle.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 1,
+            "evidence": "\"two filled orange diamonds and one outlined orange diamond\" totals three, matching the PNG."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 1,
+            "evidence": "\"two filled orange diamonds and one outlined orange diamond\" gives the correct orange fill breakdown."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 1,
+            "evidence": "\"Two filled blue circles and one outlined blue circle\" still totals three blue circles, and the row lists also total three. Fill errors are scored separately."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "\"Two filled blue circles and one outlined blue circle\" reverses the actual one-filled, two-outlined breakdown. The later correct row lists contradict rather than correct this summary."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 1,
+            "evidence": "\"Top row: two filled orange diamonds, one outlined blue circle.\" exactly matches the visible left-to-right top row."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 1,
+            "evidence": "\"Bottom row: one outlined orange diamond, one filled blue circle, one outlined blue circle.\" exactly matches the visible left-to-right bottom row."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "44 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 0,
+        "clarity_evidence": "The blue-fill summary states two filled and one outlined, while the row lists state one filled and two outlined. This unresolved internal contradiction receives zero clarity under the rubric.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-symbol-grid-29-candidate",
+      "total": 5.0,
+      "card": {
+        "blind_id": "6cb6797eab570aee",
+        "case_id": "heldout-symbol-grid",
+        "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-symbol-grid",
+        "response": "There are two orange diamonds and two blue circles. In the top row, from left to right: an orange diamond, an orange diamond, a blue circle. In the bottom row, from left to right: an outlined orange diamond, a blue circle, a blue circle.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "orange_count",
+            "description": "Three orange diamonds in total.",
+            "score": 0,
+            "evidence": "\"There are two orange diamonds\" explicitly gives the wrong total; the PNG contains three. The later list of two in the top row and one below does not resolve this contradiction."
+          },
+          {
+            "id": "orange_fill",
+            "description": "Two orange diamonds are filled; one is outlined or hollow.",
+            "score": 0.5,
+            "evidence": "\"an outlined orange diamond\" in the bottom row correctly identifies the hollow diamond, but neither top-row diamond is identified as filled."
+          },
+          {
+            "id": "blue_count",
+            "description": "Three blue circles in total.",
+            "score": 0,
+            "evidence": "\"two blue circles\" explicitly gives the wrong total; the PNG contains three. The subsequent one-above, two-below list contradicts the stated total."
+          },
+          {
+            "id": "blue_fill",
+            "description": "One blue circle is filled; two are outlined or hollow.",
+            "score": 0,
+            "evidence": "All three are called \"a blue circle\" without any filled/outlined distinction; the required one-filled, two-outlined breakdown is missing."
+          },
+          {
+            "id": "top_row",
+            "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"an orange diamond, an orange diamond, a blue circle\" gives the correct left-to-right shapes and colors, but omits all three fill states."
+          },
+          {
+            "id": "bottom_row",
+            "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle.",
+            "score": 0.5,
+            "evidence": "\"an outlined orange diamond, a blue circle, a blue circle\" places the shapes correctly and identifies the hollow diamond, but omits the filled middle circle and outlined right circle."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 90 words.",
+            "passed": true,
+            "evidence": "44 whitespace-separated words, within the 90-word limit."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no document heading, markdown, or separate explanatory commentary. Inline row labels describe the requested layout rather than serving as a heading."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented material, purpose, text, or extra shape.",
+            "passed": true,
+            "evidence": "The response describes the visible colored geometric shapes and their arrangement without inventing material, purpose, text, or an extra shape. Count, fill, or pattern mistakes concern the listed facts and are scored there rather than duplicated as invented additions."
+          }
+        ],
+        "unsupported_examples": [
+          "plastic tokens",
+          "a game board",
+          "numbers inside the shapes"
+        ],
+        "clarity": 0,
+        "clarity_evidence": "The paragraph is internally contradictory: its opening asserts two of each shape, while its row lists enumerate three of each. The rubric assigns zero clarity to contradictory responses.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-digit-bars-17-freeform",
+      "total": 10,
+      "card": {
+        "blind_id": "e0756a48fddc61ad",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "The large single-digit labels from left to right are 3, 7, and 2. The three bars are purple, teal, and yellow. Their heights rank from tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" correctly places 7 second, matching the middle label."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"The three bars are purple, teal, and yellow.\" correctly gives the ordered purple, teal and golden-yellow bars. Yellow is an acceptable description of the visible golden-yellow hue."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 1,
+            "evidence": "\"Their heights rank from tallest to shortest: teal, yellow, purple.\" This correctly ranks the middle teal bar above the right golden-yellow bar, with the left purple bar shortest."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No exact numeric measurement scale is shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No exact numeric measurement scale is shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-digit-bars-17-candidate",
+      "total": 10,
+      "card": {
+        "blind_id": "f98372c84affc49f",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "Labels: 3, 7, 2. Bar colors: purple, teal, yellow. Heights: teal (tallest), yellow (middle), purple (shortest). No exact numeric measurement scale is shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 7, 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 7, 2.\" correctly places 7 second, matching the middle label."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"Labels: 3, 7, 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"Bar colors: purple, teal, yellow.\" correctly gives the ordered purple, teal and golden-yellow bars. Yellow is an acceptable description of the visible golden-yellow hue."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 1,
+            "evidence": "\"Heights: teal (tallest), yellow (middle), purple (shortest).\" This correctly ranks the middle teal bar above the right golden-yellow bar, with the left purple bar shortest."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No exact numeric measurement scale is shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "23 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No exact numeric measurement scale is shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-digit-bars-29-candidate",
+      "total": 10,
+      "card": {
+        "blind_id": "36a7c5510f532240",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "The large single-digit labels are 3, 7, 2. The bars are purple, teal, and yellow. From tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels are 3, 7, 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels are 3, 7, 2.\" correctly places 7 second, matching the middle label."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels are 3, 7, 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"The bars are purple, teal, and yellow.\" correctly gives the ordered purple, teal and golden-yellow bars. Yellow is an acceptable description of the visible golden-yellow hue."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 1,
+            "evidence": "\"From tallest to shortest: teal, yellow, purple.\" This correctly ranks the middle teal bar above the right golden-yellow bar, with the left purple bar shortest."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No exact numeric measurement scale is shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "29 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No exact numeric measurement scale is shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-digit-bars-29-freeform",
+      "total": 10,
+      "card": {
+        "blind_id": "73ad2a10a5ff1fb3",
+        "case_id": "heldout-digit-bars",
+        "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+        "operator_system": "",
+        "image": "heldout-digit-bars",
+        "response": "The large single-digit labels from left to right are 3, 7, and 2. The three bars are purple, teal, and yellow. Their heights rank from tallest to shortest: teal, yellow, purple. No exact numeric measurement scale is shown.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "digit_left",
+            "description": "The left label is the digit 3.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" places 3 first in the requested left-to-right transcription, matching the left label."
+          },
+          {
+            "id": "digit_middle",
+            "description": "The middle label is the digit 7.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" correctly places 7 second, matching the middle label."
+          },
+          {
+            "id": "digit_right",
+            "description": "The right label is the digit 2.",
+            "score": 1,
+            "evidence": "\"The large single-digit labels from left to right are 3, 7, and 2.\" places 2 last in the requested left-to-right transcription, matching the right label."
+          },
+          {
+            "id": "bar_colors",
+            "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange.",
+            "score": 1,
+            "evidence": "\"The three bars are purple, teal, and yellow.\" correctly gives the ordered purple, teal and golden-yellow bars. Yellow is an acceptable description of the visible golden-yellow hue."
+          },
+          {
+            "id": "height_order",
+            "description": "Middle bar tallest, right bar intermediate, left bar shortest.",
+            "score": 1,
+            "evidence": "\"Their heights rank from tallest to shortest: teal, yellow, purple.\" This correctly ranks the middle teal bar above the right golden-yellow bar, with the left purple bar shortest."
+          },
+          {
+            "id": "scale_unknown",
+            "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined.",
+            "score": 1,
+            "evidence": "\"No exact numeric measurement scale is shown.\" correctly reports the absent measurement scale; no units or exact bar values are asserted. This answers the requested scale-visibility question without treating the labels as values."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 80 words.",
+            "passed": true,
+            "evidence": "38 whitespace-separated words, within the 80-word limit; the automatic word-limit check also passes."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One paragraph with no standalone heading, markdown or commentary. Inline labels such as Labels or Heights, when used, organize the same paragraph rather than creating a heading; the automatic format check passes."
+          },
+          {
+            "id": "visible_only",
+            "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values.",
+            "passed": true,
+            "evidence": "\"No exact numeric measurement scale is shown.\" explicitly rejects a measurement scale. The numerals are called labels, not measured values; no units, chart topic or axis values are invented."
+          }
+        ],
+        "unsupported_examples": [
+          "sales figures",
+          "centimeters",
+          "a value of seven for the middle bar"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Concise, coherent paragraph that separates label transcription, colors, height order and scale visibility without redundancy. Any incorrect digit or ranking is scored under its listed fact rather than inferred from writing style.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-screened-paths-17-candidate",
+      "total": 7.0,
+      "card": {
+        "blind_id": "a7f8907f350b3576",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray vertical rectangle and two orange horizontal lines. In the left panel, the orange lines are horizontally aligned with the gray rectangle. In the right panel, the orange lines are vertically offset from the gray rectangle. Neither panel shows any connection between the hidden ends of the orange lines.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0.5,
+            "evidence": "\"two orange horizontal lines\" and \"horizontally aligned with the gray rectangle\" recognize the left arrangement but do not clearly compare the two pieces' heights to each other."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0.5,
+            "evidence": "\"vertically offset from the gray rectangle\" recognizes an offset in the right panel, but neither identifies the lower right piece nor clearly compares the two pieces to each other."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray vertical rectangle\" correctly identifies both rectangles and their orientation, but does not state that each covers the central region between the pieces."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows any connection between the hidden ends\" notes nonvisibility but does not explicitly state that left-panel connectivity cannot be determined or proved."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows any connection between the hidden ends\" likewise leaves the right-panel proof/uncertainty answer implicit rather than stating it directly."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "53 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 1,
+        "clarity_evidence": "Concise and readable, but \"horizontally aligned with the gray rectangle\" and \"vertically offset from the gray rectangle\" leave unclear which rectangle edges or reference level are being compared. This is a separate wording ambiguity.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-screened-paths-17-freeform",
+      "total": 8.0,
+      "card": {
+        "blind_id": "9bcafc64fcda70ae",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "The left panel shows a gray rectangle with two horizontal orange lines, one above and one below its center. The right panel has the same gray rectangle, but the lower orange line is shorter and positioned to the right. Neither panel shows hidden line pieces connecting; the vertical alignment of the orange lines differs between panels.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0,
+            "evidence": "\"two horizontal orange lines, one above and one below its center\" contradicts the image: the left panel's two pieces share one height."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 1,
+            "evidence": "After introducing horizontal orange lines, the right-panel description identifies \"the lower orange line\" as \"positioned to the right,\" correctly placing the right piece below the other piece."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "Identifies \"a gray rectangle\" in the left panel and \"the same gray rectangle\" in the right, but does not specify its vertical orientation or that it covers the region between the pieces."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows hidden line pieces connecting\" acknowledges that a connection is not visible, but does not explicitly state that the left hidden connection cannot be determined or proved."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 0.5,
+            "evidence": "\"Neither panel shows hidden line pieces connecting\" acknowledges nonvisibility in the right panel without explicitly distinguishing unknown connectivity from a merely unseen connection."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "56 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, readable panel-by-panel description with understandable spatial references. The inaccurate left-panel geometry and incomplete proof answer are assessed only in the fact scores; neither creates a separate writing defect.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-screened-paths-29-freeform",
+      "total": 9.2,
+      "card": {
+        "blind_id": "8d59ee277246d0f8",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a vertical gray rectangle and two horizontal orange lines. In the left panel, the orange lines are aligned horizontally at the same vertical level. In the right panel, the orange lines are vertically offset, with the top line higher than the bottom line. Neither panel shows any connection between the hidden ends of the orange lines, so it cannot be determined if they connect.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 1,
+            "evidence": "\"two horizontal orange lines\" and \"the orange lines are aligned horizontally at the same vertical level\" correctly describe the left pieces."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 0.5,
+            "evidence": "Correctly says the right panel's horizontal lines are \"vertically offset,\" but \"the top line higher than the bottom line\" does not identify which is the left piece and which is the right piece."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a vertical gray rectangle\" identifies both covers and their orientation, but does not locate them centrally between the visible pieces or explicitly describe the covered intervening region."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 1,
+            "evidence": "After describing the left pieces as level, states \"Neither panel ... so it cannot be determined if they connect,\" correctly withholding a hidden-connection inference from that alignment."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 1,
+            "evidence": "\"Neither panel ... it cannot be determined if they connect\" explicitly preserves uncertainty about the right panel's hidden connection."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "67 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Coherent, direct panel comparison with an explicit uncertainty conclusion. It is easy to use, though the separately scored facts omit the right-piece direction and central covering relationship.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    },
+    {
+      "model_key": "secondary",
+      "run_id": "heldout-screened-paths-29-candidate",
+      "total": 8.8,
+      "card": {
+        "blind_id": "eee3084e6af15d6b",
+        "case_id": "heldout-screened-paths",
+        "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+        "operator_system": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+        "image": "heldout-screened-paths",
+        "response": "Each panel contains a gray vertical rectangle and two horizontal orange lines. The left panel's orange lines are horizontally aligned with the gray rectangle's top and bottom. The right panel's orange lines are vertically offset, with the top line left of the gray rectangle and the bottom line right of it. Neither panel shows hidden line pieces connecting, so no connection can be proven.",
+        "status": "complete",
+        "automatic_checks": {
+          "word_limit": true,
+          "format": true
+        },
+        "facts": [
+          {
+            "id": "left_pieces",
+            "description": "The left panel has two visible orange horizontal line pieces at the same height.",
+            "score": 0,
+            "evidence": "\"The left panel's orange lines are horizontally aligned with the gray rectangle's top and bottom\" is wrong: both visible pieces lie at the same central height, not at the rectangle's top and bottom."
+          },
+          {
+            "id": "right_pieces",
+            "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece.",
+            "score": 1,
+            "evidence": "\"vertically offset, with the top line left of the gray rectangle and the bottom line right of it\" correctly identifies the horizontal pieces and the lower right piece."
+          },
+          {
+            "id": "covers",
+            "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces.",
+            "score": 0.5,
+            "evidence": "\"Each panel contains a gray vertical rectangle\" correctly identifies orientation, and the right-panel description places pieces on opposite sides; the central covering relationship in both panels is not fully described."
+          },
+          {
+            "id": "left_unknown",
+            "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient.",
+            "score": 1,
+            "evidence": "\"Neither panel shows hidden line pieces connecting, so no connection can be proven\" explicitly withholds proof in the left panel."
+          },
+          {
+            "id": "right_unknown",
+            "description": "The right panel also does not establish whether the pieces connect behind the rectangle.",
+            "score": 1,
+            "evidence": "\"Neither panel ... so no connection can be proven\" explicitly applies the lack of proof to the right panel as well."
+          }
+        ],
+        "constraints": [
+          {
+            "id": "word_limit",
+            "description": "At most 85 words.",
+            "passed": true,
+            "evidence": "64 whitespace-separated tokens, within the 85-word limit; automatic word_limit check is true."
+          },
+          {
+            "id": "format",
+            "description": "One paragraph; no heading, markdown, or commentary.",
+            "passed": true,
+            "evidence": "One unadorned paragraph with no heading, markdown, or extraneous commentary; automatic format check is true."
+          },
+          {
+            "id": "visible_only",
+            "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose.",
+            "passed": true,
+            "evidence": "Does not assert a hidden connection or disconnection, invent a hidden route, name a material, or assign an object purpose. Geometry errors, where present, are scored under the listed facts."
+          }
+        ],
+        "unsupported_examples": [
+          "one continuous wire",
+          "the lines are disconnected",
+          "a bent path behind the right rectangle"
+        ],
+        "clarity": 2,
+        "clarity_evidence": "Clear panel-by-panel description and an explicit, understandable no-proof conclusion. The incorrect left-panel top/bottom geometry affects fact accuracy, not the clarity of the wording.",
+        "unsupported_claims": [],
+        "reviewed": true
+      }
+    }
+  ],
+  "summary": {
+    "experiment_sha256": "a50d91fcf4d97df88d793cab815f099ab21d8dab6390e751fcb5ce599ef14906",
+    "measured_count": 24,
+    "models": {
+      "qwen": {
+        "model": "qwen3-vl-4b-instruct-bakeoff/Qwen_Qwen3-VL-4B-Instruct-Q5_K_M.gguf",
+        "plan_sha256": "5a6d20f610c7df6258bad58203cf01d26dbb828a8d9e73c9ecca03980eb692d0",
+        "pairs": [
+          {
+            "case_id": "heldout-symbol-grid",
+            "seed": 17,
+            "freeform": 6.3333,
+            "candidate": 7.0,
+            "delta": 0.6666999999999996,
+            "latency_ratio": 1.0160513643659712
+          },
+          {
+            "case_id": "heldout-symbol-grid",
+            "seed": 29,
+            "freeform": 6.3333,
+            "candidate": 6.3333,
+            "delta": 0.0,
+            "latency_ratio": 1.1073657927590512
+          },
+          {
+            "case_id": "heldout-digit-bars",
+            "seed": 17,
+            "freeform": 8.6667,
+            "candidate": 8.6667,
+            "delta": 0.0,
+            "latency_ratio": 1.1599190283400809
+          },
+          {
+            "case_id": "heldout-digit-bars",
+            "seed": 29,
+            "freeform": 8.6667,
+            "candidate": 9.3333,
+            "delta": 0.666599999999999,
+            "latency_ratio": 1.2758620689655173
+          },
+          {
+            "case_id": "heldout-screened-paths",
+            "seed": 17,
+            "freeform": 7.4,
+            "candidate": 6.6,
+            "delta": -0.8000000000000007,
+            "latency_ratio": 0.885558583106267
+          },
+          {
+            "case_id": "heldout-screened-paths",
+            "seed": 29,
+            "freeform": 7.4,
+            "candidate": 6.6,
+            "delta": -0.8000000000000007,
+            "latency_ratio": 0.9107913669064748
+          }
+        ],
+        "latency_metric": "execution_ms",
+        "mean_delta": -0.04445000000000047,
+        "task_mean_deltas": {
+          "heldout-symbol-grid": 0.3333499999999998,
+          "heldout-digit-bars": 0.3332999999999995,
+          "heldout-screened-paths": -0.8000000000000007
+        },
+        "median_latency_ratio": 1.061708578562511,
+        "candidate_constraints_all_pass": true,
+        "unsupported_claims": {
+          "freeform": 0,
+          "candidate": 0
+        },
+        "all_measured_complete": true,
+        "digit_facts": {
+          "freeform": {
+            "fully_correct": 4,
+            "total": 6
+          },
+          "candidate": {
+            "fully_correct": 4,
+            "total": 6
+          }
+        }
+      },
+      "secondary": {
+        "model": "minicpm-v-4_5-bakeoff/MiniCPM-V-4_5-Q5_K_M.gguf",
+        "plan_sha256": "3a1254304d634cd23ac85734768b5ab886b8f721bd9f9bcc91dcc3d7ec5099d1",
+        "pairs": [
+          {
+            "case_id": "heldout-symbol-grid",
+            "seed": 17,
+            "freeform": 8.6667,
+            "candidate": 5.0,
+            "delta": -3.6667000000000005,
+            "latency_ratio": 1.1100090171325518
+          },
+          {
+            "case_id": "heldout-symbol-grid",
+            "seed": 29,
+            "freeform": 7.3333,
+            "candidate": 5.0,
+            "delta": -2.3333000000000004,
+            "latency_ratio": 1.0556023588879528
+          },
+          {
+            "case_id": "heldout-digit-bars",
+            "seed": 17,
+            "freeform": 10,
+            "candidate": 10,
+            "delta": 0,
+            "latency_ratio": 0.9210963455149501
+          },
+          {
+            "case_id": "heldout-digit-bars",
+            "seed": 29,
+            "freeform": 10,
+            "candidate": 10,
+            "delta": 0,
+            "latency_ratio": 0.9454855195911414
+          },
+          {
+            "case_id": "heldout-screened-paths",
+            "seed": 17,
+            "freeform": 8.0,
+            "candidate": 7.0,
+            "delta": -1.0,
+            "latency_ratio": 1.0289855072463767
+          },
+          {
+            "case_id": "heldout-screened-paths",
+            "seed": 29,
+            "freeform": 9.2,
+            "candidate": 8.8,
+            "delta": -0.3999999999999986,
+            "latency_ratio": 1.0036630036630036
+          }
+        ],
+        "latency_metric": "execution_ms",
+        "mean_delta": -1.2333333333333332,
+        "task_mean_deltas": {
+          "heldout-symbol-grid": -3.0000000000000004,
+          "heldout-digit-bars": 0,
+          "heldout-screened-paths": -0.6999999999999993
+        },
+        "median_latency_ratio": 1.0163242554546903,
+        "candidate_constraints_all_pass": true,
+        "unsupported_claims": {
+          "freeform": 0,
+          "candidate": 0
+        },
+        "all_measured_complete": true,
+        "digit_facts": {
+          "freeform": {
+            "fully_correct": 6,
+            "total": 6
+          },
+          "candidate": {
+            "fully_correct": 6,
+            "total": 6
+          }
+        }
+      }
+    },
+    "combined_mean_delta": -0.6388916666666669,
+    "gate": {
+      "neither_model_regresses": false,
+      "no_model_task_regresses_over_half": false,
+      "combined_gain_at_least_half": false,
+      "all_candidate_constraints_pass": true,
+      "unsupported_not_increased_per_model": true,
+      "latency_within_bound_per_model": true,
+      "all_measured_complete": true
+    },
+    "decision": "defer"
+  },
+  "descriptive_aggregates": {
+    "qwen": {
+      "freeform_mean_score": 7.466666666666667,
+      "candidate_mean_score": 7.4222166666666665,
+      "median_execution_ms": {
+        "freeform": 659.0,
+        "candidate": 633.0
+      }
+    },
+    "secondary": {
+      "freeform_mean_score": 8.866666666666667,
+      "candidate_mean_score": 7.633333333333334,
+      "median_execution_ms": {
+        "freeform": 1195.5,
+        "candidate": 1242.0
+      }
+    }
+  },
+  "limitations": [
+    "Three synthetic diagnostic images and two seeds per model; no statistical significance claim.",
+    "Two installed VLM quantizations; no natural-photo or multilingual coverage.",
+    "Composite quality and explicit constraints do not imply every image fact is correct.",
+    "Qwen read the middle digit 7 as 1 in all four measured digit responses; MiniCPM read all digits correctly in both arms.",
+    "Scoring is model-based, with a documented blinded clarity review.",
+    "Execution time includes Comfy overhead and excludes model loading; no token-throughput claim."
+  ],
+  "decision": {
+    "result": "defer",
+    "bundle_visible_evidence": false,
+    "change_freeform_default": false,
+    "automatic_additional_round": false
+  },
+  "omitted_private_fields": [
+    "Absolute executable/model/workspace paths",
+    "Host/port and raw launch command",
+    "Process IDs, runtime epoch values and prompt/client IDs",
+    "Raw Comfy histories and runtime-discovery bodies",
+    "Local evidence-directory paths"
+  ]
+}

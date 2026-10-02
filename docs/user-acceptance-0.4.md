@@ -45,7 +45,8 @@ The accepted 0.3 checklist remains available in
 ## Live preview and cancellation
 
 - [ ] Response and thinking tails update while a long generation runs and remain
-  bounded under long output.
+  bounded under long output. Truncated fields show the tail notice in graph and
+  App Mode; the next short run clears it, and native history retains the response.
 - [ ] Current llama.cpp exposes **Stop generation**. It stops only that execution
   and the final status does not claim upstream confirmation unless DELETE was
   confirmed.

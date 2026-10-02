@@ -85,6 +85,11 @@ preview is browser-only and is never serialized. Events are sent only to the
 initiating Comfy client, are limited to 8 updates per second, and reject stale
 execution sequences.
 
+When a live field contains only the end of a longer response, it starts with
+`[Preview truncated: showing the end only]` in the graph and App Mode. The notice
+is not part of the generated text. Response/thinking outputs retain their full
+text, and Comfy's native history retains the complete response.
+
 Current llama.cpp builds may expose an internal resumable-stream interface. A
 positive capability probe lets the node say **Stop generation** and cancel only
 its private upstream conversation ID. The backend deletes that exact stream on

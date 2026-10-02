@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-10-02 05:21:13Z
-Commit: ec0e7b55ff550554dcacd022cd7c68df68798458
+Generated: 2026-10-02 14:37:48Z
+Commit: 1baf736909d1053e619c252b0b4439054b231640
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -19,21 +19,24 @@ Source: git ls-files (tracked files)
 
 ## Directory structure (depth <= 3)
 - (root files): 18
-- `tests/`: 42 files
+- `tests/`: 52 files
   - `tests/js/`: 9 files
+  - `tests/benchmarks/`: 8 files
+    - `tests/benchmarks/task_profiles/`: 8 files
   - `tests/fixtures/`: 5 files
     - `tests/fixtures/workflows/`: 3 files
-- `changes/`: 27 files
-  - `changes/archive/`: 13 files
+- `docs/`: 39 files
+  - `docs/research/`: 27 files
+    - `docs/research/assets/`: 19 files
+- `changes/`: 31 files
+  - `changes/archive/`: 17 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
     - `changes/archive/2026-07-10-lifecycle-concurrency-hardening/`: 4 files
     - `changes/archive/2026-10-02-october-candidate-hardening/`: 4 files
+    - `changes/archive/2026-10-02-remaining-backlog/`: 4 files
   - `changes/2026-07-11-canonical-generate-work-block-b/`: 5 files
   - `changes/2026-07-11-ux-work-block-a/`: 5 files
   - `changes/2026-07-24-auto-vlm-projector-resolution/`: 4 files
-- `docs/`: 22 files
-  - `docs/research/`: 11 files
-    - `docs/research/assets/`: 6 files
 - `nodes/`: 20 files
 - `example_workflows/`: 18 files
 - `web/`: 17 files
@@ -49,24 +52,24 @@ Source: git ls-files (tracked files)
 
 ## Hotspots (largest text files)
 - `uv.lock`: 367.3 KiB
+- `docs/research/assets/2026-10-02-backlog/heldout/results.json`: 180.4 KiB
+- `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 135.0 KiB
 - `runtime/process.py`: 112.7 KiB
 - `tests/test_process.py`: 89.5 KiB
 - `runtime/service.py`: 68.0 KiB
 - `tests/test_canonical_generation.py`: 61.5 KiB
+- `tests/test_streaming.py`: 58.7 KiB
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
 - `generation/execution.py`: 56.3 KiB
-- `tests/test_runtime_service.py`: 54.9 KiB
-- `tests/test_streaming.py`: 53.7 KiB
-- `tests/test_manager.py`: 53.2 KiB
 
 ## Hotspots (most lines, sampled from large files)
+- `docs/research/assets/2026-10-02-backlog/heldout/results.json`: 3129 lines
 - `runtime/process.py`: 2843 lines
+- `docs/research/assets/2026-10-02-backlog/task-profiles/results.json`: 2779 lines
 - `tests/test_process.py`: 2723 lines
 - `tests/test_canonical_generation.py`: 1824 lines
 - `runtime/service.py`: 1744 lines
-- `tests/test_streaming.py`: 1538 lines
-- `tests/test_manager.py`: 1504 lines
-- `tests/test_runtime_service.py`: 1502 lines
+- `tests/test_streaming.py`: 1643 lines
 - `uv.lock`: 1501 lines
 - `generation/execution.py`: 1406 lines
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines

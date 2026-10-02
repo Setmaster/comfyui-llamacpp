@@ -1,3 +1,79 @@
+# October Remaining Backlog Execution
+
+Status: Complete; maintainer hands-on ENG-88 remains Backlog
+Date: 2026-10-02
+Branch: `dev`
+Baseline: `a466b6b023ea1098c470bbf0b9323c1c63fbc580`
+Tracking: [7dev Linear project](https://linear.app/7dev/project/comfyui-llamacpp-b846a629b382)
+Bundle: `changes/archive/2026-10-02-remaining-backlog/`
+
+## Objective and completion contract
+
+Complete ENG-89 through ENG-92 with reproducible investigation evidence and
+verified implementation. The maintainer explicitly deferred hands-on ENG-88 to
+Backlog and asked development to continue. This supersedes the development stop
+in the historical plan below. Promotion/publication still requires approval.
+
+Success checks: fixed local-model profile comparison with a scored quality rubric;
+pinned-runtime audio contract and installed-capability evidence with an honest
+ship/defer decision; visible nonserialized preview-tail notices in graph/App Mode;
+shape-only image counting and bounded CPU transfer with exact-output and measured
+GPU evidence. Run focused/full automated checks, package gates, real Windows/browser
+checks, independent review and diff review. Push reviewed `dev`, synchronize the
+maintained Windows clone, verify CI, reconcile Linear/KB, and stop owned runtimes.
+
+Investigations may yield a documented negative result. Do not claim successful
+modality validation without a supported model/runtime and empirical output proof.
+Missing components must be explicit, with a narrow follow-up if approval is needed.
+Do not add public modalities, dependencies, model downloads or bundled profiles
+without their required evidence and separately scoped shipping work.
+
+## Sequence
+
+1. Record the revised gate and inspect current host/model availability.
+2. Implement ENG-91/92 in independent file scopes; prepare ENG-89/90 evidence.
+3. Verify GPU image-transfer behavior, then run the fixed profile bakeoff and
+   bounded audio capability probes under parent-owned runtime coordination.
+4. Review results and implement only demonstrated, explicitly scoped improvements.
+5. Complete automated/artifact/browser/native-Windows and independent review gates.
+6. Push/synchronize, check CI and Linear/KB state, then close the native goal only
+   when the completion contract passes or report a concrete external blocker.
+
+## Outcome
+
+- ENG-89/90/91/92 and evidence-triggered ENG-94/95 are complete on dev.
+- Preview-tail notices and reduced image transfers pass current Windows/browser
+  and CUDA checks. Wrapped read-timeout classification and concurrency fixtures
+  pass independent review, current/minimum dependency checks and seven-job CI.
+- Both proposed bundled profiles are deferred by measured quality results.
+  Freeform remains the only bundled profile; operator overrides are unchanged.
+- Approved Qwen3-ASR weights pass bounded short-clip transcription, streamed
+  output, active cancellation, reuse and owned release. Public AUDIO remains
+  a documented proposal with explicit untested limits.
+- Source/extracted package: 1,141 tests plus 166 subtests; Windows: 1,097 plus
+  166 with 44 platform skips; frontend: 79. Package/Registry/audit/lint gates pass.
+- Detailed commands/results: `docs/validation-2026-10-backlog.md`. Final reviewed
+  evidence is pushed to dev and synchronized to the maintained Windows clone.
+  Owned browser, model and isolated Comfy processes are stopped.
+- ENG-88 is Backlog at the user's request. Master/tag/Registry promotion remains
+  separate; no further speculative benchmark round or automatic expansion begins.
+
+## Decisions
+
+- 2026-10-02: ENG-95 held-out mean delta is -0.63889 across Qwen3-VL4B and MiniCPM-V4.5. Fixed quality gates fail; defer Visible Evidence with Freeform unchanged. No further automatic benchmark round.
+- 2026-10-02: User approved the pinned 1.02 GB Qwen3-ASR model/projector download and local trial. Both hashes verified.
+- 2026-10-02: ENG-89 text candidate scored -1.0 and is deferred; vision scored +2.0 and met the predeclared follow-up gate. ENG-95 now owns one bounded held-out, two-model ship/defer evaluation with unchanged candidate content.
+- 2026-10-02: Final Windows CI exposed wrapped read-timeout classification
+  before monotonic expiry (ENG-94). Repair and verify it before final delivery;
+  preserve the deadline budget and distinguish it from non-timeout transport errors.
+- 2026-10-02: User moved hands-on acceptance to Backlog; it no longer blocks
+  ENG-89/90 investigations or ENG-91/92 polish. Master, release tags and Registry
+  publication remain gated by explicit maintainer approval.
+- 2026-10-02: Keep historical review/hardening results below intact; current
+  evidence supersedes their handoff status rather than rewriting their history.
+
+---
+
 # October End-to-End Review and Candidate Hardening
 
 Status: Complete; stopped at maintainer hands-on acceptance (ENG-88)

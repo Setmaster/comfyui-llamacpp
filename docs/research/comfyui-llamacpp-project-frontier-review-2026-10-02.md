@@ -237,3 +237,10 @@ Implementation follow-through is recorded in the [October validation report](../
 That report distinguishes the initial baseline from repaired behavior, current
 Windows/browser/GPU evidence, independent review, package gates and final CI.
 Maintainer hands-on approval and expansion remain tracked separately.
+
+Later on 2026-10-02, the maintainer deferred hands-on ENG-88 to Backlog and
+authorized continued ENG-89 through ENG-92 execution. The original ordering above
+is historical; hands-on no longer blocks development. Follow-through and the
+newly observed Windows timeout classification edge case (ENG-94) are tracked in
+the [remaining-backlog validation](../validation-2026-10-backlog.md). Promotion
+and publication still require explicit approval.
