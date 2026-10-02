@@ -28,17 +28,19 @@ import {
 const TARGETS = {
     LlamaCppGenerate: {
         discovery: true,
+        sampling: true,
         status: "Generation Status",
         response: "Live Response",
         thinking: "Live Thinking",
     },
     LlamaCppTranscribe: { status: "Transcription Status", response: "Raw ASR Response" },
     LlamaCppCaptions: {
+        sampling: true,
         status: "Caption Batch Status",
         response: "Current Caption Response",
         thinking: "Current Caption Thinking",
     },
-    LlamaCppRequestBudget: { status: "Request Budget Status" },
+    LlamaCppRequestBudget: { sampling: true, status: "Request Budget Status" },
 };
 const DISCOVERY_ROUTE = "/llamacpp/runtime/discovery";
 const ACTIVE_ROUTE = "/llamacpp/generation/active";
@@ -356,7 +358,7 @@ export function setupGenerateNode(node, { refresh = true } = {}) {
     if (!presentation) return;
     if (node.__llamacppGenerateState) {
         nodes.add(node);
-        if (presentation.discovery) {
+        if (presentation.sampling) {
             installConfiguredReconciliation(node);
             installSampling(node);
             syncSampling(node);
@@ -407,7 +409,7 @@ export function setupGenerateNode(node, { refresh = true } = {}) {
         if (state?.discoveryTimer !== null) clearTimeout(state.discoveryTimer);
         return originalRemoved?.apply(this, args);
     };
-    if (presentation.discovery) {
+    if (presentation.sampling) {
         installConfiguredReconciliation(node);
         installSampling(node);
     }

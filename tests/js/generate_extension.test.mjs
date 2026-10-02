@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { EXPERT_SAMPLERS } from "../../web/generate_controls.js";
 
 const sourceURL = new URL("../../web/generate.js", import.meta.url);
 const extensionSource = await readFile(sourceURL, "utf8");
@@ -40,6 +41,7 @@ function snapshot(overrides = {}) {
 async function createHarness({
     savedModel = "(use running model)", discovery = null, activeSnapshots = [],
     comfyClass = "LlamaCppGenerate", withModel = true, refresh = false,
+    prepareNode = null,
 } = {}) {
     const listeners = new Map();
     const cancellation = deferred();
@@ -88,6 +90,7 @@ async function createHarness({
             return widget;
         },
     };
+    prepareNode?.(node);
     const key = `__llamacppExtensionHarness${++harnessSerial}`;
     globalThis[key] = { api, app, ComfyWidgets };
     let source = extensionSource;
@@ -114,10 +117,118 @@ async function createHarness({
         api, graph, node, requests, cancellation,
         state: node.__llamacppGenerateState,
         setup: () => module.setupGenerateNode(node, { refresh }),
+        loaded: () => extension.loadedGraphNode(node),
         emit: (value) => listeners.get("llamacpp.generation")({ detail: value }),
         execute: (detail) => listeners.get("executing")?.({ detail }),
     };
 }
+
+function samplingFixture(node) {
+    node.inputs = [];
+    node.samplingCalls = [];
+    node.addWidget("combo", "sampling_mode", "default", (value) => {
+        node.samplingCalls.push(["mode", value]);
+        return "mode changed";
+    });
+    for (const [index, name] of EXPERT_SAMPLERS.entries()) {
+        node.addWidget("number", name, index + 0.25, null).computeSize = () => [200, 20];
+    }
+    node.onConfigure = () => {
+        node.samplingCalls.push(["configure"]);
+        return "configured";
+    };
+    node.onConnectionsChange = () => {
+        node.samplingCalls.push(["connection"]);
+        return "connected";
+    };
+}
+
+function assertSamplingVisibility(node, visibleNames) {
+    for (const name of EXPERT_SAMPLERS) {
+        const current = node.widgets.find((item) => item.name === name);
+        const hidden = !visibleNames.includes(name);
+        assert.equal(current.hidden, hidden, name);
+        assert.equal(current.options.hidden, hidden, name);
+        assert.deepEqual(current.computeSize(), hidden ? [0, -4] : [200, 20], name);
+    }
+}
+
+for (const comfyClass of ["LlamaCppGenerate", "LlamaCppCaptions", "LlamaCppRequestBudget"]) {
+    test(`${comfyClass} reconciles sampler visibility on toggle, configure and graph reload`, async () => {
+        const harness = await createHarness({ comfyClass, prepareNode: samplingFixture });
+        const { node } = harness;
+        const mode = node.widgets.find((item) => item.name === "sampling_mode");
+        const samplerValues = () => EXPERT_SAMPLERS.map(
+            (name) => node.widgets.find((item) => item.name === name).value,
+        );
+        const savedValues = samplerValues();
+        assertSamplingVisibility(node, []);
+        for (const value of ["custom", "default"]) {
+            mode.value = value;
+            assert.equal(mode.callback(value), "mode changed");
+            assertSamplingVisibility(node, value === "custom" ? EXPERT_SAMPLERS : []);
+        }
+        harness.setup();
+        // Clone/paste restores values before onConfigure, without loadedGraphNode.
+        for (const value of ["custom", "default"]) {
+            mode.value = value;
+            assert.equal(node.onConfigure({}), "configured");
+            assertSamplingVisibility(node, value === "custom" ? EXPERT_SAMPLERS : []);
+        }
+        // Saved-graph loading also reconciles values without invoking callbacks.
+        for (const value of ["custom", "default"]) {
+            mode.value = value;
+            harness.loaded();
+            assertSamplingVisibility(node, value === "custom" ? EXPERT_SAMPLERS : []);
+        }
+        assert.deepEqual(samplerValues(), savedValues);
+        assert.deepEqual(node.samplingCalls, [
+            ["mode", "custom"], ["mode", "default"], ["configure"], ["configure"],
+        ]);
+        if (comfyClass !== "LlamaCppGenerate") {
+            assert.equal(harness.state.modelStatus, null);
+            assert.equal(harness.state.refreshButton, null);
+            assert.equal(harness.state.discoveryTimer, null);
+            assert.equal(harness.requests.some(({ url }) => url.includes("/discovery")), false);
+        }
+        node.onRemoved();
+    });
+
+    test(`${comfyClass} keeps linked sampler inputs visible in default mode`, async () => {
+        const { node } = await createHarness({ comfyClass, prepareNode: samplingFixture });
+        node.inputs = [{ name: "temperature", link: 10 }];
+        assert.equal(node.onConnectionsChange(), "connected");
+        assertSamplingVisibility(node, ["temperature"]);
+        node.inputs.push({ name: "sampling_mode", link: 11 });
+        node.onConnectionsChange();
+        assertSamplingVisibility(node, EXPERT_SAMPLERS);
+        node.inputs = [];
+        node.onConnectionsChange();
+        assertSamplingVisibility(node, []);
+        node.onRemoved();
+    });
+}
+
+test("Transcribe never installs sampler reconciliation or changes unrelated controls", async () => {
+    const { node, loaded, state } = await createHarness({
+        comfyClass: "LlamaCppTranscribe", prepareNode: samplingFixture,
+    });
+    const mode = node.widgets.find((item) => item.name === "sampling_mode");
+    assert.equal(mode.__llamacppSamplingMode, undefined);
+    assert.equal(node.__llamacppGeneratePostConfigure, undefined);
+    loaded();
+    node.onConfigure({});
+    mode.value = "custom";
+    mode.callback("custom");
+    for (const name of EXPERT_SAMPLERS) {
+        const current = node.widgets.find((item) => item.name === name);
+        assert.equal(current.hidden, undefined);
+        assert.equal(current.options.hidden, undefined);
+        assert.deepEqual(current.computeSize(), [200, 20]);
+    }
+    assert.equal(state.discoveryTimer, null);
+    node.onRemoved();
+});
 
 test("real extension shows preflight failure and ignores unrelated workflow events", async () => {
     const harness = await createHarness();
