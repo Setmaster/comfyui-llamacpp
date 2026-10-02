@@ -558,6 +558,7 @@ def build_canonical_payload(
     structured_output: Any = None,
     token_ban: Any = None,
     audio: PreparedAudio | None = None,
+    include_usage: bool = False,
 ) -> dict[str, Any]:
     """Build the strict request without changing legacy GenerationOptions."""
 
@@ -602,6 +603,8 @@ def build_canonical_payload(
         "seed": request.seed,
         "cache_prompt": request.cache_prompt,
     }
+    if include_usage:
+        payload["stream_options"] = {"include_usage": True}
     if request.requested_model:
         payload["model"] = request.requested_model
     if request.thinking_mode != ThinkingMode.AUTO:
@@ -1444,6 +1447,9 @@ class CanonicalGenerationExecutor:
                     structured_output=constraint,
                     token_ban=normalized_token_ban,
                     audio=prepared_audio,
+                    include_usage=(
+                        _budget_only or budget_policy != "off" or prepared_audio is not None
+                    ),
                 )
                 client = self.client_factory(resolved_connection)
                 if prepared_audio is not None:
@@ -1569,6 +1575,7 @@ class CanonicalGenerationExecutor:
                             images=normalized_images,
                             structured_output=constraint,
                             token_ban=normalized_token_ban,
+                            include_usage=True,
                         )
                         stream_result = None
                         stream_control = None

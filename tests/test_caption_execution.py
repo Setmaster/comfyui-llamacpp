@@ -135,6 +135,7 @@ def test_per_image_payloads_preserve_ids_prompts_seeds_and_release_only_once():
         assert call["stream_control"] is client.controls[index]
         payload = call["payload"]
         assert payload["stream"] is True
+        assert payload["stream_options"] == {"include_usage": True}
         assert payload["seed"] == [19, 7, 31][index]
         assert payload["messages"] == [
             {"role": "system", "content": "system"},

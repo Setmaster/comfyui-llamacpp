@@ -101,7 +101,7 @@ def test_explicit_budget_counts_same_final_payload_as_generate_with_history_prof
     observed = count_runner.budget("Inspect", **options)
     generate_client = BudgetClient()
     generate_runner, _, _ = executor(client=generate_client)
-    generate_runner.generate("Inspect", **options)
+    generate_runner.generate("Inspect", budget_policy="report", **options)
 
     payload = count_client.count_calls[0]["payload"]
     assert payload == generate_client.calls[0]["payload"]
@@ -132,7 +132,8 @@ def test_explicit_budget_counts_same_final_payload_as_generate_with_history_prof
     assert observed["budget"]["remaining"] == 72
     assert observed["release"]["status"] == "not_requested"
     assert "fixture" not in json.dumps(observed)
-    assert generate_client.count_calls == []
+    assert len(generate_client.count_calls) == 1
+    assert payload["stream_options"] == {"include_usage": True}
 
 
 def test_generate_report_recounts_actual_request_and_retains_budget_in_result():
@@ -382,3 +383,11 @@ def test_budget_node_reuses_generate_preparation_and_returns_typed_observation(
     assert captured["max_tokens"] == 20
     assert captured["budget_policy"] == "report"
     assert callable(captured["cancel_check"])
+
+
+def test_default_generate_retains_payload_without_usage_extension_or_count():
+    client = BudgetClient()
+    runner, _, _ = executor(client=client)
+    runner.generate("Question")
+    assert "stream_options" not in client.calls[0]["payload"]
+    assert client.count_calls == []

@@ -180,6 +180,7 @@ def test_audio_only_request_runs_real_http_sse_parser_and_keeps_payload_out_of_p
     assert http.calls[0][2]["params"] == {"autoload": "false"}
     payload = http.calls[-1][2]["json"]
     assert payload["stream"] is True
+    assert payload["stream_options"] == {"include_usage": True}
     assert payload["temperature"] == 0.0
     assert payload["max_tokens"] == 128
     assert payload["chat_template_kwargs"] == {"enable_thinking": False}
