@@ -472,46 +472,51 @@ class LlamaCppGenerate:
         **kwargs: Any,
     ) -> dict[str, Any]:
         del kwargs
-        if type(image_amount) is not int or not 0 <= image_amount <= MAX_IMAGES:
-            raise CanonicalGenerationError(
-                GenerationErrorInfo(
-                    ErrorCategory.INVALID_REQUEST,
-                    f"image_amount must be an integer between 0 and {MAX_IMAGES}",
+
+        def prepare_images() -> list[str]:
+            # The executor owns live state before this work starts, so image
+            # failures and Comfy interruption have the same terminal feedback
+            # as connection, request, and generation failures.
+            if type(image_amount) is not int or not 0 <= image_amount <= MAX_IMAGES:
+                raise CanonicalGenerationError(
+                    GenerationErrorInfo(
+                        ErrorCategory.INVALID_REQUEST,
+                        f"image_amount must be an integer between 0 and {MAX_IMAGES}",
+                    )
                 )
-            )
-        image_inputs = {
-            f"image_{index}": value
-            for index, value in enumerate(
-                (
-                    image_1,
-                    image_2,
-                    image_3,
-                    image_4,
-                    image_5,
-                    image_6,
-                    image_7,
-                    image_8,
-                    image_9,
-                    image_10,
-                ),
-                start=1,
-            )
-        }
-        try:
-            images = collect_images(
-                image_amount,
-                image_inputs,
-                include_batch=include_image_batch,
-                maximum_images=MAX_REQUEST_IMAGE_COUNT,
-                interrupt_check=_interrupt_check,
-            )
-        except Exception as exc:
-            raise CanonicalGenerationError(
-                GenerationErrorInfo(
-                    ErrorCategory.INVALID_REQUEST,
-                    f"failed to process image input ({type(exc).__name__})"[:4096],
+            image_inputs = {
+                f"image_{index}": value
+                for index, value in enumerate(
+                    (
+                        image_1,
+                        image_2,
+                        image_3,
+                        image_4,
+                        image_5,
+                        image_6,
+                        image_7,
+                        image_8,
+                        image_9,
+                        image_10,
+                    ),
+                    start=1,
                 )
-            ) from None
+            }
+            try:
+                return collect_images(
+                    image_amount,
+                    image_inputs,
+                    include_batch=include_image_batch,
+                    maximum_images=MAX_REQUEST_IMAGE_COUNT,
+                    interrupt_check=_interrupt_check,
+                )
+            except Exception as exc:
+                raise CanonicalGenerationError(
+                    GenerationErrorInfo(
+                        ErrorCategory.INVALID_REQUEST,
+                        f"failed to process image input ({type(exc).__name__})"[:4096],
+                    )
+                ) from None
 
         response, thinking, result = CanonicalGenerationExecutor().generate(
             prompt,
@@ -536,7 +541,7 @@ class LlamaCppGenerate:
             api_key_env=api_key_env,
             verify_tls=verify_tls,
             request_timeout=request_timeout,
-            images=images,
+            prepare_images=prepare_images,
             release_after_generation=release_after_generation,
             partial_output_policy=partial_output_policy,
             structured_output=structured_output,

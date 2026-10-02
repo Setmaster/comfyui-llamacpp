@@ -613,6 +613,16 @@ def discover_runtime(
             or configured_model_id
             or _RUNNING_MODEL_SENTINEL
         )
+        # Only exact path evidence may connect a live server identity to a
+        # catalog-relative selection. A same-basename local file is not proof
+        # that it is the file this server is running.
+        catalog_model_name = _catalog_model_identity(
+            catalog,
+            props.model_path or snapshot.configured_model_path,
+        )
+        aliases = (
+            (catalog_model_name,) if catalog_model_name and catalog_model_name != model_id else ()
+        )
         saved_state = SavedModelState.UNSPECIFIED
         if saved_model:
             candidates = {
@@ -621,16 +631,11 @@ def discover_runtime(
                 Path(props.model_path).name if props.model_path else "",
                 snapshot.configured_model_path or "",
                 configured_model_id or "",
+                *aliases,
             }
             saved_state = (
                 SavedModelState.AVAILABLE if saved_model in candidates else SavedModelState.MISSING
             )
-        catalog_model_name = _catalog_model_identity(
-            catalog,
-            props.model_path,
-            snapshot.configured_model_path,
-            model_id,
-        )
         if snapshot.configured_projector_path:
             projector = _configured_projector(
                 catalog,
@@ -643,7 +648,7 @@ def discover_runtime(
             projector = _projector_suggestion(catalog, catalog_model_name)
         descriptor = RuntimeModelDescriptor(
             model_id=model_id,
-            aliases=(),
+            aliases=aliases,
             residency=ModelState.SLEEPING if props.is_sleeping else ModelState.LOADED,
             availability=SavedModelState.AVAILABLE,
             input_capabilities=capabilities,

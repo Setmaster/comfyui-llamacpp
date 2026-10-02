@@ -24,6 +24,19 @@ test("sampling mode recognizes only explicit custom mode", () => {
     assert.equal(shouldShowExpertSampling("Default", true), true);
 });
 
+test("automatic discovery derives availability from a proven catalog-relative alias", () => {
+    const payload = {
+        schema_version: 1,
+        mode: "direct",
+        owned: true,
+        models: [{ model_id: "model.gguf", aliases: ["bundle/model.gguf"] }],
+    };
+    const known = applySavedModelHint(payload, "bundle/model.gguf");
+    const different = applySavedModelHint(payload, "other/model.gguf");
+    assert.equal(normalizeDiscovery(known, "bundle/model.gguf").state, "available");
+    assert.equal(normalizeDiscovery(different, "other/model.gguf").state, "missing");
+});
+
 test("read-only widgets work in Nodes 2.0 and classic DOM widgets", () => {
     const element = { readOnly: false };
     const widget = { options: {}, inputEl: element };

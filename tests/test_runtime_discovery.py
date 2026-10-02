@@ -201,6 +201,77 @@ def test_direct_props_explicit_false_is_known_unsupported():
     assert descriptor.input_capabilities["video"].value is True
 
 
+@pytest.mark.parametrize("reported_path", [True, False])
+def test_direct_nested_catalog_identity_is_available_without_public_paths(tmp_path, reported_path):
+    model_path = tmp_path / "bundle" / "model.gguf"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"inert model")
+    record = ServerProps(
+        role=None,
+        build_info="stub",
+        model_path=str(model_path) if reported_path else None,
+        model_alias="model.gguf",
+        is_sleeping=False,
+        modalities={"vision": False},
+        raw={},
+    )
+    result = discover_runtime(
+        RuntimeEndpointSnapshot(
+            mode=RuntimeMode.DIRECT,
+            owned=True,
+            runtime_epoch=1,
+            endpoint="http://127.0.0.1:8080",
+            configured_model_path=str(model_path),
+        ),
+        FakeClient(props=record),
+        saved_model="bundle/model.gguf",
+        catalog=ModelCatalog([tmp_path]),
+    )
+
+    assert result.saved_model_state == SavedModelState.AVAILABLE
+    assert result.models[0].aliases == ("bundle/model.gguf",)
+    public = result.public_dict()
+    assert public["models"][0]["aliases"] == ["bundle/model.gguf"]
+    assert str(tmp_path) not in str(public)
+
+
+@pytest.mark.parametrize("foreign", [False, True])
+def test_direct_catalog_alias_requires_exact_path_not_matching_basename(tmp_path, foreign):
+    selected = tmp_path / "wanted" / "model.gguf"
+    selected.parent.mkdir()
+    selected.write_bytes(b"selected local model")
+    (tmp_path / "model.gguf").write_bytes(b"same-basename decoy")
+    running = tmp_path / "other" / "model.gguf"
+    running.parent.mkdir()
+    running.write_bytes(b"different model")
+    actual_path = str(tmp_path.parent / "foreign" / "model.gguf") if foreign else str(running)
+    record = ServerProps(
+        role=None,
+        build_info="stub",
+        model_path=actual_path,
+        model_alias="model.gguf",
+        is_sleeping=False,
+        modalities={},
+        raw={},
+    )
+    result = discover_runtime(
+        RuntimeEndpointSnapshot(
+            mode=RuntimeMode.DIRECT,
+            owned=True,
+            runtime_epoch=1,
+            endpoint="http://127.0.0.1:8080",
+            configured_model_path=actual_path,
+        ),
+        FakeClient(props=record),
+        saved_model="wanted/model.gguf",
+        catalog=ModelCatalog([tmp_path]),
+    )
+
+    assert result.saved_model_state == SavedModelState.MISSING
+    assert result.models[0].aliases == (() if foreign else ("other/model.gguf",))
+    assert "model.gguf" not in result.models[0].aliases
+
+
 def test_direct_context_falls_back_to_its_exact_launch_configuration():
     unknown_context = props(context=0)
     unknown_context.raw["default_generation_settings"] = {}

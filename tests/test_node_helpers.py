@@ -59,6 +59,53 @@ def test_canonical_image_conversion_error_is_generic_and_bounded(
     assert "S" * 100 not in caught.value.info.message
 
 
+@pytest.mark.parametrize("failure", ["image_amount", "conversion", "interrupt"])
+def test_image_preflight_emits_terminal_live_status(node_package, monkeypatch, failure):
+    module = importlib.import_module(f"{node_package.__name__}.nodes.generate")
+    live_module = importlib.import_module(f"{node_package.__name__}.runtime.live_generation")
+    events = []
+    registry = live_module.LiveGenerationRegistry(
+        sender=lambda name, payload, client: events.append((payload, client))
+    )
+    identity = live_module.ExecutionIdentity.create(
+        prompt_id="prompt-a", node_id="7", workflow_id="workflow-a", client_id="client-a"
+    )
+    original_executor = module.CanonicalGenerationExecutor
+    monkeypatch.setattr(
+        module,
+        "CanonicalGenerationExecutor",
+        lambda: original_executor(manager=object(), live_registry=registry),
+    )
+    monkeypatch.setattr(module, "_execution_identity", lambda *args: identity)
+
+    class ComfyInterrupt(BaseException):
+        pass
+
+    def fail_conversion(*args, **kwargs):
+        assert registry.snapshot(identity.execution_id).phase == "starting"
+        if failure == "interrupt":
+            raise ComfyInterrupt()
+        raise ValueError("private image input details")
+
+    monkeypatch.setattr(module, "collect_images", fail_conversion)
+    with pytest.raises(
+        ComfyInterrupt if failure == "interrupt" else module.CanonicalGenerationError
+    ):
+        module.LlamaCppGenerate().generate(
+            "hello", image_amount=-1 if failure == "image_amount" else 1, image_1=object()
+        )
+
+    terminal = events[-1][0]
+    assert events[0][0]["phase"] == "starting"
+    assert terminal["phase"] == ("cancelled" if failure == "interrupt" else "failed")
+    assert terminal["terminal"] is True
+    assert terminal["execution_id"] == str(identity.execution_id)
+    assert terminal["workflow_id"] == "workflow-a"
+    assert all(client == "client-a" for _, client in events)
+    assert "private image input details" not in str(events)
+    assert registry.active_count == 0
+
+
 def test_structured_output_builds_nested_json_schema(node_package):
     node = node_package.NODE_CLASS_MAPPINGS["LlamaCppStructuredOutput"]()
     value = node.create_constraint(

@@ -21,7 +21,6 @@ import {
     reduceGenerationSnapshot,
     rememberActiveSnapshot,
     requestCancellation,
-    resolveExecutionNode,
     snapshotMatchesWorkflow,
     snapshotTargetsNode,
 } from "./generate_live_state.js";
@@ -263,15 +262,26 @@ async function cancelGeneration(node) {
     if (!state || !snapshot || !action.enabled) return;
     state.cancel.disabled = true;
     state.cancel.options.disabled = true;
+    const clientId = api.clientId ?? api.client_id;
+    const stillDisplayed = () =>
+        node.__llamacppGenerateState === state &&
+        nodes.has(node) &&
+        (api.clientId ?? api.client_id) === clientId &&
+        state.live?.execution_id === snapshot.execution_id &&
+        state.live?.prompt_id === snapshot.prompt_id &&
+        state.live?.node_id === snapshot.node_id &&
+        state.live?.sequence === snapshot.sequence &&
+        !state.live?.terminal &&
+        snapshotTargetsNode(snapshot, node, getRootGraph(), getWorkflowId());
     try {
-        const clientId = api.clientId ?? api.client_id;
         const result = await requestCancellation(snapshot, {
             fetchApi: api.fetchApi.bind(api),
             clientId,
             cancelRoute: CANCEL_ROUTE,
         });
-        state.liveStatus.value = result.message;
+        if (stillDisplayed()) state.liveStatus.value = result.message;
     } catch (error) {
+        if (!stillDisplayed()) return;
         state.liveStatus.value = `Stop failed: ${error?.message ?? error}`;
         const retry = cancellationRetryAction(state.live, snapshot);
         state.cancel.name = retry.label;
@@ -280,17 +290,6 @@ async function cancelGeneration(node) {
         state.cancel.options.disabled = !retry.enabled;
         console.warn("[llama.cpp] Generation stop failed", error);
     }
-}
-
-function clearForExecution(node) {
-    const state = node.__llamacppGenerateState;
-    if (!state) return;
-    state.live = null;
-    state.liveStatus.value = "Starting...";
-    state.response.value = "";
-    state.thinking.value = "";
-    state.cancel.disabled = true;
-    state.cancel.options.disabled = true;
 }
 
 async function restoreActive({ force = false } = {}) {
@@ -414,22 +413,6 @@ app.registerExtension({
             if (!snapshotMatchesWorkflow(snapshot, getWorkflowId())) return;
             for (const node of nodes) applySnapshot(node, snapshot);
             rememberActiveSnapshot(restored, snapshot);
-        });
-        api.addEventListener("executing", (event) => {
-            const detail = event?.detail;
-            const display = detail?.display_node ?? detail?.node ?? detail;
-            if (display == null) return;
-            const displayId = String(display);
-            for (const [key, snapshot] of restored) {
-                if (
-                    snapshotMatchesWorkflow(snapshot, getWorkflowId()) &&
-                    snapshot.display_node_id === displayId
-                ) {
-                    restored.delete(key);
-                }
-            }
-            const target = resolveExecutionNode(getRootGraph(), displayId);
-            if (target && nodes.has(target)) clearForExecution(target);
         });
         api.addEventListener("status", () => void restoreActive());
         api.addEventListener("reconnected", () => {

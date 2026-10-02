@@ -734,6 +734,7 @@ class CanonicalGenerationExecutor:
         verify_tls: bool = True,
         request_timeout: int = 300,
         images: Sequence[str] = (),
+        prepare_images: Callable[[], Sequence[str]] | None = None,
         release_after_generation: bool = False,
         partial_output_policy: PartialOutputPolicy | str = (PartialOutputPolicy.RAISE_ERROR),
         structured_output: Any = None,
@@ -767,6 +768,24 @@ class CanonicalGenerationExecutor:
             return budget
 
         try:
+            if identity is not None and self.live_registry is not None:
+                try:
+                    live = self.live_registry.begin(
+                        identity,
+                        cancel_scope=(
+                            CancelScope.PROMPT
+                            if identity.prompt_id is not None
+                            else CancelScope.NONE
+                        ),
+                    )
+                except Exception:
+                    # Live state is additive, including during request and
+                    # image preparation. It must never block headless use.
+                    live = None
+            if prepare_images is not None:
+                if images:
+                    raise ValueError("supply encoded images or image preparation, not both")
+                images = prepare_images()
             profile = profile or FREEFORM_PROFILE
             if not isinstance(profile, TaskProfileSnapshot):
                 raise _error(
@@ -989,21 +1008,6 @@ class CanonicalGenerationExecutor:
                         and projector_status.get("mode") == "none"
                     ):
                         image_unsupported_message = _EXPLICIT_TEXT_ONLY_IMAGE_MESSAGE
-                if identity is not None and self.live_registry is not None:
-                    try:
-                        live = self.live_registry.begin(
-                            identity,
-                            cancel_scope=(
-                                CancelScope.PROMPT
-                                if identity.prompt_id is not None
-                                else CancelScope.NONE
-                            ),
-                        )
-                    except Exception:
-                        # Live state is observability. Capacity or UI integration
-                        # failure must not change headless generation.
-                        live = None
-
                 if normalized_images:
                     capability_budget = min(
                         _IMAGE_CAPABILITY_PROBE_SECONDS,

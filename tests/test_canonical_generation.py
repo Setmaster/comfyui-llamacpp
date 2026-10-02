@@ -317,6 +317,89 @@ def executor(
     )
 
 
+@pytest.mark.parametrize("failure", ["offline", "invalid_request", "missing_model"])
+def test_preflight_failures_emit_terminal_status_for_the_exact_execution(failure, monkeypatch):
+    events = []
+    registry = LiveGenerationRegistry(
+        sender=lambda name, payload, client: events.append((name, payload, client))
+    )
+    identity = ExecutionIdentity.create(
+        prompt_id="prompt-a",
+        node_id="dynamic-7",
+        display_node_id="outer:7",
+        real_node_id="7",
+        parent_node_id="outer",
+        list_index=2,
+        workflow_id="workflow-a",
+        client_id="client-a",
+    )
+    manager = FakeManager(router=failure == "missing_model")
+    options = {"identity": identity}
+
+    def fail(*args, **kwargs):
+        if failure == "offline":
+            raise RuntimeError("No managed llama-server is running")
+        raise ValueError("selected model is missing")
+
+    if failure == "offline":
+        monkeypatch.setattr(manager, "connection_for", fail)
+        expected = ErrorCategory.RUNTIME_UNAVAILABLE
+    elif failure == "missing_model":
+        monkeypatch.setattr(manager, "resolve_model_id", fail)
+        options["model"] = "missing/model.gguf"
+        expected = ErrorCategory.MODEL_MISSING
+    else:
+        options["max_tokens"] = 0
+        expected = ErrorCategory.INVALID_REQUEST
+    runner, _, client = executor(manager=manager, live_registry=registry)
+
+    with pytest.raises(CanonicalGenerationError) as caught:
+        runner.generate("hello", **options)
+
+    assert caught.value.category == expected
+    assert events[0][1]["phase"] == "starting"
+    terminal = events[-1][1]
+    assert terminal["phase"] == "failed"
+    assert terminal["terminal"] is True
+    assert terminal["error"]["category"] == expected.value
+    for _, payload, client_id in events:
+        assert client_id == "client-a"
+        for key, value in identity.as_dict().items():
+            assert payload[key] == value
+    assert registry.active_count == 0
+    assert client.calls == []
+
+
+def test_live_registration_failure_does_not_block_headless_generation():
+    class UnavailableRegistry:
+        def begin(self, *args, **kwargs):
+            raise RuntimeError("live observation unavailable")
+
+    runner, _, _ = executor(live_registry=UnavailableRegistry())
+    identity = ExecutionIdentity.create(prompt_id="prompt-a", node_id="7")
+    assert runner.generate("hello", identity=identity)[0] == "answer"
+
+
+def test_image_preparation_runs_inside_live_execution_before_client_use():
+    registry = LiveGenerationRegistry()
+    identity = ExecutionIdentity.create(prompt_id="prompt-a", node_id="7")
+    runner, manager, client = executor(live_registry=registry)
+
+    def prepare():
+        current = registry.snapshot(identity.execution_id)
+        assert current is not None and current.phase == "starting"
+        assert manager.connection_calls == []
+        return ("data:image/png;base64,inert",)
+
+    _, _, result = runner.generate("hello", identity=identity, prepare_images=prepare)
+    assert result.image_count == 1
+    assert client.calls[0]["payload"]["messages"][0]["content"][0] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,inert"},
+    }
+    assert registry.active_count == 0
+
+
 def test_default_sampling_and_auto_thinking_omit_all_optional_overrides():
     runner, manager, client = executor()
     response, thinking, result = runner.generate("hello")
