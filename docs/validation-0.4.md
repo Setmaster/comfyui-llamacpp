@@ -181,9 +181,14 @@ syntax checks.
 ## Windows byte-exact checkout
 
 GitHub Actions initially exposed a checkout-only failure: Windows converted the
-seven immutable 0.3 workflow JSON files to CRLF, so their byte hashes differed
-although their content had not changed. Revision `d874121` adds a narrow
+seven frozen noncanonical workflow JSON files to CRLF, so their byte hashes
+differed although their content had not changed. Revision `d874121` adds a narrow
 `example_workflows/*.json text eol=lf` rule.
+
+These seven fixtures comprise four byte-identical 0.3 examples, the adapted
+0.3 router example, and the post-0.3 Setup Check and Quick Text additions. The
+hash gate preserves those candidate assets; it does not attribute all seven to
+the immutable 0.3 release.
 
 This local simulation reproduced the Windows checkout policy and retained all
 seven expected hashes:

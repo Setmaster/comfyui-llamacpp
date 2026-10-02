@@ -21,8 +21,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v8.3.2
-      - run: uv sync --extra dev
-      - run: uv run python -m pytest -q
+      - run: uv sync --locked --extra dev
+      - run: uv run --locked python -m pytest -q
 
   windows:
     runs-on: windows-latest
@@ -32,8 +32,8 @@ jobs:
         with:
           python-version: "3.13"
       - uses: astral-sh/setup-uv@v8.3.2
-      - run: uv sync --extra dev
-      - run: uv run python -m pytest -q
+      - run: uv sync --locked --extra dev
+      - run: uv run --locked python -m pytest -q
 
   quality:
     runs-on: ubuntu-latest
@@ -43,12 +43,13 @@ jobs:
         with:
           python-version: "3.13"
       - uses: astral-sh/setup-uv@v8.3.2
-      - run: uv sync --extra dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      - run: uv sync --locked --extra dev
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
       - run: uv build
       - run: uvx twine check dist/*
-      - run: uv run python tests/check_distribution.py dist
+      - run: uv run --locked python tests/check_distribution.py dist
+      - run: uv run --locked python tests/smoke_distribution.py dist --prove-rejection
       - run: node --test tests/js/*.test.mjs
       - run: |
           for file in web/*.js; do

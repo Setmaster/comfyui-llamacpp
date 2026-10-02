@@ -1,8 +1,9 @@
 # Example workflows
 
-ComfyUI discovers this canonical `example_workflows` directory in **Workflow >
-Browse Templates**. Workflows are generated and round-tripped through the
-current frontend during validation.
+This directory ships with the unreleased 0.4 candidate. ComfyUI discovers it in
+**Workflow > Browse Templates**. Workflows are generated and round-tripped
+through the frontend during validation. Stable 0.3 instead ships five JSON
+workflows in `examples/`, which users open manually.
 
 - `canonical-text.json`: canonical text generation with a portable Freeform
   profile snapshot, strict errors, live status, and terminal managed release.
@@ -40,8 +41,12 @@ before running the VLM example.
 
 The four `canonical-*.json` examples target 0.4.0. Their saved Freeform profile
 is a portable no-op snapshot, so execution never depends on a mutable profile
-file from the machine that created the workflow. The other seven examples remain
-the exact 0.3.0 workflow assets.
+file from the machine that created the workflow. Setup Check and Quick Text were
+also added after 0.3. The remaining five examples originate from 0.3.0:
+`direct-text`, `structured-output`, `vlm-image-to-prompt`, and `vram-handoff`
+remain byte-identical to that tag; `router-text` adds explicit model-root and
+catalog-reload widget values. Tests preserve the resulting seven noncanonical
+candidate assets byte-for-byte.
 
 Each canonical JSON workflow has a same-stem 768 by 768 JPEG thumbnail captured
 from the current Comfy frontend. Setup Check and Quick Text retain their existing

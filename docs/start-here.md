@@ -12,9 +12,13 @@ Install `comfyui-llamacpp` from the Comfy Registry, then restart ComfyUI:
 comfy node install comfyui-llamacpp
 ```
 
-Stable 0.3 startup reports 17 registered llama.cpp nodes. The post-0.3 `dev`
-line reports 19 because **llama.cpp Generate** and **llama.cpp Task Profile** are
-additive.
+Stable 0.3 startup reports 17 registered llama.cpp nodes. Follow the stable
+steps below for that installation. Setup Check, Quick Text, Generate, task
+profiles, and automatic local projector matching require the unreleased 0.4
+candidate. To test it deliberately, use the [candidate source installation
+instructions](../README.md#test-the-unreleased-04-candidate), restart ComfyUI,
+and confirm startup reports `0.4.0` and 19 nodes. Candidate testing does not
+replace the maintainer's hands-on acceptance gate before release.
 
 ## 2. Make `llama-server` available
 
@@ -40,17 +44,36 @@ Configured `LLM` or `llm` roots from `extra_model_paths.yaml` are also supported
 Restart ComfyUI after changing model-root configuration.
 
 For a vision model, install its matching `mmproj` GGUF under a configured model
-root. Leave **Vision Projector** on `(auto)` to select one match only when local
-GGUF metadata proves compatibility. Folder adjacency and filenames alone do not
-prove a match. You can also choose one exact projector file, or select
-`(none - text only)` to disable vision.
+root. On stable 0.3, select that exact file in the Start node's `mmproj` field;
+`(auto)` does not find a matching local projector in this release.
 
-## 4. Run Setup Check
+On the 0.4 candidate, **Vision Projector** can remain on `(auto)` to select one
+match only when local GGUF metadata proves compatibility. Folder adjacency and
+filenames alone do not prove a match. You can also choose one exact projector
+file, or select `(none - text only)` to disable vision.
+
+## 4. Generate text on stable 0.3
+
+Build this small graph:
+
+1. Add **Start llama.cpp Server** and select an installed GGUF.
+2. Set its `binary_path` if the executable is not on ComfyUI's environment path.
+3. Connect its `server_url` output to **llama.cpp Basic Prompt**.
+4. Connect Basic Prompt's `response` to **llama.cpp Prompt Output**.
+5. Enter a prompt and queue the workflow.
+
+The graph starts one owned server and displays the response. For a connected
+example, open `examples/direct-text.json` from the installed custom-node
+directory and replace its model selection with your local model. Stable 0.3
+ships five examples in that directory. It does not include Setup Check, Quick
+Text, or the candidate's workflow-template directory.
+
+## 5. Candidate only: Setup Check and templates
 
 Open **Workflow > Browse Templates**, choose this node pack, and load **Setup
 Check**. Queue it once.
 
-The existing **llama.cpp Server Status** node reports `Setup: ready` when it can
+On the candidate, **llama.cpp Server Status** reports `Setup: ready` when it can
 resolve and probe `llama-server` and can discover at least one model. It also
 shows bounded device, model-root, model, and projector information. `Setup: needs
 attention` is followed by an actionable warning.
@@ -58,9 +81,7 @@ attention` is followed by an actionable warning.
 If your binary is not on ComfyUI's environment path, enter its full path in the
 Status node and run the check again.
 
-## 5. Generate text
-
-Load **Quick Text** from the same template browser:
+Then load **Quick Text** from the same template browser:
 
 1. Select an installed GGUF on **Start llama.cpp Server**.
 2. Set `llama-server Binary` only if Setup Check needed an explicit path.
@@ -71,7 +92,7 @@ The three-node workflow starts one owned server, sends the prompt, and displays
 the response. Use **Show Advanced** only when the defaults do not fit the model or
 machine.
 
-For a new post-0.3 workflow, load **Canonical Text** or replace Basic Prompt and
+For a new candidate workflow, load **Canonical Text** or replace Basic Prompt and
 Prompt Output with one **llama.cpp Generate** node. Convert Generate's advanced
 `Server URL` widget to an input before connecting the Start node URL, or leave it
 empty to use the currently owned runtime. Generate provides its own live preview
@@ -96,5 +117,6 @@ unload behavior.
   task profiles, live Stop, passive discovery, and terminal release.
 - [Lifecycle and VRAM ownership](lifecycle.md) for release guarantees.
 - [Troubleshooting](troubleshooting.md) for setup and runtime failures.
-- [Example workflows](../example_workflows/) for router, vision, structured
-  output, and GPU handoff graphs.
+- [Candidate example workflows](../example_workflows/) for router, vision,
+  structured output, and GPU handoff graphs. Stable users should open their
+  installed `examples/` directory instead.

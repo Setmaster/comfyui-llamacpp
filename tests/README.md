@@ -35,14 +35,34 @@ expanding these stubs into replacement implementations.
 
 ## Run
 
-With pytest installed:
+Install the locked development environment, including the runtime dependencies
+used during test collection:
 
 ```bash
-pytest -q tests
+uv sync --locked --extra dev
+uv run --locked python -m pytest -q tests
+node --test tests/js/*.test.mjs
 ```
 
-Without changing the project environment:
+Build and verify the shipped artifacts:
 
 ```bash
-uvx --from pytest pytest -q tests
+uv build
+uv run --locked python tests/check_distribution.py dist
+uv run --locked python tests/smoke_distribution.py dist --prove-rejection
 ```
+
+The manifest check covers runtime Python modules, frontend JavaScript/JSON,
+workflow assets, and the source test suite. The smoke check extracts both
+artifacts into a temporary directory, imports the wheel and verifies all 19
+nodes, then runs the Python and JavaScript suites from the extracted sdist.
+Python subprocesses skip site initialization and receive only explicit dependency
+directories, so editable checkout hooks and `PYTHONPATH` cannot supply missing
+package code. Comfy import-only stubs come from the extracted test harness;
+runtime dependencies are real installed packages.
+
+`--prove-rejection` also removes a runtime module and a frontend asset from
+temporary wheel copies. The checks must reject both, and the damaged runtime
+wheel must fail import even while the source checkout remains installed. These
+checks do not launch ComfyUI, llama-server, or GPU workloads; live release
+acceptance remains separate.

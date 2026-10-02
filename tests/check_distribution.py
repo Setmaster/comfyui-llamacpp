@@ -21,8 +21,7 @@ def _assert_unique(members: list[str], archive: Path) -> None:
         raise AssertionError(f"Duplicate members in {archive.name}: {sorted(duplicates)}")
 
 
-def main() -> None:
-    directory = Path(sys.argv[1] if len(sys.argv) > 1 else "dist")
+def check_manifests(directory: Path, source_root: Path) -> None:
     wheel = _single(directory, "*.whl")
     sdist = _single(directory, "*.tar.gz")
 
@@ -36,7 +35,7 @@ def main() -> None:
 
     workflow_files = {
         path.name
-        for path in Path("example_workflows").iterdir()
+        for path in (source_root / "example_workflows").iterdir()
         if path.suffix in {".json", ".jpg"}
     }
     packaged_workflows = {
@@ -53,15 +52,28 @@ def main() -> None:
 
     root = sdist_members[0].split("/", 1)[0]
     normalized_sdist = {name.removeprefix(f"{root}/") for name in sdist_members if name != root}
+    runtime_files = {path.name for path in source_root.glob("*.py")}
+    for package in ("generation", "models", "nodes", "runtime", "web"):
+        runtime_files.update(
+            path.relative_to(source_root).as_posix()
+            for path in (source_root / package).glob("*")
+            if path.is_file() and path.suffix in {".py", ".js", ".json"}
+        )
+    missing_runtime = {f"comfyui_llamacpp/{name}" for name in runtime_files} - set(wheel_members)
+    if missing_runtime:
+        raise AssertionError(f"Wheel is missing runtime assets: {sorted(missing_runtime)}")
+    missing_source = runtime_files - normalized_sdist
+    if missing_source:
+        raise AssertionError(f"Source archive is missing runtime assets: {sorted(missing_source)}")
     missing_workflows = {f"example_workflows/{name}" for name in workflow_files} - normalized_sdist
     if missing_workflows:
         raise AssertionError(
             f"Source archive is missing workflow assets: {sorted(missing_workflows)}"
         )
     expected_tests = {
-        path.as_posix()
-        for path in Path("tests").rglob("*")
-        if path.is_file() and path.suffix in {".json", ".md", ".mjs", ".py"}
+        path.relative_to(source_root).as_posix()
+        for path in (source_root / "tests").rglob("*")
+        if path.is_file() and path.suffix in {".json", ".md", ".mjs", ".pem", ".py"}
     }
     missing = expected_tests - normalized_sdist
     if missing:
@@ -70,10 +82,13 @@ def main() -> None:
         raise AssertionError("Source archive is missing package.json for frontend tests")
 
     print(
-        f"Distribution manifests passed: {len(workflow_files)} workflow assets, "
+        f"Distribution manifests passed: {len(runtime_files)} runtime assets, "
+        f"{len(workflow_files)} workflow assets, "
         f"{len(expected_tests)} source-test files, no duplicate members"
     )
 
 
 if __name__ == "__main__":
-    main()
+    check_manifests(
+        Path(sys.argv[1] if len(sys.argv) > 1 else "dist"), Path(__file__).resolve().parents[1]
+    )

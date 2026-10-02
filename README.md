@@ -21,10 +21,16 @@ The stable release is `0.3.0`. It is available from the Comfy Registry and the
 the maintainer's hands-on acceptance gate. It has not been published to the
 Registry.
 
-New installation? Follow [Start Here](docs/start-here.md), then load **Setup
-Check** and **Quick Text** from ComfyUI's workflow template browser.
+New installation? Follow [Start Here](docs/start-here.md) for the stable 0.3 text
+workflow or the separate 0.4 candidate setup path. Setup Check, Quick Text,
+canonical Generate, and automatic local projector matching require the candidate.
 
 ## What it covers
+
+The list below describes the `dev` candidate. Stable 0.3 provides Basic, ADV,
+and ADV++ generation, runtime/router control, structured output, and explicit
+projector selection. Generate, task profiles, automatic projector matching,
+live Stop, and release-after-generation are additions in the unreleased 0.4 line.
 
 - Direct mode for one GGUF model.
 - Current `llama-server` router mode with exact model identities and terminal
@@ -126,6 +132,24 @@ Existing 0.2.1 workflows retain released node IDs, socket names, output order,
 defaults, and legacy widget positions. Read [the 0.3 migration guide](docs/migration-0.3.md)
 before testing important saved workflows.
 
+### Test the unreleased 0.4 candidate
+
+Use an existing clean source checkout to opt into candidate testing:
+
+```bash
+git fetch origin
+git switch dev
+git pull --ff-only origin dev
+python -m pip install -r requirements.txt
+```
+
+Use the Python that launches ComfyUI, then restart it. Candidate startup reports
+`0.4.0` and 19 nodes. Follow the candidate path in [Start Here](docs/start-here.md)
+and the [0.4 acceptance checklist](docs/user-acceptance-0.4.md). The candidate is
+not available from the Registry and still requires maintainer hands-on acceptance
+before promotion. [Rollback instructions](docs/migration-0.4.md#rollback) restore
+the accepted 0.3 tag.
+
 ## Install llama.cpp
 
 Use an official current build from the
@@ -179,6 +203,10 @@ Files whose names contain `mmproj` are listed separately from text/model GGUFs.
 
 ### VLM pairing
 
+On stable 0.3, select the exact installed projector in the Start node's `mmproj`
+field. Its `(auto)` value does not scan local files for a matching projector.
+The following three-state selection behavior requires the 0.4 candidate:
+
 - Direct mode: leave **Vision Projector** on `(auto)`. The pack reads bounded
   GGUF header metadata and selects one confidently compatible local projector.
   It does not use filenames or folder adjacency alone as compatibility proof.
@@ -205,17 +233,21 @@ Status**.
 
 ### Direct text workflow
 
-The shortest path is **Workflow > Browse Templates > comfyui-llamacpp > Quick
-Text**. Select a GGUF, set the binary only when it is not already resolved, and
-queue the workflow. The companion **Setup Check** template diagnoses the binary,
-available devices, and configured model roots without starting a server.
-
-To build the same graph manually:
+On stable 0.3, build this three-node graph:
 
 1. Add **Start llama.cpp Server** and select a GGUF.
 2. Connect `server_url` to **llama.cpp Basic Prompt**.
 3. Connect `response` to **llama.cpp Prompt Output**.
 4. Queue the workflow.
+
+Set the Start node's `binary_path` if `llama-server` is not already resolved.
+Stable workflows are also available in the installed `examples/` directory;
+open `direct-text.json` manually and select your installed model.
+
+On the 0.4 candidate, the shortest path is **Workflow > Browse Templates >
+comfyui-llamacpp > Quick Text**. Its companion **Setup Check** template diagnoses
+the binary, available devices, and configured model roots without starting a
+server. Neither template ships in stable 0.3.
 
 The start node is idempotent for the same full configuration. A changed binary
 or effective setting performs a coordinated restart. A failed replacement
@@ -309,8 +341,8 @@ limitations.
 
 ## Node catalog
 
-Nodes keep their released names and are grouped under `LlamaCpp/Runtime`,
-`LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
+On the 0.4 candidate, nodes keep their released names and are grouped under
+`LlamaCpp/Runtime`, `LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
 include ordinary terms such as GGUF, VLM, prompt enhancer, JSON Schema, and free
 VRAM. Dense nodes show primary controls first; choose **Show Advanced** for the
 complete released surface.
@@ -443,11 +475,13 @@ explicit replace/reset action.
 
 ## Examples and validation
 
-ComfyUI discovers the curated workflows in
+On the 0.4 candidate, ComfyUI discovers the curated workflows in
 [`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
 the first-run paths; the direct, router, vision, structured-output, and VRAM
-handoff workflows retain the released 0.3 examples. Canonical text, vision,
-structured, and App Mode examples demonstrate the post-0.3 Generate surface.
+handoff workflows originate from the five released 0.3 examples, with router
+widget values adapted for the candidate. Setup Check, Quick Text, and the four
+canonical examples were added after 0.3. Stable users can open the five JSON
+workflows manually from their installed `examples/` directory.
 The tested frontend 1.45.20 retains terminal text in native jobs and history
 output but does not render it inline in App Mode's central result pane. The
 canonical workflow exposes transient read-only Generation Status and Live
@@ -469,13 +503,15 @@ and a bounded redacted server-log tail.
 ## Development
 
 ```bash
-uv sync --extra dev
-uv run python -m pytest -q
-uv run ruff check .
-uv run ruff format --check .
+uv sync --locked --extra dev
+uv run --locked python -m pytest -q
+uv run --locked ruff check .
+uv run --locked ruff format --check .
 node --test tests/js/*.test.mjs
 for file in web/*.js; do node --check "$file"; done
 uv build
+uv run --locked python tests/check_distribution.py dist
+uv run --locked python tests/smoke_distribution.py dist --prove-rejection
 git diff --check
 ```
 
