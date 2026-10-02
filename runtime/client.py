@@ -17,6 +17,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
+from .http_deadline import DeadlineHTTPAdapter, response_deadline
+
 if TYPE_CHECKING:
     from .streaming import ModelEvent, StreamResult, StreamUpdate
 
@@ -604,7 +606,12 @@ def parse_router_model(data: Mapping[str, Any]) -> RouterModel:
 
 
 class LlamaServerClient:
-    """A current llama-server client with explicit operation barriers."""
+    """A current llama-server client with explicit operation barriers.
+
+    The owned HTTP transport bounds response socket reads by the operation's
+    absolute deadline. Injected sessions retain their adapters and ownership;
+    they must provide their own blocking-I/O bounds between client checks.
+    """
 
     def __init__(
         self,
@@ -617,6 +624,9 @@ class LlamaServerClient:
         self.connection = connection
         self._session = session or requests.Session()
         self._owns_session = session is None
+        if self._owns_session:
+            self._session.mount("http://", DeadlineHTTPAdapter())
+            self._session.mount("https://", DeadlineHTTPAdapter())
         self._clock = clock
         self._sleeper = sleeper
 
@@ -694,13 +704,19 @@ class LlamaServerClient:
             kwargs["json"] = dict(body)
 
         try:
-            response = self._session.request(method, url, **kwargs)
+            # The owned adapter captures this request-local budget before header
+            # parsing and retains it in the response's raw body reader. Injected
+            # transports retain ownership of their own blocking I/O behavior.
+            with response_deadline(deadline):
+                response = self._session.request(method, url, **kwargs)
         except requests.Timeout as exc:
             raise DeadlineExceeded(
                 redact_secrets(f"{method} {path} timed out", self.connection.secrets),
                 endpoint=path,
             ) from exc
         except requests.RequestException as exc:
+            if deadline.expired:
+                raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
             raise LlamaClientError(
                 f"{method} {path} failed",
                 endpoint=path,
@@ -732,6 +748,8 @@ class LlamaServerClient:
                 endpoint=path,
             ) from exc
         except requests.RequestException as exc:
+            if deadline.expired:
+                raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
             raise LlamaClientError(
                 f"{method} {path} failed",
                 endpoint=path,
