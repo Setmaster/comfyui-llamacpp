@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-10-02 04:35:16Z
-Commit: 2d1d5ced6355bdb49e91f72b6ec9b89e93c087d2
+Generated: 2026-10-02 05:21:13Z
+Commit: ec0e7b55ff550554dcacd022cd7c68df68798458
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -19,23 +19,25 @@ Source: git ls-files (tracked files)
 
 ## Directory structure (depth <= 3)
 - (root files): 18
-- `tests/`: 37 files
-  - `tests/js/`: 8 files
-  - `tests/fixtures/`: 4 files
+- `tests/`: 42 files
+  - `tests/js/`: 9 files
+  - `tests/fixtures/`: 5 files
     - `tests/fixtures/workflows/`: 3 files
-- `changes/`: 23 files
-  - `changes/archive/`: 9 files
+- `changes/`: 27 files
+  - `changes/archive/`: 13 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
     - `changes/archive/2026-07-10-lifecycle-concurrency-hardening/`: 4 files
+    - `changes/archive/2026-10-02-october-candidate-hardening/`: 4 files
   - `changes/2026-07-11-canonical-generate-work-block-b/`: 5 files
   - `changes/2026-07-11-ux-work-block-a/`: 5 files
   - `changes/2026-07-24-auto-vlm-projector-resolution/`: 4 files
+- `docs/`: 22 files
+  - `docs/research/`: 11 files
+    - `docs/research/assets/`: 6 files
 - `nodes/`: 20 files
 - `example_workflows/`: 18 files
 - `web/`: 17 files
-- `docs/`: 14 files
-  - `docs/research/`: 4 files
-- `runtime/`: 13 files
+- `runtime/`: 14 files
 - `generation/`: 8 files
 - `models/`: 5 files
 - `.github/`: 1 files
@@ -47,26 +49,26 @@ Source: git ls-files (tracked files)
 
 ## Hotspots (largest text files)
 - `uv.lock`: 367.3 KiB
-- `runtime/process.py`: 112.4 KiB
-- `tests/test_process.py`: 89.0 KiB
+- `runtime/process.py`: 112.7 KiB
+- `tests/test_process.py`: 89.5 KiB
 - `runtime/service.py`: 68.0 KiB
+- `tests/test_canonical_generation.py`: 61.5 KiB
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 57.5 KiB
-- `tests/test_canonical_generation.py`: 56.5 KiB
-- `generation/execution.py`: 56.0 KiB
+- `generation/execution.py`: 56.3 KiB
 - `tests/test_runtime_service.py`: 54.9 KiB
 - `tests/test_streaming.py`: 53.7 KiB
-- `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 49.3 KiB
+- `tests/test_manager.py`: 53.2 KiB
 
 ## Hotspots (most lines, sampled from large files)
-- `runtime/process.py`: 2838 lines
-- `tests/test_process.py`: 2710 lines
+- `runtime/process.py`: 2843 lines
+- `tests/test_process.py`: 2723 lines
+- `tests/test_canonical_generation.py`: 1824 lines
 - `runtime/service.py`: 1744 lines
-- `tests/test_canonical_generation.py`: 1700 lines
 - `tests/test_streaming.py`: 1538 lines
+- `tests/test_manager.py`: 1504 lines
 - `tests/test_runtime_service.py`: 1502 lines
 - `uv.lock`: 1501 lines
-- `generation/execution.py`: 1400 lines
-- `docs/research/comfyui-llamacpp-vs-llm-party-deep-comparison-2026-07-10.md`: 1061 lines
+- `generation/execution.py`: 1406 lines
 - `docs/research/local-only-comfyui-llm-options-user-guide-2026-07-10.md`: 903 lines
 
 <!-- agent-evolve:END AUTO -->

@@ -1,7 +1,7 @@
 # October candidate validation
 
 Date: 2026-10-02
-Status: In progress
+Status: Validated dev candidate; maintainer acceptance pending
 
 This records the candidate hardening from the
 [October review](research/comfyui-llamacpp-project-frontier-review-2026-10-02.md),
@@ -13,6 +13,7 @@ The July [0.4 validation](validation-0.4.md) remains historical evidence.
 
 - Source rollback: `dev` at `2d1d5ce` before this work.
 - Stable: immutable 0.3.0 at `365986a`; `master` remains `40ff5d7`.
+- Package-source revision: `ec0e7b55ff550554dcacd022cd7c68df68798458`.
 - Candidate executable revision: `3f6fb5738b733c90bbacf8da83f5eff2c60250df`.
 - ComfyUI: 0.37.0, commit `8d534945`.
 - Frontend: 1.53.6.
@@ -52,7 +53,13 @@ actual local reader/raw/socket closure before session teardown and includes a
 paused-peer regression; deadline timing bounds were retained. Test-only commit
 `536bf89` adds this correction, with no runtime change after `3f6fb57`.
 The focused deadline suite now passes 94 tests plus 43 subtests on both tested
-dependency pairs. Final CI acceptance is pending below.
+dependency pairs. Source-backed members of the tested sdist (133 files) match
+the package-source checkout byte-for-byte.
+
+[GitHub Actions run 36968320754](https://github.com/Setmaster/comfyui-llamacpp/actions/runs/36968320754)
+passed all seven jobs at `ec0e7b5`: Python 3.10 through 3.14, native Windows 3.13,
+and quality including the isolated package tests. Final evidence-only closeout
+commit/CI identity is recorded on [ENG-87](https://linear.app/7dev/issue/ENG-87).
 
 Artifact SHA-256:
 
@@ -139,8 +146,10 @@ and native runtime logs under `evidence/2026-10-02/`.
 Rollback uses focused Git reverts or the pre-review dev commit. The maintained
 Windows clone must be left clean at the final validated dev head, with owned
 test processes stopped. The actual test processes and listeners on 8188/18080
-are stopped; the agent-owned browser session is also stopped. Final remote/CI
-and installed-clone alignment are pending below.
+are stopped; the agent-owned browser session is also stopped. The parent reviewed
+the full Git diff against `2d1d5ce`. The maintained clone follows published `dev`;
+final readback after the evidence-only closeout is recorded in ENG-87 and the
+Project KB. No merge, tag or Registry publication was performed.
 
 ## Verification commands
 

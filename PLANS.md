@@ -1,6 +1,6 @@
 # October End-to-End Review and Candidate Hardening
 
-Status: In progress
+Status: Complete; stopped at maintainer hands-on acceptance (ENG-88)
 Date: 2026-10-02
 Branch: `dev`
 Baseline: `2d1d5ced6355bdb49e91f72b6ec9b89e93c087d2`
@@ -34,6 +34,17 @@ an unproven model/runtime capability. No speculative broad rewrite is required.
    installed clone, and record the exact handoff state.
 7. Stop at the existing maintainer hands-on acceptance gate. Merge to `master`,
    release tagging and Registry publication require explicit maintainer blessing.
+
+## Outcome
+
+- Reviewed and repaired ENG-79 through ENG-86 plus live-discovered ENG-93.
+- Current Windows/browser/GPU acceptance and independent review pass; exact
+  evidence, commands and limits are in `docs/validation-2026-10.md`.
+- Source passes 1,058 tests plus 149 subtests; native Windows passes 1,014 with
+  44 platform skips; frontend passes 75. Isolated artifacts and seven CI jobs pass.
+- Implementation is on dev only. ENG-88 remains the maintainer gate; ENG-89 to
+  ENG-92 remain expansion/polish backlog. No public node or runtime dependency added.
+- Change bundle: `changes/archive/2026-10-02-october-candidate-hardening/`.
 
 ## Decisions
 
