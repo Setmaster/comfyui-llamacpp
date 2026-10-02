@@ -42,6 +42,7 @@ class _LoopbackServer(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.stopping = threading.Event()
         self.slow_started = threading.Event()
+        self.release_concurrent_response = threading.Event()
         self.headers_read = threading.Event()
         self.connection_closed = threading.Event()
         self.accepted = 0
@@ -143,7 +144,13 @@ class _Handler(BaseHTTPRequestHandler):
             ):
                 self._trickle(body)
             elif mode == "concurrent":
-                self._trickle(body, interval=0.01)
+                # Keep this response open until the other request times out.
+                # Repeated short sleeps can stall the fixture's nominally fast
+                # body under scheduling delays, independently of client I/O.
+                if self.server.release_concurrent_response.wait(2):
+                    self.wfile.write(body)
+                else:
+                    self.close_connection = True
             else:
                 self.wfile.write(body)
         except (ConnectionError, TimeoutError):
@@ -367,6 +374,8 @@ class HTTPDeadlineTests(unittest.TestCase):
                     client.health(timeout=0.1)
                 except Exception as exc:
                     errors.append(exc)
+                finally:
+                    server.release_concurrent_response.set()
 
             slow = threading.Thread(target=slow_request)
             slow.start()
@@ -521,6 +530,8 @@ class HTTPDeadlineTests(unittest.TestCase):
                     client.health(timeout=0.2)
                 except Exception as exc:
                     errors.append(exc)
+                finally:
+                    upstream.release_concurrent_response.set()
 
             slow = threading.Thread(target=slow_request)
             slow.start()
