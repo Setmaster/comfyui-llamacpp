@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "seeds": [17, 29],
+  "cases": [
+    {
+      "id": "heldout-symbol-grid",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "heldout-symbol-grid",
+      "system_prompt": "",
+      "prompt": "Count the orange diamonds and blue circles. Distinguish filled shapes from outlined shapes, then describe the layout from left to right in each row. Use only visible evidence; do not invent materials, object purposes, text, or extra shapes. Output one paragraph of at most 90 words, with no heading, markdown, or commentary.",
+      "max_words": 90,
+      "format": "paragraph",
+      "facts": [
+        {"id": "orange_count", "description": "Three orange diamonds in total."},
+        {"id": "orange_fill", "description": "Two orange diamonds are filled; one is outlined or hollow."},
+        {"id": "blue_count", "description": "Three blue circles in total."},
+        {"id": "blue_fill", "description": "One blue circle is filled; two are outlined or hollow."},
+        {"id": "top_row", "description": "Top row, left to right: filled orange diamond, filled orange diamond, outlined blue circle."},
+        {"id": "bottom_row", "description": "Bottom row, left to right: outlined orange diamond, filled blue circle, outlined blue circle."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 90 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No invented material, purpose, text, or extra shape."}
+      ],
+      "unsupported_examples": ["plastic tokens", "a game board", "numbers inside the shapes"]
+    },
+    {
+      "id": "heldout-digit-bars",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "heldout-digit-bars",
+      "system_prompt": "",
+      "prompt": "Transcribe each large single-digit label from left to right. Describe the three bars' colors and rank their heights. State whether an exact numeric measurement scale is shown. Do not treat the labels as measured bar values or invent units, a chart topic, or an axis scale. Output one paragraph of at most 80 words, with no heading, markdown, or commentary.",
+      "max_words": 80,
+      "format": "paragraph",
+      "facts": [
+        {"id": "digit_left", "description": "The left label is the digit 3."},
+        {"id": "digit_middle", "description": "The middle label is the digit 7."},
+        {"id": "digit_right", "description": "The right label is the digit 2."},
+        {"id": "bar_colors", "description": "Left bar purple, middle bar teal or blue-green, right bar gold or yellow-orange."},
+        {"id": "height_order", "description": "Middle bar tallest, right bar intermediate, left bar shortest."},
+        {"id": "scale_unknown", "description": "No numeric measurement scale or units are shown; exact bar values cannot be determined."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 80 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No invented units, chart topic, axis scale, or assertion that the labels are measured bar values."}
+      ],
+      "unsupported_examples": ["sales figures", "centimeters", "a value of seven for the middle bar"]
+    },
+    {
+      "id": "heldout-screened-paths",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "heldout-screened-paths",
+      "system_prompt": "Describe only visible geometry. Do not infer hidden connections. If a requested fact is not visible, say that it cannot be determined from the image.",
+      "prompt": "Describe the visible line pieces and the gray covering rectangle in each panel, comparing the left and right pieces' vertical alignment. Can either panel prove that its hidden line pieces connect? Do not invent a hidden path, a material, or an object purpose. Output one paragraph of at most 85 words, with no heading, markdown, or commentary.",
+      "max_words": 85,
+      "format": "paragraph",
+      "facts": [
+        {"id": "left_pieces", "description": "The left panel has two visible orange horizontal line pieces at the same height."},
+        {"id": "right_pieces", "description": "The right panel has two visible orange horizontal line pieces; its right piece is lower than its left piece."},
+        {"id": "covers", "description": "Each panel has a central gray vertical rectangle covering the region between the orange pieces."},
+        {"id": "left_unknown", "description": "The left panel does not prove that the hidden pieces connect; alignment alone is insufficient."},
+        {"id": "right_unknown", "description": "The right panel also does not establish whether the pieces connect behind the rectangle."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 85 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No asserted hidden connection or disconnection, invented hidden path, material, or object purpose."}
+      ],
+      "unsupported_examples": ["one continuous wire", "the lines are disconnected", "a bent path behind the right rectangle"]
+    }
+  ]
+}
