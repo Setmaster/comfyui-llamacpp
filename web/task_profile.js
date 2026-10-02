@@ -1,5 +1,6 @@
 import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
+import { openProfileEditor } from "./task_profile_editor.js";
 import {
     installPostConfigureReconciliation,
     markWidgetReadOnly,
@@ -115,10 +116,12 @@ async function refreshProfiles(node, { automatic = false } = {}) {
         return;
     }
     state.refreshing = true;
+    const revision = ++state.refreshRevision;
     state.refreshingAutomatic = automatic;
     state.status.value = "Refreshing local profiles...";
     try {
         const profiles = await loadProfiles({ automatic });
+        if (state.removed || revision !== state.refreshRevision) return;
         state.profiles = profiles;
         state.profilesFetched = true;
         state.selector.options.values = profiles.map((profile) => profile.id);
@@ -130,6 +133,7 @@ async function refreshProfiles(node, { automatic = false } = {}) {
         }
         setStatus(node);
     } catch (error) {
+        if (state.removed || revision !== state.refreshRevision) return;
         state.status.value = `Profile refresh failed: ${error?.message ?? error}`;
         console.warn("[llama.cpp] Profile refresh failed", error);
     } finally {
@@ -160,6 +164,29 @@ function updateSnapshot(node) {
     }
     graph?.setDirtyCanvas?.(true, true);
     setStatus(node);
+}
+
+function editProfiles(node) {
+    const state = node.__llamacppProfileState;
+    if (!state || state.removed || state.editor) return;
+    state.editor = openProfileEditor({
+        api,
+        snapshotText: state.snapshot.value,
+        selectedId: state.selector.value,
+        onSaved(selectedId, profiles) {
+            loadProfiles.invalidate();
+            if (state.removed) return;
+            // An older GET must not replace the library just acknowledged by Save.
+            state.refreshRevision += 1;
+            state.profiles = profiles;
+            state.profilesFetched = true;
+            state.selector.options.values = profiles.map((profile) => profile.id);
+            state.selector.value = selectedId;
+            state.selectorTouched = true;
+            setStatus(node);
+        },
+        onClose() { state.editor = null; },
+    });
 }
 
 export function setupTaskProfileNode(node, { refresh = true } = {}) {
@@ -195,6 +222,9 @@ export function setupTaskProfileNode(node, { refresh = true } = {}) {
     const updateButton = transient(
         node.addWidget("button", "Update Saved Snapshot", null, () => updateSnapshot(node)),
     );
+    const editButton = transient(
+        node.addWidget("button", "Edit Profile Library", null, () => editProfiles(node)),
+    );
     const status = markWidgetReadOnly(transient(
         node.addWidget("text", "Profile Status", "Loading local profiles...", null, {
             multiline: true,
@@ -206,6 +236,7 @@ export function setupTaskProfileNode(node, { refresh = true } = {}) {
         profilesFetched: false,
         refreshManualAfter: false,
         refreshing: false,
+        refreshRevision: 0,
         refreshingAutomatic: false,
         refreshTimer: null,
         refreshButton,
@@ -213,12 +244,19 @@ export function setupTaskProfileNode(node, { refresh = true } = {}) {
         snapshot,
         status,
         updateButton,
+        editButton,
+        editor: null,
+        removed: false,
         selectorTouched: false,
     };
     const originalRemoved = node.onRemoved;
     node.onRemoved = function (...args) {
         const state = this.__llamacppProfileState;
         if (state?.refreshTimer !== null) clearTimeout(state.refreshTimer);
+        if (state) {
+            state.removed = true;
+            state.editor?.dispose();
+        }
         return originalRemoved?.apply(this, args);
     };
     installConfiguredReconciliation(node);

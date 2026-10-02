@@ -11,7 +11,11 @@ const PROFILE_KEYS = [
 ];
 
 function boundedText(value, maximum, { allowEmpty = true } = {}) {
-    if (typeof value !== "string" || value.length > maximum) return null;
+    if (typeof value !== "string" || [...value].length > maximum) return null;
+    for (const character of value) {
+        const code = character.codePointAt(0);
+        if (code >= 0xd800 && code <= 0xdfff) return null;
+    }
     if (!allowEmpty && value.length === 0) return null;
     return value;
 }
@@ -124,7 +128,7 @@ export function createAutomaticProfileLoader(
         return result;
     }
 
-    return async function load({ automatic = false } = {}) {
+    async function load({ automatic = false } = {}) {
         if (!automatic) return fresh();
         if (hasCachedValue && clock() - cachedAt <= cacheMilliseconds) {
             return cachedValue;
@@ -137,7 +141,13 @@ export function createAutomaticProfileLoader(
         } finally {
             if (automaticRequest === request) automaticRequest = null;
         }
+    }
+    load.invalidate = () => {
+        hasCachedValue = false;
+        cachedSerial = ++requestSerial;
+        automaticRequest = null;
     };
+    return load;
 }
 
 export function normalizeTaskProfile(value) {
@@ -161,7 +171,7 @@ export function normalizeTaskProfile(value) {
     ) {
         return null;
     }
-    return {
+    const profile = {
         description,
         id,
         name,
@@ -170,6 +180,7 @@ export function normalizeTaskProfile(value) {
         schema_version: 1,
         system_prompt: systemPrompt,
     };
+    return new TextEncoder().encode(JSON.stringify(profile)).length <= 262144 ? profile : null;
 }
 
 export function canonicalProfileJSON(value) {
@@ -187,6 +198,60 @@ export function parseProfileSnapshot(text) {
     } catch {
         return null;
     }
+}
+
+/** The portable library format excludes the immutable built-in Freeform entry. */
+export function parseProfileDocument(text) {
+    if (typeof text !== "string" || new TextEncoder().encode(text).length > 1048576) {
+        throw new Error("Profile document exceeds 1 MiB or is not JSON text.");
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(text);
+        if (hasDuplicateObjectKeys(text)) throw new Error("Duplicate JSON keys.");
+    } catch {
+        throw new Error("Profile document must be valid JSON without duplicate keys.");
+    }
+    if (
+        !parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+        Object.keys(parsed).sort().join("\0") !== "profiles\0schema_version" ||
+        parsed.schema_version !== 1 || !Array.isArray(parsed.profiles) ||
+        parsed.profiles.length > 128
+    ) {
+        throw new Error("Expected a version 1 profile document with at most 128 profiles.");
+    }
+    const seen = new Set([FREEFORM_PROFILE_ID]);
+    const profiles = parsed.profiles.map((entry, index) => {
+        const profile = normalizeTaskProfile(entry);
+        if (!profile) throw new Error(`Profile ${index + 1} has invalid fields or exceeds its limits.`);
+        if (seen.has(profile.id)) {
+            throw new Error(profile.id === FREEFORM_PROFILE_ID
+                ? "Freeform is built in and cannot be imported or changed."
+                : `Duplicate profile ID: ${profile.id}`);
+        }
+        seen.add(profile.id);
+        return profile;
+    });
+    return { schema_version: 1, profiles };
+}
+
+export function profileDocumentJSON(profiles) {
+    const document = parseProfileDocument(JSON.stringify({ schema_version: 1, profiles }));
+    return JSON.stringify(document);
+}
+
+export function mergeProfileDocuments(current, incoming, { replaceExisting = false } = {}) {
+    const base = parseProfileDocument(profileDocumentJSON(current));
+    const added = parseProfileDocument(profileDocumentJSON(incoming));
+    const conflicts = added.profiles.filter((profile) => base.profiles.some((p) => p.id === profile.id));
+    const merged = new Map(base.profiles.map((profile) => [profile.id, profile]));
+    for (const profile of added.profiles) {
+        if (replaceExisting || !merged.has(profile.id)) merged.set(profile.id, profile);
+    }
+    return {
+        document: parseProfileDocument(profileDocumentJSON([...merged.values()])),
+        conflicts: conflicts.map((profile) => profile.id),
+    };
 }
 
 export function normalizeProfilesResponse(value) {

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,10 +35,15 @@ _PROFILE_KEYS = frozenset(
     }
 )
 _DOCUMENT_KEYS = frozenset({"schema_version", "profiles"})
+_LIBRARY_WRITE_LOCK = threading.Lock()
 
 
 class ProfileValidationError(ValueError):
     """Raised when untrusted local or workflow profile data is invalid."""
+
+
+class ProfileConflictError(ProfileValidationError):
+    """The local library changed after the editor read its revision."""
 
 
 def _compact_json(value: Mapping[str, Any]) -> str:
@@ -127,6 +135,8 @@ def _parse_json(value: str | bytes, name: str, *, maximum_bytes: int) -> Any:
         )
     except json.JSONDecodeError as exc:
         raise ProfileValidationError(f"{name} is not valid JSON: {exc}") from exc
+    except RecursionError as exc:
+        raise ProfileValidationError(f"{name} is nested too deeply") from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,6 +306,95 @@ def load_profiles(path: str | Path) -> tuple[TaskProfileSnapshot, ...]:
     return parse_profiles_document(data)
 
 
+def _library_bytes(path: Path) -> bytes | None:
+    # The caller resolves the current user's fixed path. Do not follow a file
+    # or plugin-directory symlink when authoring another user's library.
+    if path.is_symlink() or path.parent.is_symlink():
+        raise ProfileValidationError("profile library must not use a symbolic link")
+    try:
+        with path.open("rb") as handle:
+            data = handle.read(MAX_PROFILE_FILE_BYTES + 1)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ProfileValidationError(
+            f"could not read profile library ({type(exc).__name__})"
+        ) from exc
+    if len(data) > MAX_PROFILE_FILE_BYTES:
+        raise ProfileValidationError(f"profile document exceeds {MAX_PROFILE_FILE_BYTES} bytes")
+    return data
+
+
+def _library_revision(data: bytes | None) -> str:
+    # A missing file differs from any existing file, including an empty one.
+    return hashlib.sha256(b"missing\0" if data is None else b"present\0" + data).hexdigest()
+
+
+def _library_response(data: bytes | None) -> dict[str, Any]:
+    profiles = parse_profiles_document(data) if data is not None else (FREEFORM_PROFILE,)
+    return {
+        "schema_version": PROFILE_SCHEMA_VERSION,
+        "profiles": [profile.as_dict() for profile in profiles[1:]],
+        "content_sha256": _library_revision(data),
+    }
+
+
+def load_profile_library(path: str | Path) -> dict[str, Any]:
+    """Read a versioned user-only document and its optimistic save revision."""
+
+    return _library_response(_library_bytes(Path(path)))
+
+
+def save_profile_library(
+    path: str | Path, document: str | bytes, expected_sha256: str
+) -> dict[str, Any]:
+    """Validate and atomically replace one caller-resolved user's local library.
+
+    The lock serializes this Comfy process's editors. The content revision also
+    detects ordinary external file edits; external writers must coordinate
+    independently if they write during the final compare/replace interval.
+    Workflow snapshots are never consulted or changed here.
+    """
+
+    if not isinstance(expected_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        raise ProfileValidationError("an exact library content hash is required")
+    profiles = parse_profiles_document(document)
+    encoded = _compact_json(
+        {"schema_version": PROFILE_SCHEMA_VERSION, "profiles": [p.as_dict() for p in profiles[1:]]}
+    ).encode("utf-8")
+    # Compact re-encoding must still obey the on-disk envelope limit.
+    parse_profiles_document(encoded)
+    profile_path = Path(path)
+    temporary_path = None
+    with _LIBRARY_WRITE_LOCK:
+        current = _library_bytes(profile_path)
+        if _library_revision(current) != expected_sha256:
+            raise ProfileConflictError("Library changed. Reload it before saving your edits.")
+        # Never overwrite a malformed current library through an authoring action.
+        _library_response(current)
+        try:
+            profile_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=".profiles-", suffix=".tmp", dir=profile_path.parent, delete=False
+            ) as handle:
+                temporary_path = Path(handle.name)
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if _library_revision(_library_bytes(profile_path)) != expected_sha256:
+                raise ProfileConflictError("Library changed. Reload it before saving your edits.")
+            os.replace(temporary_path, profile_path)
+            temporary_path = None
+        except OSError as exc:
+            raise ProfileValidationError(
+                f"could not save profile library ({type(exc).__name__})"
+            ) from exc
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+    return _library_response(encoded)
+
+
 def apply_task_profile(
     profile: TaskProfileSnapshot,
     prompt: str,
@@ -328,10 +427,13 @@ __all__ = [
     "MAX_PROFILE_SNAPSHOT_BYTES",
     "MAX_PROFILE_TEXT_CHARS",
     "PROFILE_SCHEMA_VERSION",
+    "ProfileConflictError",
     "ProfileValidationError",
     "TaskProfileSnapshot",
     "apply_task_profile",
     "load_profiles",
+    "load_profile_library",
     "parse_profile_snapshot",
     "parse_profiles_document",
+    "save_profile_library",
 ]

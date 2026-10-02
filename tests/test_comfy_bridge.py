@@ -20,6 +20,7 @@ from runtime.comfy_routes import (
     ACTIVE_GENERATIONS_ROUTE,
     CANCEL_GENERATION_ROUTE,
     DISCOVERY_ROUTE,
+    PROFILES_LIBRARY_ROUTE,
     PROFILES_ROUTE,
 )
 from runtime.service import ReleaseResult, ReleaseStatus, RuntimeMode
@@ -283,6 +284,8 @@ def test_install_is_idempotent_and_registers_only_namespaced_routes_once() -> No
         ("GET", STATUS_ROUTE),
         ("POST", RELEASE_ROUTE),
         ("GET", PROFILES_ROUTE),
+        ("GET", PROFILES_LIBRARY_ROUTE),
+        ("POST", PROFILES_LIBRARY_ROUTE),
         ("GET", DISCOVERY_ROUTE),
         ("GET", ACTIVE_GENERATIONS_ROUTE),
         ("POST", CANCEL_GENERATION_ROUTE),

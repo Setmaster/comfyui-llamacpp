@@ -9,9 +9,23 @@ from collections.abc import Mapping
 from typing import Any
 
 if "." in __package__:
-    from ..generation.profiles import ProfileValidationError, load_profiles
+    from ..generation.profiles import (
+        MAX_PROFILE_FILE_BYTES,
+        ProfileConflictError,
+        ProfileValidationError,
+        load_profile_library,
+        load_profiles,
+        save_profile_library,
+    )
 else:  # standalone runtime tests
-    from generation.profiles import ProfileValidationError, load_profiles
+    from generation.profiles import (
+        MAX_PROFILE_FILE_BYTES,
+        ProfileConflictError,
+        ProfileValidationError,
+        load_profile_library,
+        load_profiles,
+        save_profile_library,
+    )
 from .client import LlamaClientError
 from .live_generation import (
     MAX_RESTORE_EXECUTIONS,
@@ -23,6 +37,7 @@ from .manager import LlamaCppServerManager, get_server_manager
 LOGGER = logging.getLogger(__name__)
 
 PROFILES_ROUTE = "/llamacpp/profiles"
+PROFILES_LIBRARY_ROUTE = "/llamacpp/profiles/library"
 DISCOVERY_ROUTE = "/llamacpp/runtime/discovery"
 ACTIVE_GENERATIONS_ROUTE = "/llamacpp/generation/active"
 CANCEL_GENERATION_ROUTE = "/llamacpp/generation/cancel"
@@ -209,6 +224,80 @@ def install_generation_routes(
     elif profiles_key in available:
         available.add(profiles_key)
 
+    async def profile_library_handler(request: Any, *, write: bool = False) -> Any:
+        resolver = getattr(
+            getattr(prompt_server, "user_manager", None), "get_request_user_filepath", None
+        )
+        if not callable(resolver):
+            return _json_response(
+                web,
+                _error_payload(
+                    "UserProfilesUnavailable", "Comfy user profile storage is unavailable."
+                ),
+                status=503,
+            )
+        try:
+            path = resolver(request, _PROFILE_RELATIVE_PATH, create_dir=False)
+            if path is None:
+                raise ProfileValidationError("Comfy user profile path is unavailable")
+            if write:
+                expected = getattr(request, "headers", {}).get("If-Match", "")
+                if not expected:
+                    return _json_response(
+                        web,
+                        _error_payload("PreconditionRequired", "Reload the library before saving."),
+                        status=428,
+                    )
+                if (
+                    len(expected) != 66
+                    or not expected.startswith('"')
+                    or not expected.endswith('"')
+                ):
+                    raise ProfileValidationError("If-Match must contain one quoted content hash")
+                content_length = getattr(request, "content_length", None)
+                if isinstance(content_length, int) and content_length > MAX_PROFILE_FILE_BYTES:
+                    raise _RequestTooLarge("profile document exceeds its local byte limit")
+                encoded = bytearray()
+                while len(encoded) <= MAX_PROFILE_FILE_BYTES:
+                    chunk = await request.content.read(MAX_PROFILE_FILE_BYTES + 1 - len(encoded))
+                    if not chunk:
+                        break
+                    encoded.extend(chunk)
+                if len(encoded) > MAX_PROFILE_FILE_BYTES:
+                    raise _RequestTooLarge("profile document exceeds its local byte limit")
+                payload = await asyncio.to_thread(
+                    save_profile_library, path, bytes(encoded), expected[1:-1]
+                )
+            else:
+                payload = await asyncio.to_thread(load_profile_library, path)
+            return _json_response(web, payload)
+        except ProfileConflictError as exc:
+            return _json_response(web, _error_payload(type(exc).__name__, str(exc)), status=409)
+        except _RequestTooLarge as exc:
+            return _json_response(web, _error_payload("ProfileTooLarge", str(exc)), status=413)
+        except (KeyError, ProfileValidationError) as exc:
+            message = str(exc) if isinstance(exc, ProfileValidationError) else "Unknown Comfy user."
+            return _json_response(web, _error_payload(type(exc).__name__, message), status=400)
+        except OSError:
+            return _json_response(
+                web,
+                _error_payload("ProfileStorageError", "The local profile library is unavailable."),
+                status=503,
+            )
+
+    library_get_key = ("GET", PROFILES_LIBRARY_ROUTE)
+    if library_get_key not in existing:
+        _register_get(routes, PROFILES_LIBRARY_ROUTE, profile_library_handler)
+        available.add(library_get_key)
+    library_post_key = ("POST", PROFILES_LIBRARY_ROUTE)
+    if library_post_key not in existing:
+
+        async def save_library_handler(request: Any) -> Any:
+            return await profile_library_handler(request, write=True)
+
+        _register_post(routes, PROFILES_LIBRARY_ROUTE, save_library_handler)
+        available.add(library_post_key)
+
     discovery_key = ("GET", DISCOVERY_ROUTE)
     if discovery_key not in existing:
 
@@ -364,7 +453,14 @@ def install_generation_routes(
     elif cancel_key in available:
         available.add(cancel_key)
 
-    required = {profiles_key, discovery_key, active_key, cancel_key}
+    required = {
+        profiles_key,
+        library_get_key,
+        library_post_key,
+        discovery_key,
+        active_key,
+        cancel_key,
+    }
     return required <= available
 
 
@@ -373,5 +469,6 @@ __all__ = [
     "CANCEL_GENERATION_ROUTE",
     "DISCOVERY_ROUTE",
     "PROFILES_ROUTE",
+    "PROFILES_LIBRARY_ROUTE",
     "install_generation_routes",
 ]

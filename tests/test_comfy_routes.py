@@ -10,6 +10,7 @@ from runtime.comfy_routes import (
     ACTIVE_GENERATIONS_ROUTE,
     CANCEL_GENERATION_ROUTE,
     DISCOVERY_ROUTE,
+    PROFILES_LIBRARY_ROUTE,
     PROFILES_ROUTE,
     install_generation_routes,
 )
@@ -147,6 +148,8 @@ def test_routes_install_idempotently_and_profiles_are_current_user_bounded(tmp_p
     )
     assert [(route.method, route.path) for route in server.routes] == [
         ("GET", PROFILES_ROUTE),
+        ("GET", PROFILES_LIBRARY_ROUTE),
+        ("POST", PROFILES_LIBRARY_ROUTE),
         ("GET", DISCOVERY_ROUTE),
         ("GET", ACTIVE_GENERATIONS_ROUTE),
         ("POST", CANCEL_GENERATION_ROUTE),
