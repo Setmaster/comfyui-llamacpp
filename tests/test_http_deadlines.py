@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import gzip
 import json
+import select
+import socket
 import ssl
 import threading
 import time
@@ -11,14 +13,17 @@ import unittest
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from socketserver import BaseRequestHandler, ThreadingTCPServer
 from unittest import mock
 from urllib.parse import urlsplit
 
 import requests
 
 import runtime.client as client_module
+import runtime.http_deadline as deadline_module
 from runtime.client import (
     ConnectionConfig,
+    Deadline,
     DeadlineExceeded,
     LlamaClientError,
     LlamaServerClient,
@@ -37,6 +42,7 @@ class _LoopbackServer(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.stopping = threading.Event()
         self.slow_started = threading.Event()
+        self.headers_read = threading.Event()
         self.connection_closed = threading.Event()
         self.accepted = 0
         self.paths: list[str] = []
@@ -53,6 +59,13 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *_args) -> None:
         pass
+
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except ConnectionError:
+            # A timed-out proxy tunnel can reset its upstream connection.
+            pass
 
     def finish(self) -> None:
         try:
@@ -71,6 +84,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         self.server.paths.append(self.path)
         mode = path.split("/")[1]
+        if path.endswith("/warmup"):
+            mode = ""
         body = b'{"status":"ok"}'
         headers = b""
         status = 500 if mode in {"error", "error_slow"} else 200
@@ -85,6 +100,8 @@ class _Handler(BaseHTTPRequestHandler):
             headers = b"Content-Encoding: gzip\r\n"
         elif mode == "concurrent" and path.endswith("/props"):
             body = b'{"build_info":"parallel"}'
+        elif mode in {"tls_record_headers", "tls_record_body"}:
+            body = b'{"build_info":"fragmented"}'
         elif mode == "stream" and not path.endswith("/health"):
             headers = b"Content-Type: text/event-stream\r\n"
             if path.endswith("/models/sse"):
@@ -108,7 +125,16 @@ class _Handler(BaseHTTPRequestHandler):
                 headers += b"Transfer-Encoding: chunked\r\n"
             else:
                 headers += f"Content-Length: {len(body)}\r\n".encode("ascii")
+            if mode == "tls_record_headers":
+                self.server.slow_started.set()
             self.wfile.write(f"HTTP/1.1 {status} Test\r\n".encode("ascii") + headers + b"\r\n")
+            if mode == "tls_record_body":
+                # The proxy must forward headers before fragmenting inner TLS
+                # records, so this exercises reads after response construction.
+                if not self.server.headers_read.wait(1):
+                    self.close_connection = True
+                    return
+                self.server.slow_started.set()
             if mode == "chunked":
                 # A trickled chunk-size line also blocks the buffered parser.
                 self._trickle(b"f;extension=" + b"x" * 40)
@@ -285,6 +311,9 @@ class HTTPDeadlineTests(unittest.TestCase):
                 if mode == "utf8":
                     self.assertEqual(client.props().build_info, "café 日本")
                 else:
+                    # Isolate response reads from TLS setup. A handshake timeout
+                    # occurs before a handler exists to signal socket cleanup.
+                    client._request_json("GET", "/warmup", deadline=Deadline(2))
                     started = time.monotonic()
                     with self.assertRaises(DeadlineExceeded):
                         client.props(timeout=0.1)
@@ -320,3 +349,205 @@ class HTTPDeadlineTests(unittest.TestCase):
             client.close()
             self.assertEqual(session.adapters, adapters)
             self.assertTrue(client.health().ok)
+
+    def test_https_proxy_fragmented_inner_tls_records_obey_deadline_and_close(self):
+        before = set(threading.enumerate())
+        for mode in ("tls_record_headers", "tls_record_body"):
+            with (
+                self.subTest(mode=mode),
+                _server(tls=True) as upstream,
+                _tls_proxy(upstream, fragment=True) as proxy,
+                self._client(upstream, mode, tls=True) as client,
+            ):
+                client._session.proxies["https"] = f"https://127.0.0.1:{proxy.server_address[1]}"
+                client._request_json("GET", "/warmup", deadline=Deadline(2))
+                responses = []
+
+                def headers_received(response, target=responses, signal=upstream.headers_read, **_):
+                    target.append(response)
+                    signal.set()
+
+                client._session.hooks["response"].append(headers_received)
+                started = time.monotonic()
+                with self.assertRaises(DeadlineExceeded) as caught:
+                    client.props(timeout=0.2)
+                self.assertLess(time.monotonic() - started, 0.45)
+                self.assertEqual(caught.exception.endpoint, "/props")
+                self.assertTrue(proxy.connection_closed.wait(0.3))
+                if mode == "tls_record_body":
+                    self.assertEqual(len(responses), 1)
+                    self.assertTrue(responses[0].raw.closed)
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
+    def test_https_proxy_keep_alive_reuse_does_not_retain_expired_budget(self):
+        with (
+            _server(tls=True) as upstream,
+            _tls_proxy(upstream) as proxy,
+            self._client(upstream, "utf8", tls=True) as client,
+        ):
+            client._session.proxies["https"] = f"https://127.0.0.1:{proxy.server_address[1]}"
+            clock_offset = 0
+            first = Deadline(2, lambda: time.monotonic() + clock_offset)
+            self.assertEqual(client.props(deadline=first).build_info, "café 日本")
+            clock_offset = 3
+            self.assertTrue(first.expired)
+            self.assertEqual(client.props(timeout=1).build_info, "café 日本")
+            self.assertEqual(upstream.accepted, 1)
+            self.assertEqual(proxy.accepted, 1)
+
+    def test_https_proxy_concurrent_request_has_its_own_deadline(self):
+        with (
+            _server(tls=True) as upstream,
+            _tls_proxy(upstream) as proxy,
+            self._client(upstream, "concurrent", tls=True) as client,
+        ):
+            client._session.proxies["https"] = f"https://127.0.0.1:{proxy.server_address[1]}"
+            client._request_json("GET", "/warmup", deadline=Deadline(2))
+            errors = []
+
+            def slow_request():
+                try:
+                    client.health(timeout=0.2)
+                except Exception as exc:
+                    errors.append(exc)
+
+            slow = threading.Thread(target=slow_request)
+            slow.start()
+            try:
+                self.assertTrue(upstream.slow_started.wait(1))
+                self.assertEqual(client.props(timeout=1).build_info, "parallel")
+            finally:
+                slow.join(timeout=1)
+            self.assertFalse(slow.is_alive())
+            self.assertEqual(len(errors), 1)
+            self.assertIsInstance(errors[0], DeadlineExceeded)
+            self.assertEqual(proxy.accepted, 2)
+
+    def test_proxy_first_use_wait_is_bounded_and_cannot_cache_an_unguarded_pool(self):
+        configuring = threading.Event()
+        allow_configuration = threading.Event()
+        configure = deadline_module._configure_pools
+        results = []
+        errors = []
+
+        def paused_configure(manager):
+            configuring.set()
+            if not allow_configuration.wait(2):
+                raise RuntimeError("proxy fixture configuration was not released")
+            configure(manager)
+
+        with (
+            _server() as proxy,
+            LlamaServerClient(ConnectionConfig("http://fixture.invalid/body")) as client,
+        ):
+            client._session.trust_env = False
+            client._session.proxies["http"] = f"http://127.0.0.1:{proxy.server_port}"
+
+            def first_request():
+                try:
+                    results.append(client.health(timeout=2))
+                except Exception as exc:
+                    errors.append(exc)
+
+            with mock.patch.object(deadline_module, "_configure_pools", paused_configure):
+                first = threading.Thread(target=first_request)
+                first.start()
+                try:
+                    self.assertTrue(configuring.wait(1))
+                    started = time.monotonic()
+                    with self.assertRaises(DeadlineExceeded) as caught:
+                        client.health(timeout=0.1)
+                    self.assertLess(time.monotonic() - started, 0.35)
+                    self.assertEqual(caught.exception.endpoint, "/health")
+                    self.assertEqual(proxy.paths, [])
+                finally:
+                    allow_configuration.set()
+                    first.join(3)
+                self.assertFalse(first.is_alive())
+            self.assertEqual(errors, [])
+            self.assertEqual(len(results), 1)
+            self.assertTrue(results[0].ok)
+            # The initialized manager's cached connection must also be guarded.
+            started = time.monotonic()
+            with self.assertRaises(DeadlineExceeded):
+                client.health(timeout=0.1)
+            self.assertLess(time.monotonic() - started, 0.35)
+
+
+class _TLSTunnel(BaseRequestHandler):
+    def handle(self):
+        try:
+            header = bytearray()
+            while not header.endswith(b"\r\n\r\n"):
+                data = self.request.recv(1)
+                if not data or len(header) >= 8192:
+                    return
+                header.extend(data)
+            if not header.startswith(b"CONNECT "):
+                return
+            with socket.create_connection(
+                ("127.0.0.1", self.server.upstream.server_port), timeout=2
+            ) as upstream:
+                self.request.sendall(b"HTTP/1.0 200 Connection established\r\n\r\n")
+                while not self.server.stopping.is_set():
+                    ready, _, _ = select.select([self.request, upstream], [], [], 0.01)
+                    if self.request.pending() and self.request not in ready:
+                        ready.append(self.request)
+                    for source in ready:
+                        data = source.recv(65536)
+                        if not data:
+                            return
+                        target = upstream if source is self.request else self.request
+                        if (
+                            source is upstream
+                            and self.server.fragment
+                            and self.server.upstream.slow_started.is_set()
+                        ):
+                            # Fragment an encrypted inner record across many
+                            # valid outer TLS records, below the socket timeout.
+                            for value in data:
+                                target.sendall(bytes([value]))
+                                if self.server.stopping.wait(0.01):
+                                    return
+                        else:
+                            target.sendall(data)
+        except (ConnectionError, TimeoutError, ssl.SSLError):
+            pass
+        finally:
+            self.server.connection_closed.set()
+
+
+class _TLSProxy(ThreadingTCPServer):
+    daemon_threads = False
+
+    def __init__(self, upstream, *, fragment):
+        super().__init__(("127.0.0.1", 0), _TLSTunnel)
+        self.upstream = upstream
+        self.fragment = fragment
+        self.stopping = threading.Event()
+        self.connection_closed = threading.Event()
+        self.accepted = 0
+
+    def get_request(self):
+        sock, address = super().get_request()
+        sock.settimeout(2)
+        self.accepted += 1
+        return sock, address
+
+
+@contextmanager
+def _tls_proxy(upstream, *, fragment=False):
+    proxy = _TLSProxy(upstream, fragment=fragment)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(_TLS_FIXTURE)
+    proxy.socket = context.wrap_socket(proxy.socket, server_side=True)
+    thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        yield proxy
+    finally:
+        proxy.stopping.set()
+        proxy.shutdown()
+        proxy.server_close()
+        thread.join(2)
+        assert not thread.is_alive()
