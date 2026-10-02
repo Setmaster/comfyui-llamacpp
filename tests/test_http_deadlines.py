@@ -173,6 +173,21 @@ def _server(*, tls=False):
         assert not thread.is_alive()
 
 
+@contextmanager
+def _capture_response_readers():
+    # Retain the real readers so GC cannot hide a missing explicit close. A
+    # write-only peer can observe TCP disconnect later than local socket close.
+    readers = []
+    initialize = deadline_module._DeadlineReader.__init__
+
+    def capture(reader, *args, **kwargs):
+        initialize(reader, *args, **kwargs)
+        readers.append(reader)
+
+    with mock.patch.object(deadline_module._DeadlineReader, "__init__", capture):
+        yield readers
+
+
 class HTTPDeadlineTests(unittest.TestCase):
     def _client(self, server, mode="", *, timeout=2, tls=False):
         scheme = "https" if tls else "http"
@@ -189,9 +204,21 @@ class HTTPDeadlineTests(unittest.TestCase):
         client._session.trust_env = False
         return client
 
+    def _assert_response_resources_closed(self, readers):
+        self.assertTrue(readers, "request did not enter response transport")
+        for reader in readers:
+            self.assertTrue(reader.closed, "response reader stayed open")
+            self.assertTrue(reader._raw.closed, "raw socket stream stayed open")
+            self.assertEqual(reader._sock.fileno(), -1, "client socket stayed open")
+
     def test_trickled_status_headers_body_and_chunk_framing_obey_absolute_deadline(self):
         for mode in ("status", "headers", "body", "chunked", "gzip_slow"):
-            with self.subTest(mode=mode), _server() as server, self._client(server, mode) as client:
+            with (
+                self.subTest(mode=mode),
+                _server() as server,
+                self._client(server, mode) as client,
+                _capture_response_readers() as readers,
+            ):
                 responses = []
                 client._session.hooks["response"].append(
                     lambda response, target=responses, **_: target.append(response)
@@ -202,12 +229,44 @@ class HTTPDeadlineTests(unittest.TestCase):
                 elapsed = time.monotonic() - started
                 self.assertLess(elapsed, 0.35)
                 self.assertEqual(caught.exception.endpoint, "/health")
-                self.assertTrue(server.connection_closed.wait(0.3), "timed-out socket stayed open")
+                self._assert_response_resources_closed(readers)
                 for response in responses:
                     self.assertTrue(response.raw.closed)
 
+    def test_timeout_closes_local_resources_before_paused_peer_observes_disconnect(self):
+        resume_peer = threading.Event()
+
+        def paused_trickle(handler, data, *, interval=0.035):
+            handler.wfile.write(data[:1])
+            handler.server.slow_started.set()
+            resume_peer.wait(2)
+            handler.close_connection = True
+
+        before = set(threading.enumerate())
+        with (
+            mock.patch.object(_Handler, "_trickle", paused_trickle),
+            _server() as server,
+            self._client(server, "chunked") as client,
+            _capture_response_readers() as readers,
+        ):
+            try:
+                started = time.monotonic()
+                with self.assertRaises(DeadlineExceeded):
+                    client.health(timeout=0.1)
+                self.assertLess(time.monotonic() - started, 0.35)
+                self.assertTrue(server.slow_started.is_set())
+                self.assertFalse(server.connection_closed.is_set())
+                self._assert_response_resources_closed(readers)
+            finally:
+                resume_peer.set()
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
     def test_trickled_error_body_stops_at_deadline_and_preserves_http_error(self):
-        with _server() as server, self._client(server, "error_slow") as client:
+        with (
+            _server() as server,
+            self._client(server, "error_slow") as client,
+            _capture_response_readers() as readers,
+        ):
             started = time.monotonic()
             with self.assertRaises(LlamaClientError) as caught:
                 client.props(timeout=0.1)
@@ -216,7 +275,7 @@ class HTTPDeadlineTests(unittest.TestCase):
             self.assertEqual(caught.exception.endpoint, "/props")
             self.assertIsNone(caught.exception.body)
             self.assertNotIn("private-error-sentinel", str(caught.exception))
-            self.assertTrue(server.connection_closed.wait(0.3))
+            self._assert_response_resources_closed(readers)
 
     def test_happy_utf8_and_error_responses(self):
         with _server() as server, self._client(server, "utf8") as client:
@@ -307,25 +366,26 @@ class HTTPDeadlineTests(unittest.TestCase):
                 self.subTest(mode=mode),
                 _server(tls=True) as server,
                 self._client(server, mode, tls=True) as client,
+                _capture_response_readers() as readers,
             ):
                 if mode == "utf8":
                     self.assertEqual(client.props().build_info, "café 日本")
                 else:
-                    # Isolate response reads from TLS setup. A handshake timeout
-                    # occurs before a handler exists to signal socket cleanup.
+                    # Isolate response reads and their cleanup from TLS setup.
                     client._request_json("GET", "/warmup", deadline=Deadline(2))
                     started = time.monotonic()
                     with self.assertRaises(DeadlineExceeded):
                         client.props(timeout=0.1)
                     self.assertLess(time.monotonic() - started, 0.35)
-                    self.assertTrue(server.connection_closed.wait(0.3))
+                    self._assert_response_resources_closed(readers)
 
     def test_proxy_preserves_requests_routing_and_absolute_deadline(self):
         for mode in ("utf8", "headers", "body"):
             with self.subTest(mode=mode), _server() as server:
-                with LlamaServerClient(
-                    ConnectionConfig(f"http://fixture.invalid/{mode}")
-                ) as client:
+                with (
+                    LlamaServerClient(ConnectionConfig(f"http://fixture.invalid/{mode}")) as client,
+                    _capture_response_readers() as readers,
+                ):
                     client._session.trust_env = False
                     client._session.proxies["http"] = f"http://127.0.0.1:{server.server_port}"
                     if mode == "utf8":
@@ -335,7 +395,7 @@ class HTTPDeadlineTests(unittest.TestCase):
                         with self.assertRaises(DeadlineExceeded):
                             client.props(timeout=0.1)
                         self.assertLess(time.monotonic() - started, 0.35)
-                        self.assertTrue(server.connection_closed.wait(0.3))
+                        self._assert_response_resources_closed(readers)
                     self.assertEqual(server.paths, [f"http://fixture.invalid/{mode}/props"])
 
     def test_injected_session_adapters_and_ownership_are_unchanged(self):
@@ -358,6 +418,7 @@ class HTTPDeadlineTests(unittest.TestCase):
                 _server(tls=True) as upstream,
                 _tls_proxy(upstream, fragment=True) as proxy,
                 self._client(upstream, mode, tls=True) as client,
+                _capture_response_readers() as readers,
             ):
                 client._session.proxies["https"] = f"https://127.0.0.1:{proxy.server_address[1]}"
                 client._request_json("GET", "/warmup", deadline=Deadline(2))
@@ -373,7 +434,7 @@ class HTTPDeadlineTests(unittest.TestCase):
                     client.props(timeout=0.2)
                 self.assertLess(time.monotonic() - started, 0.45)
                 self.assertEqual(caught.exception.endpoint, "/props")
-                self.assertTrue(proxy.connection_closed.wait(0.3))
+                self._assert_response_resources_closed(readers)
                 if mode == "tls_record_body":
                     self.assertEqual(len(responses), 1)
                     self.assertTrue(responses[0].raw.closed)
