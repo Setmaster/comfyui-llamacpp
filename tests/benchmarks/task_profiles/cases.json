@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "seeds": [17, 29],
+  "settings": {
+    "thinking_mode": "off",
+    "max_tokens": 256,
+    "sampling_mode": "custom",
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "top_k": 40,
+    "min_p": 0.05,
+    "repeat_penalty": 1.0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "cache_prompt": false,
+    "stop_sequences": "",
+    "request_timeout": 120,
+    "include_image_batch": false,
+    "release_after_generation": false,
+    "partial_output_policy": "raise_error"
+  },
+  "cases": [
+    {
+      "id": "text-object-fidelity",
+      "family": "text",
+      "candidate": "prompt-fidelity-v1",
+      "image": null,
+      "system_prompt": "",
+      "prompt": "Rewrite this brief into a clear image-generation prompt. Preserve every stated fact. You may improve wording and organization, but do not add objects, labels, camera hardware, or brands. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Brief: One cobalt-blue ceramic mug with a single white handle sits centered on a matte yellow table. Soft window light comes from the left. The background is plain warm gray. There are no other objects and no visible writing.",
+      "max_words": 70,
+      "format": "paragraph",
+      "facts": [
+        {"id": "subject", "description": "Exactly one cobalt-blue ceramic mug."},
+        {"id": "handle", "description": "A single white handle."},
+        {"id": "placement", "description": "The mug is centered on a matte yellow table."},
+        {"id": "lighting", "description": "Soft window light comes from the left."},
+        {"id": "background", "description": "A plain warm-gray background."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 70 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "no_additions", "description": "No extra objects, visible writing, brands, or camera specifications."}
+      ],
+      "unsupported_examples": ["steam", "coffee inside the mug", "a spoon", "a lens or aperture specification"]
+    },
+    {
+      "id": "text-medium-exclusions",
+      "family": "text",
+      "candidate": "prompt-fidelity-v1",
+      "image": null,
+      "system_prompt": "",
+      "prompt": "Refine this rough image-generation prompt while preserving every fact and exclusion. Keep it an illustration. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Brief: A flat two-color screen print: one black fox silhouette, centered and facing right, on a cream background with rough paper texture. No gradients, lighting effects, visible text, camera terms, or extra subjects.",
+      "max_words": 60,
+      "format": "paragraph",
+      "facts": [
+        {"id": "medium", "description": "Flat two-color screen print."},
+        {"id": "subject", "description": "One black fox silhouette."},
+        {"id": "direction", "description": "Centered and facing right."},
+        {"id": "background", "description": "Cream background with rough paper texture."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 60 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "medium_preserved", "description": "No photorealism, gradients, lighting effects, or camera terms."},
+        {"id": "no_additions", "description": "No extra subjects or visible text."}
+      ],
+      "unsupported_examples": ["a forest", "moonlight", "fox fur detail", "photographic depth of field"]
+    },
+    {
+      "id": "text-operator-system",
+      "family": "text",
+      "candidate": "prompt-fidelity-v1",
+      "image": null,
+      "system_prompt": "Return exactly two lines. The first line must be PROMPT:. The second line must contain only the rewritten brief, using at most 40 words. Do not include any explanation or markdown.",
+      "prompt": "Rewrite this image-generation brief for clarity while preserving all stated facts and exclusions: A watercolor painting viewed from directly above, showing one unoccupied wooden rowboat on a still green pond. No people, animals, lettering, or additional boats. Do not add new scene details. Follow the output format in the system instruction.",
+      "max_words": 40,
+      "format": "operator_two_lines",
+      "facts": [
+        {"id": "medium", "description": "A watercolor painting."},
+        {"id": "view", "description": "Viewed directly from above."},
+        {"id": "boat", "description": "One unoccupied wooden rowboat."},
+        {"id": "water", "description": "A still green pond."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 40 words in the second line."},
+        {"id": "format", "description": "Exactly two lines; first line exactly PROMPT:, second line only the rewritten brief."},
+        {"id": "no_additions", "description": "No people, animals, lettering, extra boats, or new scene details."}
+      ],
+      "unsupported_examples": ["reeds", "an oar", "a shoreline", "a reflection of clouds"]
+    },
+    {
+      "id": "vision-count-relations",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "count-relations",
+      "system_prompt": "",
+      "prompt": "Describe the visible shapes, their counts and colors, their relative positions, and the background. Output one paragraph of at most 70 words, with no heading, markdown, or commentary. Do not assume materials, uses, real-world identities, or hidden objects.",
+      "max_words": 70,
+      "format": "paragraph",
+      "facts": [
+        {"id": "circle", "description": "One red circle on the left."},
+        {"id": "squares", "description": "Two blue squares to the right of the red circle."},
+        {"id": "triangle", "description": "One green triangle below the upper row of shapes."},
+        {"id": "background", "description": "A plain light cream or off-white background."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 70 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No invented material, use, real-world identity, text, or hidden object."}
+      ],
+      "unsupported_examples": ["plastic blocks", "traffic signs", "a sun", "additional shapes"]
+    },
+    {
+      "id": "vision-readable-text",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "readable-text",
+      "system_prompt": "",
+      "prompt": "Transcribe the large sign exactly, then describe the two colored shapes, their positions, and the background including the sign's colors. Output one paragraph of at most 60 words, with no heading, markdown, or commentary. Do not infer a business, location, object material, or operating hours from the sign.",
+      "max_words": 60,
+      "format": "paragraph",
+      "facts": [
+        {"id": "text", "description": "The sign reads OPEN 24, with these exact characters."},
+        {"id": "circle", "description": "An orange circle below the sign on the left."},
+        {"id": "square", "description": "A blue square below the sign on the right."},
+        {"id": "background", "description": "A plain light cream or off-white background; the sign is white with black lettering."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 60 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No inferred business, place, material, operating schedule, or extra text."}
+      ],
+      "unsupported_examples": ["a shop", "24-hour opening", "a street", "OPEN 24 HOURS"]
+    },
+    {
+      "id": "vision-occlusion-unknown",
+      "family": "vision",
+      "candidate": "visible-evidence-v1",
+      "image": "occlusion-unknown",
+      "system_prompt": "Answer from visible pixels. Do not infer real-world object identities. Be explicit when the requested information is not visible.",
+      "prompt": "Describe the visible colors, shapes, and overlap in one paragraph of at most 50 words, with no heading, markdown, or commentary. State whether this image reveals what is inside the large brown rectangle. Do not invent materials or count fully hidden items.",
+      "max_words": 50,
+      "format": "paragraph",
+      "facts": [
+        {"id": "front", "description": "A large brown rectangle in the foreground/lower-right portion of the image."},
+        {"id": "back", "description": "A blue rounded shape or partial circle extends above and to the left of the rectangle."},
+        {"id": "overlap", "description": "The brown rectangle covers part of the blue shape."},
+        {"id": "unknown", "description": "The rectangle's contents are not visible or cannot be determined from the image."}
+      ],
+      "constraints": [
+        {"id": "word_limit", "description": "At most 50 words."},
+        {"id": "format", "description": "One paragraph; no heading, markdown, or commentary."},
+        {"id": "visible_only", "description": "No invented contents, material, object purpose, or count of fully hidden objects."}
+      ],
+      "unsupported_examples": ["a cardboard box", "a ball inside a box", "an empty interior", "wood grain"]
+    }
+  ]
+}
