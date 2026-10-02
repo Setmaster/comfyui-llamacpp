@@ -124,6 +124,12 @@ _PROJECTOR_TYPES = {
     "qwen35": frozenset(("qwen3vl_merger",)),
 }
 _KNOWN_VISION_ARCHITECTURES = frozenset(_MODEL_FAMILY)
+# Google's Gemma3_270M/Gemma3_1B definitions have no vision encoder. Require
+# all three GGUF dimensions, never a filename or size label by itself.
+# https://github.com/google-deepmind/gemma/blob/main/gemma/gm/nn/_gemma.py
+_GEMMA3_TEXT_SIGNATURES = {(640, 18, 2048): "270m", (1152, 26, 6912): "1b"}
+_GEMMA3_SIZE_IDENTITY = re.compile(r"\bgemma[\s_-]*3[\s_-]+(\d+(?:\.\d+)?)[\s_-]*([bm])\b", re.I)
+_VISION_TAGS = frozenset(("image text to text", "image to text", "vision language model"))
 _BASE_NAME_KEY = re.compile(r"^general\.base_model\.(\d+)\.name$")
 _BASE_REPO_KEY = re.compile(r"^general\.base_model\.(\d+)\.repo_url$")
 _DEEPSTACK_TENSOR = re.compile(r"^v\.deepstack\.(\d+)\.fc([12])\.weight$")
@@ -637,6 +643,56 @@ def _legacy_minicpm_structure(
     )
 
 
+def _text_only_gemma3_variant(metadata: GGUFMetadata) -> str | None:
+    if (metadata.string("general.architecture") or "").casefold() != "gemma3":
+        return None
+    signature = tuple(
+        metadata.integer(f"gemma3.{key}")
+        for key in ("embedding_length", "block_count", "feed_forward_length")
+    )
+    variant = _GEMMA3_TEXT_SIGNATURES.get(signature)
+    if variant is None:
+        return None
+
+    # A matching language backbone cannot override affirmative or malformed
+    # modality metadata, or a projector output embedded in the model file.
+    tags = metadata.strings("general.tags")
+    if "general.tags" in metadata.values and tags is None:
+        return None
+    if {_normalized_identity(tag) for tag in tags or ()} & _VISION_TAGS:
+        return None
+    if any(key.startswith("clip.") for key in metadata.values) or metadata.tensors:
+        return None
+    if (
+        "gemma3.n_deepstack_layers" in metadata.values
+        and metadata.integer("gemma3.n_deepstack_layers") != 0
+    ):
+        return None
+    if "general.size_label" in metadata.values:
+        label = metadata.string("general.size_label")
+        if label is None or label.strip().casefold() != variant:
+            return None
+
+    # Descriptive metadata is not proof, but explicit disagreement is a reason
+    # to retain the conservative vision-family behavior.
+    for key in metadata.values:
+        if not (
+            key in {"general.name", "general.basename"}
+            or _BASE_NAME_KEY.fullmatch(key)
+            or _BASE_REPO_KEY.fullmatch(key)
+        ):
+            continue
+        value = metadata.string(key)
+        if value is None:
+            return None
+        if any(
+            (number + unit).casefold() != variant
+            for number, unit in _GEMMA3_SIZE_IDENTITY.findall(value)
+        ):
+            return None
+    return variant
+
+
 def _known_vision_model(
     model_name: str,
     metadata: GGUFMetadata | None,
@@ -646,18 +702,13 @@ def _known_vision_model(
     if metadata is None:
         return False
     architecture = (metadata.string("general.architecture") or "").casefold()
-    if architecture in _KNOWN_VISION_ARCHITECTURES:
-        return True
     tags = metadata.strings("general.tags") or ()
     normalized_tags = {_normalized_identity(tag) for tag in tags}
-    return bool(
-        normalized_tags
-        & {
-            "image text to text",
-            "image to text",
-            "vision language model",
-        }
-    )
+    if normalized_tags & _VISION_TAGS:
+        return True
+    if _text_only_gemma3_variant(metadata) is not None:
+        return False
+    return architecture in _KNOWN_VISION_ARCHITECTURES
 
 
 def _adjacent_name_plausible(model_name: str, projector_name: str) -> bool:
@@ -953,12 +1004,18 @@ def resolve_direct_projector(
                 f"{_bounded_candidate_names(plausible)}. Select one explicitly or choose "
                 f"'{NONE_PROJECTOR}'"
             )
+        text_variant = _text_only_gemma3_variant(model_metadata)
+        detail = (
+            f"known text-only Gemma 3 {text_variant.upper()} metadata; no plausible local projector"
+            if text_variant is not None
+            else "model metadata is not a known vision family; no plausible local projector"
+        )
         return ProjectorResolution(
             model_name=model_entry.name,
             model_path=lexical_model,
             mode="auto",
             outcome="auto_text_only",
-            evidence=("model metadata is not a known vision family; no plausible local projector",),
+            evidence=(detail,),
         )
 
     if len(projector_entries) > MAX_PROJECTOR_CANDIDATES:

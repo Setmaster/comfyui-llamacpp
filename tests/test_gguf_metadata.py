@@ -127,6 +127,46 @@ def _empty_metadata_cache():
 
 
 @pytest.mark.parametrize("version", [2, 3])
+def test_retains_only_gemma3_variant_dimensions_without_broadening_architecture_keys(
+    tmp_path, version
+):
+    path = write_gguf(
+        tmp_path / "gemma3.gguf",
+        {
+            "general.architecture": "gemma3",
+            "gemma3.embedding_length": 1152,
+            "gemma3.block_count": 26,
+            "gemma3.feed_forward_length": 6912,
+            "llama.block_count": 32,
+            "llama.feed_forward_length": 14336,
+            "tokenizer.ggml.tokens": ["ignored", "vocabulary"],
+        },
+        version=version,
+    )
+
+    result = read_gguf_metadata(path)
+
+    assert dict(result.values) == {
+        "general.architecture": "gemma3",
+        "gemma3.embedding_length": 1152,
+        "gemma3.block_count": 26,
+        "gemma3.feed_forward_length": 6912,
+    }
+
+
+@pytest.mark.parametrize("key", ["gemma3.block_count", "gemma3.feed_forward_length"])
+@pytest.mark.parametrize("value", [True, "26", ["26"]])
+def test_malformed_gemma3_variant_dimensions_remain_available_as_inconclusive(tmp_path, key, value):
+    path = write_gguf(tmp_path / "gemma3.gguf", {"general.architecture": "gemma3", key: value})
+
+    result = read_gguf_metadata(path)
+
+    assert result.string("general.architecture") == "gemma3"
+    assert key in result.values
+    assert result.integer(key) is None
+
+
+@pytest.mark.parametrize("version", [2, 3])
 def test_reads_selected_v2_and_v3_metadata_without_tensor_payload(tmp_path, version):
     path = write_gguf(
         tmp_path / f"model-v{version}.gguf",

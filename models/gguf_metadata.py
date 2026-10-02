@@ -205,6 +205,10 @@ _EXACT_METADATA_KEYS = frozenset(
         "general.file_type",
         "general.alignment",
         "general.base_model.count",
+        # Retain malformed variant facts too: integer() rejects them without
+        # losing the architecture needed for conservative model classification.
+        "gemma3.block_count",
+        "gemma3.feed_forward_length",
         "clip.has_vision_encoder",
         "clip.has_minicpmv_projector",
         "clip.minicpmv_version",

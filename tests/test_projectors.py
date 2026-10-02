@@ -1442,6 +1442,157 @@ def test_known_vlm_without_projector_fails_but_text_or_unknown_is_text_only(tmp_
     assert unknown.outcome == "auto_text_only"
 
 
+def gemma3_text_metadata(size: str) -> dict[str, object]:
+    # Official Gemma3_270M/Gemma3_1B configs, both with vision_encoder=None:
+    # https://github.com/google-deepmind/gemma/blob/main/gemma/gm/nn/_gemma.py
+    width, layers, feed_forward = {
+        "270M": (640, 18, 2048),
+        "1B": (1152, 26, 6912),
+    }[size]
+    return {
+        **model_metadata("gemma3", f"Gemma 3 {size} It", width),
+        "general.size_label": size,
+        "gemma3.block_count": layers,
+        "gemma3.feed_forward_length": feed_forward,
+    }
+
+
+@pytest.mark.parametrize("size", ["270M", "1B"])
+@pytest.mark.parametrize("descriptive_metadata", [True, False])
+@pytest.mark.parametrize("unrelated_projector", [True, False])
+def test_known_text_only_gemma3_variants_need_no_projector(
+    tmp_path, size, descriptive_metadata, unrelated_projector
+):
+    metadata = gemma3_text_metadata(size)
+    if not descriptive_metadata:
+        del metadata["general.name"]
+        del metadata["general.size_label"]
+    write_gguf(tmp_path / "arbitrary-renamed-model.gguf", metadata)
+    if unrelated_projector:
+        write_gguf(
+            tmp_path / "mmproj-unrelated-f16.gguf",
+            projector_metadata("gemma3", "Gemma 3 4B It", 2560),
+        )
+
+    result = resolve_direct_projector(
+        "arbitrary-renamed-model.gguf", AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path])
+    )
+
+    assert result.outcome == "auto_text_only"
+    assert result.projector_path is None
+    assert f"known text-only Gemma 3 {size} metadata" in result.status_dict()["detail"]
+
+
+@pytest.mark.parametrize("size", ["270M", "1B"])
+@pytest.mark.parametrize(
+    "key", ["gemma3.embedding_length", "gemma3.block_count", "gemma3.feed_forward_length"]
+)
+@pytest.mark.parametrize("replacement", [None, 0, 9999])
+def test_gemma3_names_and_size_labels_cannot_replace_complete_dimensions(
+    tmp_path, size, key, replacement
+):
+    metadata = gemma3_text_metadata(size)
+    if replacement is None:
+        del metadata[key]
+    else:
+        metadata[key] = replacement
+    name = f"gemma-3-{size.lower()}-it.gguf"
+    write_gguf(tmp_path / name, metadata)
+
+    with pytest.raises(ProjectorResolutionError, match="known vision model"):
+        resolve_direct_projector(name, AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path]))
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("gemma3.block_count", "26"),
+        ("gemma3.block_count", True),
+        ("gemma3.feed_forward_length", "6912"),
+        ("gemma3.feed_forward_length", True),
+        ("general.tags", ["image-text-to-text"]),
+        ("general.tags", ["image-to-text"]),
+        ("general.tags", ["vision-language-model"]),
+        ("general.tags", "text-generation"),
+        ("general.size_label", "4B"),
+        ("general.size_label", True),
+        ("general.name", "Gemma 3 4B It"),
+        ("general.basename", "Gemma-3-270M"),
+        ("general.base_model.0.name", "Gemma 3 12B It"),
+        ("general.base_model.0.repo_url", "https://huggingface.co/google/gemma-3-27b-it"),
+        ("clip.has_vision_encoder", True),
+        ("clip.has_vision_encoder", "unknown"),
+        ("gemma3.n_deepstack_layers", 1),
+    ],
+)
+def test_text_only_gemma3_signature_does_not_override_conflicting_metadata(tmp_path, key, value):
+    metadata = gemma3_text_metadata("1B")
+    metadata[key] = value
+    if key.startswith("general.base_model."):
+        metadata["general.base_model.count"] = 1
+    write_gguf(tmp_path / "model.gguf", metadata)
+
+    with pytest.raises(ProjectorResolutionError, match="known vision model"):
+        resolve_direct_projector("model.gguf", AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path]))
+
+
+def test_gemma3_text_signature_with_projector_tensor_remains_conservative(tmp_path):
+    write_gguf(
+        tmp_path / "model.gguf",
+        gemma3_text_metadata("1B"),
+        [("mm.input_projection.weight", (1152, 1))],
+    )
+
+    with pytest.raises(ProjectorResolutionError, match="known vision model"):
+        resolve_direct_projector("model.gguf", AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path]))
+
+
+def test_text_only_gemma3_with_plausible_projector_still_requires_a_choice(tmp_path):
+    write_gguf(tmp_path / "model.gguf", gemma3_text_metadata("1B"))
+    projector_path = write_gguf(
+        tmp_path / "mmproj-f16.gguf", projector_metadata("gemma3", "Gemma 3 1B It", 1152)
+    )
+    catalog = ModelCatalog([tmp_path])
+
+    with pytest.raises(ProjectorResolutionError, match="plausible local projectors"):
+        resolve_direct_projector("model.gguf", AUTO_PROJECTOR, catalog=catalog)
+    explicit = resolve_direct_projector("model.gguf", "mmproj-f16.gguf", catalog=catalog)
+    text = resolve_direct_projector("model.gguf", NONE_PROJECTOR, catalog=catalog)
+
+    assert explicit.outcome == "explicit"
+    assert explicit.projector_path == projector_path
+    assert text.outcome == "text_only"
+    assert text.projector_path is None
+
+
+@pytest.mark.parametrize(
+    ("size", "width", "layers", "feed_forward"),
+    [("4B", 2560, 34, 10240), ("12B", 3840, 48, 15360), ("27B", 5376, 62, 21504)],
+)
+def test_gemma3_vision_variants_still_require_a_compatible_projector(
+    tmp_path, size, width, layers, feed_forward
+):
+    name = f"Gemma 3 {size} It"
+    write_gguf(
+        tmp_path / "model.gguf",
+        {
+            **model_metadata("gemma3", name, width),
+            "gemma3.block_count": layers,
+            "gemma3.feed_forward_length": feed_forward,
+        },
+    )
+    with pytest.raises(ProjectorResolutionError, match="known vision model"):
+        resolve_direct_projector("model.gguf", AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path]))
+
+    write_gguf(tmp_path / "mmproj-f16.gguf", projector_metadata("gemma3", name, width))
+    result = resolve_direct_projector(
+        "model.gguf", AUTO_PROJECTOR, catalog=ModelCatalog([tmp_path])
+    )
+
+    assert result.outcome == "auto_selected"
+    assert result.projector_name == "mmproj-f16.gguf"
+
+
 def test_flat_root_unrelated_projector_does_not_block_parseable_text_model(tmp_path):
     write_gguf(
         tmp_path / "text-model.gguf",
