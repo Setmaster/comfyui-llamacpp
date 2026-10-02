@@ -25,6 +25,7 @@ from .client import (
     _read_bounded_response_bytes,
     redact_secrets,
 )
+from .http_deadline import DeadlineHTTPAdapter, response_deadline
 
 Line = str | bytes
 ChunkCallback = Callable[[str, str], None]
@@ -494,19 +495,30 @@ def iter_model_events(
     max_line_bytes: int = DEFAULT_MAX_SSE_LINE_BYTES,
     max_event_bytes: int = DEFAULT_MAX_SSE_EVENT_BYTES,
 ) -> Iterator[ModelEvent]:
-    """Yield typed events from the protected ``/models/sse`` endpoint."""
+    """Yield typed events from the protected ``/models/sse`` endpoint.
+
+    Owned sessions bound response socket reads by the absolute deadline.
+    Injected sessions retain their adapters and must provide those I/O bounds.
+    """
 
     active = _deadline_for(connection, timeout, deadline)
     owned_session = session is None
     http = session or requests.Session()
+    if owned_session:
+        http.mount("http://", DeadlineHTTPAdapter())
+        http.mount("https://", DeadlineHTTPAdapter())
     response: Any = None
     try:
         _check_stream(active, cancel, "model event stream")
-        response = http.request(
-            "GET",
-            connection.url("/models/sse"),
-            **_request_kwargs(connection, active, read_timeout=read_timeout),
-        )
+        # Capture the deadline during response construction, including status
+        # and header reads. The response reader retains it for body reads; the
+        # context must be reset before yielding events back to the caller.
+        with response_deadline(active):
+            response = http.request(
+                "GET",
+                connection.url("/models/sse"),
+                **_request_kwargs(connection, active, read_timeout=read_timeout),
+            )
         if response.status_code != 200:
             raise _response_error(response, connection)
 
@@ -654,6 +666,8 @@ def stream_chat(
     A stream is successful only after ``[DONE]`` or a choice with a non-null
     ``finish_reason``.  Content received before an error, cancellation, or
     unterminated EOF is returned with ``partial=True``.
+    Owned sessions bound response socket reads by the absolute deadline.
+    Injected sessions retain their adapters and must provide those I/O bounds.
     """
 
     if strict_protocol:
@@ -688,6 +702,9 @@ def stream_chat(
     active = _deadline_for(connection, timeout, deadline)
     owned_session = session is None
     http = session or requests.Session()
+    if owned_session:
+        http.mount("http://", DeadlineHTTPAdapter())
+        http.mount("https://", DeadlineHTTPAdapter())
     response_obj: Any = None
 
     content_buffer = StringIO()
@@ -774,7 +791,8 @@ def stream_chat(
             extra_headers=extra_headers,
         )
         kwargs["json"] = request_payload
-        response_obj = http.request("POST", connection.url(endpoint), **kwargs)
+        with response_deadline(active):
+            response_obj = http.request("POST", connection.url(endpoint), **kwargs)
         if response_obj.status_code != 200:
             error = _response_error(
                 response_obj,

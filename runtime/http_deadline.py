@@ -2,7 +2,8 @@
 
 Socket inactivity timeouts alone permit a peer to trickle headers or a body
 forever. Check the remaining budget before every raw read, including the reads
-hidden inside buffered HTTP parsing. No timer or worker can outlive a request.
+hidden inside buffered HTTP parsing. Optional cancellation monitors shut down
+only the active response socket and are joined before the request returns.
 DNS resolution and connection establishment retain requests' native behavior;
 in particular, its connect timeout does not bound the system DNS resolver.
 """
@@ -10,6 +11,7 @@ in particular, its connect timeout does not bound the system DNS resolver.
 from __future__ import annotations
 
 import io
+import socket
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -31,14 +33,104 @@ if TYPE_CHECKING:
 
 
 _ACTIVE_DEADLINE: ContextVar[Deadline | None] = ContextVar("llama_http_deadline", default=None)
+_ACTIVE_CANCELLATION: ContextVar[_ResponseCancellation | None] = ContextVar(
+    "llama_http_cancellation", default=None
+)
+
+
+class _ResponseCancellation:
+    """A nonblocking predicate and one borrowed socket, never a shared session.
+
+    Detach occurs before the response releases its connection to the pool. The
+    same lock guards detach and shutdown, preventing a completed request's
+    monitor from touching a later user of a keep-alive connection.
+    """
+
+    def __init__(self, cancel: Callable[[], bool]) -> None:
+        self._cancel = cancel
+        self._lock = threading.Lock()
+        self._poll_lock = threading.Lock()
+        self._stop = threading.Event()
+        self._socket: Any = None
+        self._failure: BaseException | None = None
+        self._thread: threading.Thread | None = None
+
+    def _poll(self) -> None:
+        with self._poll_lock:
+            if self._failure is None:
+                try:
+                    if self._cancel():
+                        from .client import OperationCancelled
+
+                        self._failure = OperationCancelled("HTTP response cancelled")
+                except BaseException as exc:
+                    self._failure = exc
+
+    def check(self) -> None:
+        self._poll()
+        if self._failure is not None:
+            raise self._failure
+
+    def attach(self, sock: Any) -> None:
+        self.check()
+        with self._lock:
+            self._socket = sock
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._watch, name="llama-http-cancel")
+                self._thread.start()
+
+    def detach(self, sock: Any) -> None:
+        with self._lock:
+            if self._socket is sock:
+                self._socket = None
+
+    def _watch(self) -> None:
+        while not self._stop.wait(0.025):
+            self._poll()
+            if self._failure is not None:
+                with self._lock:
+                    sock = self._socket
+                    # TLS-in-TLS wraps a real outer socket. Shutdown must wake
+                    # the blocked read without attempting TLS close traffic.
+                    while SSLTransport is not None and isinstance(sock, SSLTransport):
+                        sock = sock.socket
+                    if sock is not None:
+                        try:
+                            sock.shutdown(socket.SHUT_RDWR)
+                        except OSError:
+                            pass
+                        finally:
+                            # Older urllib3 may accept a short body as EOF and
+                            # pool the connection before the caller checks the
+                            # cancellation flag. Close this exact socket too;
+                            # makefile references defer final descriptor close
+                            # until the response reader unwinds.
+                            sock.close()
+                return
+
+    def close(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+        with self._lock:
+            self._socket = None
 
 
 @contextmanager
-def response_deadline(deadline: Deadline) -> Iterator[None]:
+def response_deadline(
+    deadline: Deadline, cancel: Callable[[], bool] | None = None
+) -> Iterator[_ResponseCancellation | None]:
     token = _ACTIVE_DEADLINE.set(deadline)
+    cancellation = _ResponseCancellation(cancel) if cancel is not None else None
+    cancellation_token = _ACTIVE_CANCELLATION.set(cancellation)
     try:
-        yield
+        if cancellation is not None:
+            cancellation.check()
+        yield cancellation
     finally:
+        if cancellation is not None:
+            cancellation.close()
+        _ACTIVE_CANCELLATION.reset(cancellation_token)
         _ACTIVE_DEADLINE.reset(token)
 
 
@@ -47,7 +139,14 @@ class _DeadlineReader(io.RawIOBase):
         super().__init__()
         self._sock = sock
         self._deadline = deadline
+        self._cancellation = _ACTIVE_CANCELLATION.get()
         self._raw = sock.makefile("rb", buffering=0)
+        if self._cancellation is not None:
+            try:
+                self._cancellation.attach(sock)
+            except BaseException:
+                self._raw.close()
+                raise
 
     def readable(self) -> bool:
         return True
@@ -69,6 +168,8 @@ class _DeadlineReader(io.RawIOBase):
 
     def close(self) -> None:
         try:
+            if self._cancellation is not None:
+                self._cancellation.detach(self._sock)
             self._raw.close()
         finally:
             super().close()
@@ -119,7 +220,9 @@ class _DeadlineSocket:
 class _DeadlineResponse(HTTPResponse):
     def __init__(self, sock: Any, *args: Any, **kwargs: Any) -> None:
         deadline = _ACTIVE_DEADLINE.get()
-        if deadline is not None and deadline.remaining is not None:
+        if deadline is not None and (
+            deadline.remaining is not None or _ACTIVE_CANCELLATION.get() is not None
+        ):
             sock = _DeadlineSocket(sock, deadline)
         super().__init__(sock, *args, **kwargs)
 

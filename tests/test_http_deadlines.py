@@ -1,4 +1,4 @@
-"""Real socket coverage for absolute JSON response deadlines and cleanup."""
+"""Real socket coverage for absolute JSON/SSE response deadlines and cleanup."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import ssl
 import threading
 import time
 import unittest
+import uuid
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +22,7 @@ import requests
 
 import runtime.client as client_module
 import runtime.http_deadline as deadline_module
+import runtime.streaming as streaming_module
 from runtime.client import (
     ConnectionConfig,
     Deadline,
@@ -29,6 +31,7 @@ from runtime.client import (
     LlamaServerClient,
     ResponseBodyLimitError,
     ResponseProtocolError,
+    StreamControl,
     TLSConfig,
 )
 
@@ -103,7 +106,7 @@ class _Handler(BaseHTTPRequestHandler):
             body = b'{"build_info":"parallel"}'
         elif mode in {"tls_record_headers", "tls_record_body"}:
             body = b'{"build_info":"fragmented"}'
-        elif mode == "stream" and not path.endswith("/health"):
+        elif mode in {"stream", "stream_concurrent"} and not path.endswith("/health"):
             headers = b"Content-Type: text/event-stream\r\n"
             if path.endswith("/models/sse"):
                 body = b'data: {"model":"fixture","event":"loaded"}\n\n'
@@ -115,7 +118,7 @@ class _Handler(BaseHTTPRequestHandler):
                 )
 
         try:
-            if mode == "headers":
+            if mode == "headers" or (mode == "stream_concurrent" and path.endswith("/health")):
                 self.wfile.write(b"HTTP/1.1 200 OK\r\nX-Slow: ")
                 self._trickle(b"x" * 40)
                 return
@@ -143,7 +146,7 @@ class _Handler(BaseHTTPRequestHandler):
                 mode == "concurrent" and path.endswith("/health")
             ):
                 self._trickle(body)
-            elif mode == "concurrent":
+            elif mode in {"concurrent", "stream_concurrent"}:
                 # Keep this response open until the other request times out.
                 # Repeated short sleeps can stall the fixture's nominally fast
                 # body under scheduling delays, independently of client I/O.
@@ -418,6 +421,206 @@ class HTTPDeadlineTests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertEqual(events[0].model, "fixture")
 
+    def _assert_sse_timeout(self, client, endpoint, *, timeout=0.1):
+        started = time.monotonic()
+        if endpoint == "chat":
+            result = client.stream_chat({"messages": []}, timeout=timeout)
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_type, "timeout")
+        else:
+            with self.assertRaises(DeadlineExceeded):
+                list(client.iter_model_events(timeout=timeout))
+        self.assertLess(time.monotonic() - started, timeout + 0.25)
+
+    def test_sse_status_headers_body_and_chunk_framing_obey_absolute_deadline(self):
+        before = set(threading.enumerate())
+        for endpoint in ("chat", "models"):
+            for mode in ("status", "headers", "body", "chunked", "gzip_slow"):
+                with (
+                    self.subTest(endpoint=endpoint, mode=mode),
+                    _server() as server,
+                    self._client(server, mode) as client,
+                    _capture_response_readers() as readers,
+                ):
+                    self._assert_sse_timeout(client, endpoint)
+                    self.assertTrue(server.slow_started.is_set())
+                    self._assert_response_resources_closed(readers)
+                    self.assertIsNone(deadline_module._ACTIVE_DEADLINE.get())
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
+    def test_sse_error_body_deadline_preserves_http_status_and_redaction(self):
+        for endpoint in ("chat", "models"):
+            with (
+                self.subTest(endpoint=endpoint),
+                _server() as server,
+                self._client(server, "error_slow") as client,
+                _capture_response_readers() as readers,
+            ):
+                started = time.monotonic()
+                if endpoint == "chat":
+                    result = client.stream_chat({"messages": []}, timeout=0.1)
+                    self.assertFalse(result.success)
+                    self.assertEqual(result.error_type, "http")
+                    self.assertEqual(result.status_code, 500)
+                    message = result.error_message
+                else:
+                    with self.assertRaises(LlamaClientError) as caught:
+                        list(client.iter_model_events(timeout=0.1))
+                    self.assertEqual(caught.exception.status_code, 500)
+                    message = str(caught.exception)
+                self.assertNotIn("private-error-sentinel", message)
+                self.assertLess(time.monotonic() - started, 0.35)
+                self._assert_response_resources_closed(readers)
+
+    def test_standalone_sse_sessions_have_bounded_headers_and_close(self):
+        for endpoint in ("chat", "models"):
+            for mode in ("stream", "headers"):
+                with (
+                    self.subTest(endpoint=endpoint, mode=mode),
+                    _server() as server,
+                    self._client(server, mode) as client,
+                    _capture_response_readers() as readers,
+                ):
+                    # Exercise the public functions' own session construction.
+                    with requests.Session() as session:
+                        session.trust_env = False
+                        with (
+                            mock.patch.object(
+                                streaming_module.requests, "Session", return_value=session
+                            ),
+                            mock.patch.object(session, "close", wraps=session.close) as close,
+                        ):
+                            started = time.monotonic()
+                            if endpoint == "chat":
+                                result = streaming_module.stream_chat(
+                                    client.connection, {}, timeout=0.1
+                                )
+                                self.assertEqual(result.success, mode == "stream")
+                                if mode == "headers":
+                                    self.assertEqual(result.error_type, "timeout")
+                            elif mode == "stream":
+                                events = list(
+                                    streaming_module.iter_model_events(
+                                        client.connection, timeout=0.1
+                                    )
+                                )
+                                self.assertEqual([event.model for event in events], ["fixture"])
+                            else:
+                                with self.assertRaises(DeadlineExceeded):
+                                    list(
+                                        streaming_module.iter_model_events(
+                                            client.connection, timeout=0.1
+                                        )
+                                    )
+                            self.assertLess(time.monotonic() - started, 0.35)
+                            close.assert_called_once()
+                        self._assert_response_resources_closed(readers)
+
+    def test_model_event_yield_does_not_leak_deadline_into_caller_context(self):
+        with _server() as server, self._client(server, "stream") as client:
+            iterator = client.iter_model_events(timeout=0.1)
+            try:
+                self.assertEqual(next(iterator).model, "fixture")
+                self.assertIsNone(deadline_module._ACTIVE_DEADLINE.get())
+            finally:
+                iterator.close()
+            self.assertIsNone(deadline_module._ACTIVE_DEADLINE.get())
+
+    def test_sse_header_timeout_still_deletes_its_exact_stream(self):
+        with (
+            _server() as server,
+            self._client(server, "headers") as client,
+            _capture_response_readers() as readers,
+        ):
+            deleted = []
+            control = StreamControl(
+                client.connection,
+                uuid.uuid4(),
+                _delete=lambda identity, _timeout: deleted.append(identity) or True,
+            )
+            started = time.monotonic()
+            result = client.stream_chat({}, timeout=0.1, stream_control=control)
+            self.assertLess(time.monotonic() - started, 0.35)
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_type, "timeout")
+            self.assertEqual(deleted, [control.conversation_id])
+            self.assertTrue(result.stream_cleanup.confirmed)
+            self._assert_response_resources_closed(readers)
+
+    def test_sse_trickled_headers_through_tls_and_http_proxy(self):
+        for endpoint in ("chat", "models"):
+            for transport in ("tls", "http_proxy"):
+                with (
+                    self.subTest(endpoint=endpoint, transport=transport),
+                    _server(tls=transport == "tls") as server,
+                    self._client(server, "headers", tls=transport == "tls") as client,
+                    _capture_response_readers() as readers,
+                ):
+                    if transport == "http_proxy":
+                        client._session.proxies["http"] = f"http://127.0.0.1:{server.server_port}"
+                    client._request_json("GET", "/warmup", deadline=Deadline(2))
+                    self._assert_sse_timeout(client, endpoint)
+                    self._assert_response_resources_closed(readers)
+
+    def test_sse_https_proxy_fragmented_inner_tls_records_obey_deadline(self):
+        before = set(threading.enumerate())
+        for endpoint in ("chat", "models"):
+            for mode in ("tls_record_headers", "tls_record_body"):
+                with (
+                    self.subTest(endpoint=endpoint, mode=mode),
+                    _server(tls=True) as upstream,
+                    _tls_proxy(upstream, fragment=True) as proxy,
+                    self._client(upstream, mode, tls=True) as client,
+                    _capture_response_readers() as readers,
+                ):
+                    client._session.proxies["https"] = (
+                        f"https://127.0.0.1:{proxy.server_address[1]}"
+                    )
+                    client._request_json("GET", "/warmup", deadline=Deadline(2))
+                    client._session.hooks["response"].append(
+                        lambda response, signal=upstream.headers_read, **_: signal.set()
+                    )
+                    self._assert_sse_timeout(client, endpoint, timeout=0.2)
+                    self._assert_response_resources_closed(readers)
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
+    def test_sse_concurrent_survivor_keeps_its_own_deadline_and_transport(self):
+        before = set(threading.enumerate())
+        for use_proxy in (False, True):
+            with (
+                self.subTest(https_proxy=use_proxy),
+                _server(tls=use_proxy) as upstream,
+                self._client(upstream, "stream_concurrent", tls=use_proxy) as client,
+            ):
+                with _tls_proxy(upstream) as proxy:
+                    if use_proxy:
+                        client._session.proxies["https"] = (
+                            f"https://127.0.0.1:{proxy.server_address[1]}"
+                        )
+                    client._request_json("GET", "/warmup", deadline=Deadline(2))
+                    results = []
+
+                    def slow_request(results=results):
+                        try:
+                            results.append(client.stream_chat({}, endpoint="/health", timeout=0.2))
+                        finally:
+                            upstream.release_concurrent_response.set()
+
+                    slow = threading.Thread(target=slow_request)
+                    slow.start()
+                    try:
+                        self.assertTrue(upstream.slow_started.wait(1))
+                        result = client.stream_chat({}, timeout=1)
+                        self.assertTrue(result.success, result.error_message)
+                        self.assertEqual(result.response, "hello")
+                    finally:
+                        slow.join(timeout=1)
+                    self.assertFalse(slow.is_alive())
+                    self.assertEqual(len(results), 1)
+                    self.assertEqual(results[0].error_type, "timeout")
+                    self.assertEqual(upstream.accepted, 2)
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
     def test_tls_verification_and_trickled_response_deadlines(self):
         # This PEM contains only a disposable, public loopback-fixture identity.
         for mode in ("utf8", "headers", "body"):
@@ -468,6 +671,20 @@ class HTTPDeadlineTests(unittest.TestCase):
             client.close()
             self.assertEqual(session.adapters, adapters)
             self.assertTrue(client.health().ok)
+            connection = ConnectionConfig(f"http://127.0.0.1:{server.server_port}/stream")
+            with mock.patch.object(session, "close", wraps=session.close) as close:
+                self.assertTrue(
+                    streaming_module.stream_chat(connection, {}, session=session).success
+                )
+                self.assertEqual(
+                    [
+                        event.model
+                        for event in streaming_module.iter_model_events(connection, session=session)
+                    ],
+                    ["fixture"],
+                )
+                close.assert_not_called()
+            self.assertEqual(session.adapters, adapters)
 
     def test_https_proxy_fragmented_inner_tls_records_obey_deadline_and_close(self):
         before = set(threading.enumerate())

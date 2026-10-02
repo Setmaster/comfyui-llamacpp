@@ -34,6 +34,7 @@ STREAM_CONTROL_DELETE_TIMEOUT = 2.0
 JSON_RESPONSE_MAX_BYTES = 16 * 1024 * 1024
 ERROR_RESPONSE_MAX_BYTES = 64 * 1024
 RESPONSE_READ_CHUNK_BYTES = 64 * 1024
+INPUT_TOKEN_RESPONSE_MAX_BYTES = 64 * 1024
 
 
 class LlamaClientError(RuntimeError):
@@ -347,6 +348,18 @@ class ServerProps:
         return self.role == "router"
 
 
+class InputTokenSupport(str, Enum):
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+
+
+@dataclass(frozen=True, slots=True)
+class InputTokenCount:
+    input_tokens: int | None
+    support: InputTokenSupport
+    source: str = "/v1/chat/completions/input_tokens"
+
+
 @dataclass(frozen=True, slots=True)
 class RouterModel:
     id: str
@@ -655,12 +668,21 @@ class LlamaServerClient:
         duration = self.connection.default_deadline if timeout is None else timeout
         return Deadline(duration, self._clock)
 
-    def _response_json(self, response: Any, *, path: str, deadline: Deadline) -> Any:
+    def _response_json(
+        self,
+        response: Any,
+        *,
+        path: str,
+        deadline: Deadline,
+        check: Callable[[], None] | None = None,
+        max_bytes: int | None = None,
+        strict_json: bool = False,
+    ) -> Any:
         try:
             body, _ = _read_bounded_response_bytes(
                 response,
-                JSON_RESPONSE_MAX_BYTES,
-                check=lambda: deadline.raise_if_expired(f"reading {path}"),
+                JSON_RESPONSE_MAX_BYTES if max_bytes is None else max_bytes,
+                check=check or (lambda: deadline.raise_if_expired(f"reading {path}")),
             )
         except LlamaClientError as exc:
             if exc.endpoint is None:
@@ -675,7 +697,21 @@ class LlamaServerClient:
                 "response body was not valid UTF-8",
                 endpoint=path,
             ) from exc
+
+        def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate response JSON key")
+                result[key] = value
+            return result
+
+        def reject_constant(value: str) -> None:
+            raise ValueError("invalid response JSON constant")
+
         try:
+            if strict_json:
+                return json.loads(text, object_pairs_hook=unique, parse_constant=reject_constant)
             return json.loads(text)
         except (TypeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
             raise ResponseProtocolError(
@@ -692,6 +728,9 @@ class LlamaServerClient:
         expected: Sequence[int] = (200,),
         params: Mapping[str, Any] | None = None,
         body: Mapping[str, Any] | None = None,
+        cancel: CancelCheck | None = None,
+        response_max_bytes: int | None = None,
+        strict_json: bool = False,
     ) -> tuple[int, Any, Mapping[str, str]]:
         deadline.raise_if_expired(f"{method} {path}")
         url = self.connection.url(path)
@@ -712,59 +751,77 @@ class LlamaServerClient:
         if body is not None:
             kwargs["json"] = dict(body)
 
-        try:
-            # The owned adapter captures this request-local budget before header
-            # parsing and retains it in the response's raw body reader. Injected
-            # transports retain ownership of their own blocking I/O behavior.
-            with response_deadline(deadline):
-                response = self._session.request(method, url, **kwargs)
-        except requests.Timeout as exc:
-            raise DeadlineExceeded(
-                redact_secrets(f"{method} {path} timed out", self.connection.secrets),
-                endpoint=path,
-            ) from exc
-        except requests.RequestException as exc:
-            if _is_wrapped_read_timeout(exc) or deadline.expired:
-                raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
-            raise LlamaClientError(
-                f"{method} {path} failed",
-                endpoint=path,
-            ) from exc
+        # The guard stays active until the response is closed. Its monitor only
+        # borrows this response's socket, and joins before the request returns.
+        # Injected transports own their blocking-I/O bounds between checks.
+        with response_deadline(deadline, cancel) as cancellation:
 
-        try:
-            status_code = int(response.status_code)
-            headers = dict(getattr(response, "headers", {}) or {})
-            if status_code not in expected:
-                try:
-                    _read_bounded_response_bytes(
-                        response,
-                        ERROR_RESPONSE_MAX_BYTES,
-                        truncate=True,
-                        check=lambda: deadline.raise_if_expired(f"reading {path}"),
+            def check() -> None:
+                if cancellation is not None:
+                    cancellation.check()
+                deadline.raise_if_expired(f"{method} {path}")
+
+            response = None
+            try:
+                check()
+                response = self._session.request(method, url, **kwargs)
+                check()
+                status_code = int(response.status_code)
+                headers = dict(getattr(response, "headers", {}) or {})
+                if status_code not in expected:
+                    try:
+                        _read_bounded_response_bytes(
+                            response,
+                            ERROR_RESPONSE_MAX_BYTES,
+                            truncate=True,
+                            check=check,
+                        )
+                    except OperationCancelled:
+                        raise
+                    except (LlamaClientError, requests.RequestException):
+                        # Keep a known HTTP error classification when its body
+                        # stalls. Cancellation remains an explicit interruption.
+                        if cancellation is not None:
+                            cancellation.check()
+                    raise LlamaClientError(
+                        f"HTTP {status_code}: request failed",
+                        status_code=status_code,
+                        endpoint=path,
                     )
-                except (LlamaClientError, requests.RequestException):
-                    pass
-                raise LlamaClientError(
-                    f"HTTP {status_code}: request failed",
-                    status_code=status_code,
-                    endpoint=path,
+                data = self._response_json(
+                    response,
+                    path=path,
+                    deadline=deadline,
+                    check=check,
+                    max_bytes=response_max_bytes,
+                    strict_json=strict_json,
                 )
-            data = self._response_json(response, path=path, deadline=deadline)
-            return status_code, data, headers
-        except requests.Timeout as exc:
-            raise DeadlineExceeded(
-                f"{method} {path} timed out",
-                endpoint=path,
-            ) from exc
-        except requests.RequestException as exc:
-            if _is_wrapped_read_timeout(exc) or deadline.expired:
+                check()
+                return status_code, data, headers
+            except requests.Timeout as exc:
+                if cancellation is not None:
+                    cancellation.check()
                 raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
-            raise LlamaClientError(
-                f"{method} {path} failed",
-                endpoint=path,
-            ) from exc
-        finally:
-            response.close()
+            except requests.RequestException as exc:
+                if cancellation is not None:
+                    cancellation.check()
+                if _is_wrapped_read_timeout(exc) or deadline.expired:
+                    raise DeadlineExceeded(f"{method} {path} timed out", endpoint=path) from exc
+                message = (
+                    f"{method} {path} TLS verification failed"
+                    if isinstance(exc, requests.exceptions.SSLError)
+                    else f"{method} {path} failed"
+                )
+                raise LlamaClientError(message, endpoint=path) from exc
+            except LlamaClientError as exc:
+                if cancellation is not None:
+                    cancellation.check()
+                if exc.endpoint is None:
+                    exc.endpoint = path
+                raise
+            finally:
+                if response is not None:
+                    response.close()
 
     def health(
         self,
@@ -794,6 +851,7 @@ class LlamaServerClient:
         autoload: bool | None = None,
         deadline: Deadline | None = None,
         timeout: float | None = None,
+        cancel: CancelCheck | None = None,
     ) -> ServerProps:
         active = self._deadline(deadline, timeout)
         params: dict[str, Any] = {}
@@ -801,7 +859,9 @@ class LlamaServerClient:
             params["model"] = model
         if autoload is not None:
             params["autoload"] = "true" if autoload else "false"
-        _, data, _ = self._request_json("GET", "/props", deadline=active, params=params)
+        _, data, _ = self._request_json(
+            "GET", "/props", deadline=active, params=params, cancel=cancel
+        )
         if not isinstance(data, Mapping):
             raise LlamaClientError("/props returned a non-object response", endpoint="/props")
         modalities_raw = data.get("modalities")
@@ -829,6 +889,7 @@ class LlamaServerClient:
         *,
         deadline: Deadline | None = None,
         timeout: float | None = None,
+        cancel: CancelCheck | None = None,
     ) -> ServerProps:
         """Read props without permitting router autoload side effects."""
 
@@ -837,6 +898,7 @@ class LlamaServerClient:
             autoload=False,
             deadline=deadline,
             timeout=timeout,
+            cancel=cancel,
         )
 
     def models(
@@ -904,6 +966,62 @@ class LlamaServerClient:
         if not isinstance(data, Mapping) or not isinstance(data.get("tokens"), list):
             raise LlamaClientError("/tokenize returned an invalid token list", endpoint="/tokenize")
         return TokenizeResult(tuple(data["tokens"]), dict(data))
+
+    def count_chat_input_tokens(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        autoload: bool = False,
+        deadline: Deadline | None = None,
+        timeout: float | None = None,
+        cancel: CancelCheck | None = None,
+    ) -> InputTokenCount:
+        """Count the exact final chat payload through an explicit active call.
+
+        This endpoint can perform model and media work. The caller must hold its
+        runtime/model lease. A router requires the exact resolved payload model;
+        direct servers may omit it. No model is injected and autoload is disabled
+        by default. Local cancellation closes this request's transport, but the
+        count API has no stream ID and this does not prove upstream work stopped.
+        Verified owned-model release is the caller's responsibility when needed.
+
+        A 404/405 reports unavailable count capability, never a zero count. Other
+        HTTP, TLS, transport, deadline, cancellation and malformed-response errors
+        propagate. The cancel predicate must be thread-safe and nonblocking.
+        """
+
+        if not isinstance(payload, Mapping):
+            raise TypeError("chat count payload must be an object")
+        if "model" in payload and (
+            not isinstance(payload["model"], str) or not payload["model"].strip()
+        ):
+            raise ValueError("chat count model must be a nonempty exact model identifier")
+        if type(autoload) is not bool:
+            raise TypeError("autoload must be a Boolean")
+        path = "/v1/chat/completions/input_tokens"
+        active = self._deadline(deadline, timeout)
+        try:
+            _, data, _ = self._request_json(
+                "POST",
+                path,
+                deadline=active,
+                params={"autoload": "true" if autoload else "false"},
+                body=payload,
+                cancel=cancel,
+                response_max_bytes=INPUT_TOKEN_RESPONSE_MAX_BYTES,
+                strict_json=True,
+            )
+        except LlamaClientError as exc:
+            if exc.status_code in {404, 405}:
+                return InputTokenCount(None, InputTokenSupport.UNSUPPORTED)
+            raise
+        count = data.get("input_tokens") if isinstance(data, Mapping) else None
+        if type(count) is not int or not 0 <= count <= 2**63 - 1:
+            raise ResponseProtocolError(
+                "chat input token response requires a nonnegative integer input_tokens",
+                endpoint=path,
+            )
+        return InputTokenCount(count, InputTokenSupport.SUPPORTED)
 
     def probe_stream_control(
         self,
@@ -1272,6 +1390,8 @@ __all__ = [
     "Deadline",
     "DeadlineExceeded",
     "HealthStatus",
+    "InputTokenCount",
+    "InputTokenSupport",
     "LlamaClientError",
     "LlamaServerClient",
     "ModelNotFoundError",
