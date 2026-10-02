@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import socket
 import threading
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from http.client import HTTPResponse
@@ -145,7 +146,7 @@ class _DeadlineReader(io.RawIOBase):
             try:
                 self._cancellation.attach(sock)
             except BaseException:
-                self._raw.close()
+                self.close()
                 raise
 
     def readable(self) -> bool:
@@ -161,10 +162,36 @@ class _DeadlineReader(io.RawIOBase):
             underlying = self._sock.socket
             self._sock.socket = _DeadlineTLSIO(underlying, self._deadline)
         try:
-            return _deadline_io(self._sock, self._deadline, lambda: self._raw.readinto(buffer))
+            read = (
+                (lambda: self._read_cancellable(buffer))
+                if self._cancellation is not None
+                else (lambda: self._raw.readinto(buffer))
+            )
+            return _deadline_io(self._sock, self._deadline, read)
         finally:
             if underlying is not None:
                 self._sock.socket = underlying
+
+    def _read_cancellable(self, buffer: Any) -> int:
+        # Windows' timed socket wait need not wake after another thread shuts
+        # down/closes the socket. Poll recv itself, without timing out SocketIO:
+        # a socket.makefile reader becomes unusable after its first timeout.
+        # Keep _raw alive solely for its existing socket makefile ownership.
+        timeout = self._sock.gettimeout()
+        expires = None if timeout is None else time.monotonic() + timeout
+        while True:
+            self._cancellation.check()
+            self._deadline.raise_if_expired("HTTP response")
+            remaining = None if expires is None else max(0.0, expires - time.monotonic())
+            if remaining == 0:
+                raise TimeoutError("timed out")
+            self._sock.settimeout(0.05 if remaining is None else min(0.05, remaining))
+            try:
+                return self._sock.recv_into(buffer)
+            except TimeoutError:
+                # Preserve the original inactivity deadline across polling
+                # attempts, while checking cancellation before trying again.
+                continue
 
     def close(self) -> None:
         try:
@@ -219,6 +246,9 @@ class _DeadlineSocket:
 
 class _DeadlineResponse(HTTPResponse):
     def __init__(self, sock: Any, *args: Any, **kwargs: Any) -> None:
+        # makefile can raise on cancellation before HTTPResponse assigns fp.
+        # Its destructor still calls close() on that partially built instance.
+        self.fp = None
         deadline = _ACTIVE_DEADLINE.get()
         if deadline is not None and (
             deadline.remaining is not None or _ACTIVE_CANCELLATION.get() is not None

@@ -121,8 +121,9 @@ def loopback(*, tls=False):
     initialize = deadline_module._DeadlineReader.__init__
 
     def capture(reader, *args, **kwargs):
-        initialize(reader, *args, **kwargs)
+        reader.fixture_thread_ident = threading.get_ident()
         readers.append(reader)
+        initialize(reader, *args, **kwargs)
 
     try:
         with mock.patch.object(deadline_module._DeadlineReader, "__init__", capture):
@@ -222,7 +223,8 @@ def test_cancelled_request_does_not_interrupt_sibling_or_later_keepalive_request
     # The cancelled connection must be gone. Successful keep-alive sockets are
     # owned by urllib3's pool; retaining response readers here can retain that
     # pool through captured tracebacks even after Session.close().
-    assert_closed(readers[:1])
+    cancelled_readers = [reader for reader in readers if reader.fixture_thread_ident == slow.ident]
+    assert_closed(cancelled_readers)
     assert all(reader.closed and reader._raw.closed for reader in readers)
     assert set(threading.enumerate()) <= baseline
 
@@ -241,6 +243,65 @@ def test_completed_monitor_cannot_cancel_reused_connection():
         assert not worker.is_alive()
         assert result[0].input_tokens == 17
     assert set(threading.enumerate()) <= baseline
+
+
+def test_cancellation_during_response_construction_closes_partial_reader(monkeypatch):
+    cancel = threading.Event()
+    attach = deadline_module._ResponseCancellation.attach
+
+    def cancel_before_attach(cancellation, sock):
+        cancel.set()
+        attach(cancellation, sock)
+
+    monkeypatch.setattr(deadline_module._ResponseCancellation, "attach", cancel_before_attach)
+    with loopback() as (_server, client, readers):
+        with pytest.raises(OperationCancelled):
+            client.count_chat_input_tokens({}, cancel=cancel.is_set)
+        assert_closed(readers)
+
+
+@pytest.mark.parametrize("tls", [False, True])
+def test_cancellable_read_polling_preserves_inactivity_timeout(tls):
+    with loopback(tls=tls) as (_server, client, readers):
+        # The overall deadline is much longer than this read's inactivity
+        # budget; polling must not restart that budget after each short wait.
+        client.connection = ConnectionConfig(
+            client.connection.base_url,
+            default_deadline=2,
+            read_timeout=0.15,
+            tls=client.connection.tls,
+        )
+        started = time.monotonic()
+        with pytest.raises(DeadlineExceeded):
+            client.count_chat_input_tokens({"test_mode": "delayed_body"}, cancel=lambda: False)
+        assert time.monotonic() - started < 0.7
+        assert_closed(readers)
+
+
+@pytest.mark.parametrize("mode", ["delayed_headers", "delayed_body"])
+@pytest.mark.parametrize("tls", [False, True])
+def test_cancellable_read_remains_usable_after_multiple_poll_timeouts(mode, tls):
+    with loopback(tls=tls) as (server, client, readers):
+
+        def release_after_polls():
+            if server.started.wait(1):
+                server.stopping.wait(0.15)
+            server.release.set()
+
+        release = threading.Thread(target=release_after_polls)
+        release.start()
+        try:
+            assert (
+                client.count_chat_input_tokens(
+                    {"test_mode": mode}, cancel=lambda: False
+                ).input_tokens
+                == 17
+            )
+            assert all(reader.closed and reader._raw.closed for reader in readers)
+        finally:
+            server.release.set()
+            release.join(2)
+        assert not release.is_alive()
 
 
 def test_cancelled_short_body_closes_socket_even_when_transport_accepts_early_eof():
