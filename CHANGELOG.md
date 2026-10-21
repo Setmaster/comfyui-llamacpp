@@ -2,6 +2,14 @@
 
 ## 0.4.0 - Unreleased
 
+### Compatibility and cancellation fixes
+
+- Stop interrupts stalled SSE headers, response bodies and HTTP framing without
+  waiting for the inactivity timeout. Cancelled HTTP error-body reads retain
+  cancellation state, and response monitors are joined during cleanup.
+- Changing image-input counts preserves existing connections on frontends whose
+  input links are backed by the graph's slot store, including frontend 1.55.17.
+
 ### Canonical generation
 
 - Added one strict **llama.cpp Generate** node for text, vision, prompt

@@ -12,13 +12,13 @@ Install `comfyui-llamacpp` from the Comfy Registry, then restart ComfyUI:
 comfy node install comfyui-llamacpp
 ```
 
-Stable 0.3 startup reports 17 registered llama.cpp nodes. Follow the stable
+Published Registry 0.3 startup reports 17 registered llama.cpp nodes. Follow the 0.3
 steps below for that installation. Setup Check, Quick Text, Generate, task
-profiles, and automatic local projector matching require the unreleased 0.4
-candidate. To test it deliberately, use the [candidate source installation
-instructions](../README.md#test-the-unreleased-04-candidate), restart ComfyUI,
-and confirm startup reports `0.4.0` and 25 nodes. Candidate testing does not
-replace the maintainer's hands-on acceptance gate before release.
+profiles, and automatic local projector matching require the 0.4 source version.
+Install it from `master` using the [source installation
+instructions](../README.md#install-the-reviewed-04-source-version), restart
+ComfyUI, and confirm startup reports `0.4.0` and 25 nodes. Source promotion and
+Registry publication are separate steps; the Registry still supplies 0.3.
 
 ## 2. Make `llama-server` available
 
@@ -47,7 +47,7 @@ For a vision model, install its matching `mmproj` GGUF under a configured model
 root. On stable 0.3, select that exact file in the Start node's `mmproj` field;
 `(auto)` does not find a matching local projector in this release.
 
-On the 0.4 candidate, **Vision Projector** can remain on `(auto)` to select one
+On the 0.4 source version, **Vision Projector** can remain on `(auto)` to select one
 match only when local GGUF metadata proves compatibility. Folder adjacency and
 filenames alone do not prove a match. You can also choose one exact projector
 file, or select `(none - text only)` to disable vision.
@@ -66,14 +66,14 @@ The graph starts one owned server and displays the response. For a connected
 example, open `examples/direct-text.json` from the installed custom-node
 directory and replace its model selection with your local model. Stable 0.3
 ships five examples in that directory. It does not include Setup Check, Quick
-Text, or the candidate's workflow-template directory.
+Text, or the 0.4 workflow-template directory.
 
-## 5. Candidate only: Setup Check and templates
+## 5. Source 0.4: Setup Check and templates
 
 Open **Workflow > Browse Templates**, choose this node pack, and load **Setup
 Check**. Queue it once.
 
-On the candidate, **llama.cpp Server Status** reports `Setup: ready` when it can
+On 0.4, **llama.cpp Server Status** reports `Setup: ready` when it can
 resolve and probe `llama-server` and can discover at least one model. It also
 shows bounded device, model-root, model, and projector information. `Setup: needs
 attention` is followed by an actionable warning.
@@ -92,7 +92,7 @@ The three-node workflow starts one owned server, sends the prompt, and displays
 the response. Use **Show Advanced** only when the defaults do not fit the model or
 machine.
 
-For a new candidate workflow, load **Canonical Text** or replace Basic Prompt and
+For a new 0.4 workflow, load **Canonical Text** or replace Basic Prompt and
 Prompt Output with one **llama.cpp Generate** node. Convert Generate's advanced
 `Server URL` widget to an input before connecting the Start node URL, or leave it
 empty to use the currently owned runtime. Generate provides its own live preview
@@ -117,6 +117,6 @@ unload behavior.
   task profiles, live Stop, passive discovery, and terminal release.
 - [Lifecycle and VRAM ownership](lifecycle.md) for release guarantees.
 - [Troubleshooting](troubleshooting.md) for setup and runtime failures.
-- [Candidate example workflows](../example_workflows/) for router, vision,
+- [Source example workflows](../example_workflows/) for router, vision,
   structured output, and GPU handoff graphs. Stable users should open their
   installed `examples/` directory instead.

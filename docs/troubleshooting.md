@@ -325,9 +325,9 @@ duplicate IDs, invalid UTF-8 or JSON, and attempts to override built-in Freeform
 
 ## App Mode does not show terminal text in the central result pane
 
-The tested frontend 1.45.20 retains terminal text in Comfy's native jobs and
-history output but does not render that inline text in App Mode's central result
-pane. The canonical workflow therefore exposes transient read-only **Generation
+Earlier frontend validation found that terminal text remains in Comfy's native
+jobs and history output even when App Mode does not render it inline. The
+canonical workflow therefore exposes transient read-only **Generation
 Status** and **Live Response** fields. They are current-session feedback, reset
 on reload, and are not serialized or surrogate output files.
 

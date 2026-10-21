@@ -8,8 +8,9 @@ The accepted 0.3 checklist remains available in
 ## Candidate identity
 
 - [ ] The installed clone is clean on `dev` at the candidate commit recorded in
-  [October validation](validation-2026-10.md).
-- [ ] Startup reports package `0.4.0` and 19 llama.cpp nodes.
+  the latest validation report linked from the README. Earlier reports describe
+  only their named revisions.
+- [ ] Startup reports package `0.4.0` and 25 llama.cpp nodes.
 - [ ] `master` and tag `0.3.0` still resolve to the accepted hashes recorded in
   the validation report.
 - [ ] No unexpected ComfyUI or llama-server process was already running before
@@ -109,12 +110,55 @@ The accepted 0.3 checklist remains available in
 - [ ] After terminal LLM release, run the downstream diffusion workload without
   restarting ComfyUI.
 
+## Graph composition, messages and budgets
+
+- [ ] Connect Generate's typed result to **Result JSON** and inspect completion,
+  usage, errors and release evidence through Prompt Output.
+- [ ] Run the structured-field and protected-literal composition examples, then
+  render a saved prompt through the separate core-only frozen-render workflow.
+  Editing and rendering the frozen prompt must not start llama-server.
+- [ ] Append explicit user and assistant turns, export/import their JSON, and
+  generate a continuation. Repeat with a changed prompt and verify only the
+  supplied history is used.
+- [ ] Run **Request Budget** with Report: inspect the complete-request input
+  count and output allowance without generating text. Generate with Enforce
+  accepts a fitting request and rejects overflow before generation. Unknown
+  facts remain Unknown; no text is silently truncated.
+
+## Router presets and aligned captions
+
+- [ ] Start a router with a local INI preset. Check exact model identities and
+  effective settings for Override and Inherit. Edit the preset and requeue Start
+  to verify the change; an invalid replacement preserves the healthy runtime.
+- [ ] Load two exact router IDs. Count, generate and release one while verifying
+  the other remains loaded and the router PID is unchanged.
+- [ ] Caption a two-image batch with distinct IDs. Verify independent captions,
+  order, IDs and item states in `result_json`. Check a failed/cancelled item
+  under both strict and marked-partial policy, preserving every item position.
+- [ ] Enable caption terminal release and verify cleanup completes once for the
+  group before outputs become available.
+
+## Profile editor and experimental transcription
+
+- [ ] Create, edit, import and export a user profile. A library save must not
+  change the workflow snapshot; **Update Saved Snapshot** is explicit and
+  undoable. A conflicting save reports a revision conflict and preserves the
+  newer library.
+- [ ] With the [documented installed ASR pair](audio-transcription.md), connect
+  Load Audio to Transcribe using a nonempty mono 16 kHz clip of at most ten
+  seconds. Inspect transcript, raw output, prefix status and result metadata.
+- [ ] Reject an invalid audio shape/rate or unsupported pair before submission.
+  Verify cancellation and optional terminal release. Skip this section only
+  with an explicit record that the supported local fixture was unavailable.
+
 ## Compatibility and closeout
 
 - [ ] Open representative 0.2.1 and 0.3 workflows with all 17 legacy nodes.
 - [ ] Queue Basic, ADV, and ADV++ smoke workflows and confirm their existing
   response, thinking, and success outputs remain unchanged.
 - [ ] Switch back to `0.3.0`, restart, and confirm the legacy workflow still
-  loads. Generate and Task Profile alone should show as missing.
+  loads. All eight candidate-only node types become unavailable: Generate,
+  Task Profile, Result JSON, Append Message, Messages from JSON, Request Budget,
+  Caption Batch and Transcribe.
 - [ ] Restore the exact candidate, restart, and confirm the installed clone is
   clean before blessing the merge.

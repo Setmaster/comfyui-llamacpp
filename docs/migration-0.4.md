@@ -1,8 +1,9 @@
 # Post-0.3 Migration Guide
 
 The post-0.3 line is an additive generation and lifecycle update. It keeps all
-17 nodes and saved-workflow contracts from 0.3, then adds **llama.cpp Generate**
-and **llama.cpp Task Profile**. There is no automatic workflow rewrite and no
+17 nodes and saved-workflow contracts from 0.3, then adds eight nodes: Generate,
+Task Profile, Result JSON, Append Message, Messages from JSON, Request Budget,
+Caption Batch and experimental Transcribe. There is no automatic workflow rewrite and no
 legacy prompt node is deprecated in this release.
 
 ## What remains unchanged
@@ -99,21 +100,21 @@ format and the complete execution contract.
 
 ## App Mode on the tested frontend
 
-Frontend 1.45.20 retains terminal text in Comfy's native jobs and history output
-but does not render that inline text in App Mode's central result pane. The
+Earlier frontend validation found that terminal text remains in Comfy's native
+jobs and history output even when App Mode does not render it inline. The
 canonical workflow therefore exposes transient read-only **Generation Status**
 and **Live Response** fields. They are current-session feedback, reset on reload,
 and are not serialized or surrogate output files.
 
 ## Rollback
 
-Before the post-0.3 release is blessed, switch the installed custom-node clone
-back to the accepted 0.3 tag:
+To restore the published 0.3 release, switch the installed custom-node clone
+back to its immutable tag:
 
 ```bash
 git fetch --tags origin
 git switch --detach 0.3.0
 ```
 
-Restart ComfyUI after switching. Workflows saved with Generate or Task Profile
-show those two nodes as missing on 0.3. Existing legacy nodes continue to load.
+Restart ComfyUI after switching. Any of the eight 0.4-only node types
+listed above show as missing on 0.3. Existing legacy nodes continue to load.

@@ -2,7 +2,7 @@
 
 Focused local `llama-server` integration for ComfyUI. It provides text and vision
 prompting, structured output, direct and router modes, and explicit control over
-the external process that owns LLM VRAM. The development candidate also includes
+the external process that owns LLM VRAM. The 0.4 source version also includes
 bounded image caption groups and short-clip audio transcription.
 
 Version 0.3 keeps the external-process design that motivated this project. A
@@ -17,26 +17,26 @@ structured output, token bans, live preview, truthful cancellation, portable
 task profiles, strict failures, and optional terminal release. All 17 nodes
 from 0.3 remain registered with their released workflow contracts.
 
-The stable release is `0.3.0`. It is available from the Comfy Registry and the
-`master` branch. The additive `0.4.0` candidate remains on `dev` until it passes
-the maintainer's hands-on acceptance gate. It has not been published to the
-Registry.
+The `master` branch contains the reviewed `0.4.0` source version with 25 nodes.
+The latest published Comfy Registry package and immutable release tag remain
+`0.3.0`, with 17 nodes. A source-branch merge does not publish a Registry package.
+Ongoing development uses `dev`.
 
-New installation? Follow [Start Here](docs/start-here.md) for the stable 0.3 text
-workflow or the separate 0.4 candidate setup path. Setup Check, Quick Text,
-canonical Generate, and automatic local projector matching require the candidate.
+New installation? Follow [Start Here](docs/start-here.md) for the Registry 0.3
+text workflow or the 0.4 source setup path. Setup Check, Quick Text, canonical
+Generate, and automatic local projector matching require the 0.4 source version.
 
 ## What it covers
 
-The list below describes the `dev` candidate. Stable 0.3 provides Basic, ADV,
+The list below describes the 0.4 source version. Published 0.3 provides Basic, ADV,
 and ADV++ generation, runtime/router control, structured output, and explicit
 projector selection. Generate, task profiles, automatic projector matching,
-live Stop, and release-after-generation are additions in the unreleased 0.4 line.
+live Stop, and release-after-generation are additions in the 0.4 source line.
 
 - Direct mode for one GGUF model.
 - Current `llama-server` router mode with exact model identities and terminal
   load/unload barriers, plus validated local per-model INI presets with explicit
-  inheritance on the candidate.
+  inheritance in 0.4.
 - Freeform chat completions with sampling, thinking/reasoning output, stop
   sequences, token bans, and prompt-prefix caching.
 - VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
@@ -106,7 +106,7 @@ The public package page is
 [ComfyUI llama.cpp Suite](https://registry.comfy.org/nodes/comfyui-llamacpp).
 Restart ComfyUI after installation.
 
-### Install the stable release from source
+### Install the reviewed 0.4 source version
 
 ```bash
 cd ComfyUI/custom_nodes
@@ -127,8 +127,8 @@ C:\ComfyUI\venv\Scripts\python.exe -m pip install -r requirements.txt
 python -m pip install -r requirements.txt
 ```
 
-Restart ComfyUI. Startup should report version `0.3.0` and 17 registered nodes.
-The post-0.3 `dev` line reports 25 nodes. Its eight added node types preserve the
+Restart ComfyUI. Startup should report version `0.4.0` and 25 registered nodes.
+The Registry's published `0.3.0` reports 17 nodes. The eight added node types preserve the
 17 released node IDs and their existing widget positions.
 
 ### Update an existing checkout
@@ -145,9 +145,9 @@ Existing 0.2.1 workflows retain released node IDs, socket names, output order,
 defaults, and legacy widget positions. Read [the 0.3 migration guide](docs/migration-0.3.md)
 before testing important saved workflows.
 
-### Test the unreleased 0.4 candidate
+### Follow development on dev
 
-Use an existing clean source checkout to opt into candidate testing:
+Use an existing clean source checkout to opt into ongoing development:
 
 ```bash
 git fetch origin
@@ -156,12 +156,11 @@ git pull --ff-only origin dev
 python -m pip install -r requirements.txt
 ```
 
-Use the Python that launches ComfyUI, then restart it. Candidate startup reports
-`0.4.0` and 25 nodes. Follow the candidate path in [Start Here](docs/start-here.md)
-and the [0.4 acceptance checklist](docs/user-acceptance-0.4.md). The candidate is
-not available from the Registry and still requires maintainer hands-on acceptance
-before promotion. [Rollback instructions](docs/migration-0.4.md#rollback) restore
-the accepted 0.3 tag.
+Use the Python that launches ComfyUI, then restart it. Follow the source path in
+[Start Here](docs/start-here.md) and the
+[0.4 acceptance checklist](docs/user-acceptance-0.4.md) when validating changes.
+The 0.4 source version has not been published to the Registry.
+[Rollback instructions](docs/migration-0.4.md#rollback) restore the published 0.3 tag.
 
 ## Install llama.cpp
 
@@ -218,7 +217,7 @@ Files whose names contain `mmproj` are listed separately from text/model GGUFs.
 
 On stable 0.3, select the exact installed projector in the Start node's `mmproj`
 field. Its `(auto)` value does not scan local files for a matching projector.
-The following three-state selection behavior requires the 0.4 candidate:
+The following three-state selection behavior requires the 0.4 source version:
 
 - Direct mode: leave **Vision Projector** on `(auto)`. The pack reads bounded
   GGUF header metadata and selects one confidently compatible local projector.
@@ -259,7 +258,7 @@ Set the Start node's `binary_path` if `llama-server` is not already resolved.
 Stable workflows are also available in the installed `examples/` directory;
 open `direct-text.json` manually and select your installed model.
 
-On the 0.4 candidate, the shortest path is **Workflow > Browse Templates >
+On the 0.4 source version, the shortest path is **Workflow > Browse Templates >
 comfyui-llamacpp > Quick Text**. Its companion **Setup Check** template diagnoses
 the binary, available devices, and configured model roots without starting a
 server. Neither template ships in stable 0.3.
@@ -358,7 +357,7 @@ limitations.
 
 ## Node catalog
 
-On the 0.4 candidate, nodes keep their released names and are grouped under
+On the 0.4 source version, nodes keep their released names and are grouped under
 `LlamaCpp/Runtime`, `LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
 include ordinary terms such as GGUF, VLM, prompt enhancer, JSON Schema, and free
 VRAM. Dense nodes show primary controls first; choose **Show Advanced** for the
@@ -503,21 +502,23 @@ explicit replace/reset action.
 
 ## Examples and validation
 
-On the 0.4 candidate, ComfyUI discovers the curated workflows in
+On the 0.4 source version, ComfyUI discovers the curated workflows in
 [`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
 the first-run paths; the direct, router, vision, structured-output, and VRAM
 handoff workflows originate from the five released 0.3 examples, with router
-widget values adapted for the candidate. Setup Check, Quick Text, and the four
-canonical examples were added after 0.3. The latest candidate also adds native
+widget values adapted for 0.4. Setup Check, Quick Text, and the four
+canonical examples were added after 0.3. The 0.4 source version also adds native
 text composition, a separate frozen-prompt render, explicit few-shot refinement,
 and aligned per-image caption examples. See the
 [workflow guide](example_workflows/README.md) for each recipe and its limits.
 Stable users can open the five JSON workflows manually from their installed
 `examples/` directory.
-The tested frontend 1.45.20 retains terminal text in native jobs and history
-output but does not render it inline in App Mode's central result pane. The
-canonical workflow exposes transient read-only Generation Status and Live
-Response fields that reset on reload and are not serialized.
+Earlier frontend validation found that terminal text remains in native jobs and
+history output even when App Mode does not render it in the central result pane.
+The canonical workflow exposes transient read-only Generation Status and Live
+Response fields that reset on reload and are not serialized. See the
+[current runtime review](docs/validation-2026-10-21.md) for ComfyUI 0.41.0 and
+frontend 1.55.17 evidence, including Stop and dynamic socket compatibility fixes.
 
 The [0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
 workflow compatibility, direct and scoped router release, live Stop, profiles,
@@ -525,7 +526,7 @@ App Mode, VLMs, structured output, and the final
 terminal LLM-to-diffusion GPU handoff. The accepted stable evidence remains
 in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
 recorded separately in the
-[canonical Generate validation report](docs/validation-0.4.md). Current candidate
+[canonical Generate validation report](docs/validation-0.4.md). Earlier candidate
 hardening and Comfy 0.37/frontend 1.53.6 evidence are recorded in the
 [October validation report](docs/validation-2026-10.md).
 The [backlog validation report](docs/validation-2026-10-backlog.md) records the
@@ -582,6 +583,7 @@ release validation.
 - [Troubleshooting](docs/troubleshooting.md)
 - [0.3 validation report](docs/validation-0.3.md)
 - [October candidate validation](docs/validation-2026-10.md)
+- [Current Windows runtime review](docs/validation-2026-10-21.md)
 - [Canonical Generate validation report](docs/validation-0.4.md)
 - [User acceptance checklist](docs/user-acceptance.md)
 - [0.4 canonical user acceptance](docs/user-acceptance-0.4.md)

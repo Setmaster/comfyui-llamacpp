@@ -1,6 +1,6 @@
 # Example workflows
 
-This directory ships with the unreleased 0.4 candidate. ComfyUI discovers it in
+This directory ships with the 0.4 source version on `master` and `dev`. ComfyUI discovers it in
 **Workflow > Browse Templates**. All 16 workflow JSON files, including the five
 new graph, history and caption recipes, pass saved-graph round trips in classic
 and Nodes 2.0 on frontend 1.53.6. Native execution results and capability limits
@@ -83,8 +83,8 @@ Each canonical JSON workflow has a same-stem 768 by 768 JPEG thumbnail captured
 from the current Comfy frontend. Setup Check and Quick Text retain their existing
 thumbnails.
 
-On the tested frontend 1.45.20, terminal text remains in native jobs and history
-output but is not rendered inline in App Mode's central result pane. The App Mode
+Earlier frontend validation found that terminal text remains in native jobs and
+history output even when App Mode does not render it inline. The App Mode
 example exposes transient read-only Generation Status and Live Response fields
 for current-session feedback. They reset on reload and are neither serialized
 nor surrogate output files.
