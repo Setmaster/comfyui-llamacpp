@@ -118,18 +118,41 @@ class _ResponseCancellation:
 
 
 @contextmanager
-def response_deadline(
-    deadline: Deadline, cancel: Callable[[], bool] | None = None
+def response_cancellation(
+    cancel: Callable[[], bool] | None,
 ) -> Iterator[_ResponseCancellation | None]:
-    token = _ACTIVE_DEADLINE.set(deadline)
+    """Own a response monitor without binding context across streaming yields."""
+
     cancellation = _ResponseCancellation(cancel) if cancel is not None else None
-    cancellation_token = _ACTIVE_CANCELLATION.set(cancellation)
     try:
-        if cancellation is not None:
-            cancellation.check()
         yield cancellation
     finally:
         if cancellation is not None:
+            cancellation.close()
+
+
+@contextmanager
+def response_deadline(
+    deadline: Deadline,
+    cancel: Callable[[], bool] | None = None,
+    *,
+    cancellation: _ResponseCancellation | None = None,
+) -> Iterator[_ResponseCancellation | None]:
+    """Bind response construction context; a borrowed monitor keeps its owner."""
+
+    if cancellation is not None and cancel is not None:
+        raise ValueError("supply a cancellation monitor or predicate, not both")
+    owned_cancellation = cancellation is None
+    token = _ACTIVE_DEADLINE.set(deadline)
+    if owned_cancellation:
+        cancellation = _ResponseCancellation(cancel) if cancel is not None else None
+    cancellation_token = _ACTIVE_CANCELLATION.set(cancellation)
+    try:
+        if owned_cancellation and cancellation is not None:
+            cancellation.check()
+        yield cancellation
+    finally:
+        if owned_cancellation and cancellation is not None:
             cancellation.close()
         _ACTIVE_CANCELLATION.reset(cancellation_token)
         _ACTIVE_DEADLINE.reset(token)

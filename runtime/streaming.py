@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from io import StringIO
 from typing import Any
@@ -19,13 +20,14 @@ from .client import (
     DeadlineExceeded,
     LlamaClientError,
     ModelState,
+    OperationCancelled,
     StreamCleanupSnapshot,
     StreamControl,
     _is_wrapped_read_timeout,
     _read_bounded_response_bytes,
     redact_secrets,
 )
-from .http_deadline import DeadlineHTTPAdapter, response_deadline
+from .http_deadline import DeadlineHTTPAdapter, response_cancellation, response_deadline
 
 Line = str | bytes
 ChunkCallback = Callable[[str, str], None]
@@ -433,6 +435,7 @@ def _response_error(
     connection: ConnectionConfig,
     *,
     classify_image_unsupported: bool = False,
+    check_cancel: Callable[[], None] | None = None,
 ) -> LlamaClientError:
     status_code = int(response.status_code)
     error_type: str | None = None
@@ -441,6 +444,7 @@ def _response_error(
             response,
             ERROR_RESPONSE_MAX_BYTES,
             truncate=True,
+            check=check_cancel,
         )
         if classify_image_unsupported:
             error_type = _structured_error_bytes_type(
@@ -448,8 +452,13 @@ def _response_error(
                 http_status=status_code,
                 truncated=truncated,
             )
+    except OperationCancelled:
+        raise
     except (LlamaClientError, requests.RequestException):
-        pass
+        # Socket shutdown can surface as EOF or a wrapped transport error.
+        # Preserve a known HTTP status only when cancellation did not cause it.
+        if check_cancel is not None:
+            check_cancel()
     return _StreamResponseError(
         f"HTTP {status_code}: stream request failed",
         status_code=status_code,
@@ -508,19 +517,25 @@ def iter_model_events(
         http.mount("http://", DeadlineHTTPAdapter())
         http.mount("https://", DeadlineHTTPAdapter())
     response: Any = None
+    resources = ExitStack()
+    cancellation = resources.enter_context(response_cancellation(cancel))
     try:
         _check_stream(active, cancel, "model event stream")
         # Capture the deadline during response construction, including status
         # and header reads. The response reader retains it for body reads; the
         # context must be reset before yielding events back to the caller.
-        with response_deadline(active):
+        with response_deadline(active, cancellation=cancellation):
             response = http.request(
                 "GET",
                 connection.url("/models/sse"),
                 **_request_kwargs(connection, active, read_timeout=read_timeout),
             )
         if response.status_code != 200:
-            raise _response_error(response, connection)
+            raise _response_error(
+                response,
+                connection,
+                check_cancel=cancellation.check if cancellation is not None else None,
+            )
 
         def check() -> None:
             _check_stream(active, cancel, "model event stream")
@@ -571,21 +586,29 @@ def iter_model_events(
                 else None
             )
             yield ModelEvent(model, event_name, state, data, dict(payload))
-    except _StreamCancelled:
+    except (_StreamCancelled, OperationCancelled):
         return
-    except requests.Timeout as exc:
-        raise DeadlineExceeded("model event stream timed out") from exc
     except requests.RequestException as exc:
-        if _is_wrapped_read_timeout(exc):
+        if cancellation is not None:
+            try:
+                cancellation.check()
+            except OperationCancelled:
+                return
+        if isinstance(exc, requests.Timeout) or _is_wrapped_read_timeout(exc):
             raise DeadlineExceeded("model event stream timed out") from exc
         raise LlamaClientError(
             redact_secrets(f"model event stream failed: {exc}", connection.secrets)
         ) from exc
     finally:
-        if response is not None:
-            response.close()
-        if owned_session:
-            http.close()
+        try:
+            if response is not None:
+                response.close()
+        finally:
+            try:
+                if owned_session:
+                    http.close()
+            finally:
+                resources.close()
 
 
 def _parse_stream_error(
@@ -706,6 +729,8 @@ def stream_chat(
         http.mount("http://", DeadlineHTTPAdapter())
         http.mount("https://", DeadlineHTTPAdapter())
     response_obj: Any = None
+    resources = ExitStack()
+    cancellation = resources.enter_context(response_cancellation(cancel))
 
     content_buffer = StringIO()
     thinking_buffer = StringIO()
@@ -791,13 +816,14 @@ def stream_chat(
             extra_headers=extra_headers,
         )
         kwargs["json"] = request_payload
-        with response_deadline(active):
+        with response_deadline(active, cancellation=cancellation):
             response_obj = http.request("POST", connection.url(endpoint), **kwargs)
         if response_obj.status_code != 200:
             error = _response_error(
                 response_obj,
                 connection,
                 classify_image_unsupported=strict_protocol,
+                check_cancel=cancellation.check if cancellation is not None else None,
             )
             classified_error = getattr(error, "error_type", None)
             return result(
@@ -1019,7 +1045,7 @@ def stream_chat(
             error_message="stream ended before [DONE] or finish_reason",
             error_type="incomplete",
         )
-    except _StreamCancelled:
+    except (_StreamCancelled, OperationCancelled):
         return result(
             success=False,
             error_message="generation cancelled",
@@ -1040,13 +1066,23 @@ def stream_chat(
         )
     except DeadlineExceeded as exc:
         return result(success=False, error_message=str(exc), error_type="timeout")
-    except requests.Timeout as exc:
-        return result(
-            success=False,
-            error_message=redact_secrets(f"stream timeout: {exc}", connection.secrets),
-            error_type="timeout",
-        )
     except requests.RequestException as exc:
+        if cancellation is not None:
+            try:
+                cancellation.check()
+            except OperationCancelled:
+                return result(
+                    success=False,
+                    error_message="generation cancelled",
+                    error_type="cancelled",
+                    cancelled=True,
+                )
+        if isinstance(exc, requests.Timeout):
+            return result(
+                success=False,
+                error_message=redact_secrets(f"stream timeout: {exc}", connection.secrets),
+                error_type="timeout",
+            )
         if _is_wrapped_read_timeout(exc):
             return result(
                 success=False,
@@ -1075,21 +1111,24 @@ def stream_chat(
                     )
         finally:
             try:
-                if response_obj is not None:
-                    response_obj.close()
-            except Exception as exc:
-                LOGGER.warning("stream response close failed (%s)", type(exc).__name__)
-            try:
-                if owned_session:
-                    http.close()
-            except Exception as exc:
-                LOGGER.warning("stream HTTP session close failed (%s)", type(exc).__name__)
-            if completed_result is not None and stream_control is not None:
-                object.__setattr__(
-                    completed_result,
-                    "stream_cleanup",
-                    stream_control.cleanup.snapshot(),
-                )
+                try:
+                    if response_obj is not None:
+                        response_obj.close()
+                except Exception as exc:
+                    LOGGER.warning("stream response close failed (%s)", type(exc).__name__)
+                try:
+                    if owned_session:
+                        http.close()
+                except Exception as exc:
+                    LOGGER.warning("stream HTTP session close failed (%s)", type(exc).__name__)
+                if completed_result is not None and stream_control is not None:
+                    object.__setattr__(
+                        completed_result,
+                        "stream_cleanup",
+                        stream_control.cleanup.snapshot(),
+                    )
+            finally:
+                resources.close()
 
 
 __all__ = [
