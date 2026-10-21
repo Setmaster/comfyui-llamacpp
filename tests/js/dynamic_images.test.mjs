@@ -37,6 +37,72 @@ function fakeNode(count = 10) {
     return node;
 }
 
+/** Model the frontend's index-derived input.link and authoritative link store. */
+function storeBackedNode(serialized = null) {
+    const node = fakeNode(0);
+    node.id = 3;
+    node.constructor = { comfyClass: "LlamaCppGenerate" };
+    const links = new Map();
+    node.graph = { _links: links };
+    node.getInputLink = (slot) => [...links.values()].find(
+        (link) => link.target_slot === slot,
+    ) ?? null;
+    function inputSlot({ link: _serializedLink, ...data }) {
+        const input = { ...data };
+        Object.defineProperty(input, "link", {
+            enumerable: true,
+            get: () => node.getInputLink(node.inputs.indexOf(input))?.id ?? null,
+        });
+        return input;
+    }
+    function connect(name, id) {
+        let targetSlot = node.inputs.findIndex((input) => input.name === name);
+        assert.notEqual(targetSlot, -1);
+        const link = {
+            id,
+            get target_slot() { return targetSlot; },
+            set target_slot(value) { this.updateEndpoints({ targetSlot: value }); },
+            updateEndpoints(patch) {
+                const occupying = node.getInputLink(patch.targetSlot);
+                assert.ok(!occupying || occupying === this, "link destination must be vacant");
+                targetSlot = patch.targetSlot;
+            },
+        };
+        links.set(id, link);
+    }
+    node.inputs = (serialized?.inputs ?? [
+        { name: "connection", type: "LLAMACPP_CONNECTION" },
+        { name: "profile", type: "LLAMACPP_PROFILE" },
+        { name: "structured_output", type: "STRUCTURED_OUTPUT" },
+        { name: "token_ban", type: "LOGIT_BIAS" },
+        { name: "messages", type: "LLAMACPP_MESSAGES" },
+        { name: "server_url", type: "STRING", widget: { name: "server_url" } },
+    ]).map(inputSlot);
+    node.addInput = (name, type, options = {}) => {
+        const input = inputSlot({ name, type, ...options });
+        node.inputs.push(input);
+        return input;
+    };
+    node.removeInput = (index) => {
+        const removed = node.getInputLink(index);
+        if (removed) links.delete(removed.id);
+        const moved = [...links.values()]
+            .filter((link) => link.target_slot > index)
+            .sort((left, right) => left.target_slot - right.target_slot);
+        for (const link of moved) link.updateEndpoints({ targetSlot: link.target_slot - 1 });
+        node.inputs.splice(index, 1);
+    };
+    node.serialize = () => ({
+        inputs: node.inputs.map((input) => ({ ...input })),
+        links: [...links.values()].map((link) => ({ id: link.id, target_slot: link.target_slot })),
+    });
+    const initialLinks = serialized?.links ?? node.inputs.map((_, index) => ({
+        id: index + 1, target_slot: index,
+    }));
+    for (const link of initialLinks) connect(node.inputs[link.target_slot].name, link.id);
+    return { node, connect };
+}
+
 test("image count preserves zero and clamps invalid values", () => {
     assert.equal(normalizeImageCount(0), 0);
     assert.equal(normalizeImageCount(null), 2);
@@ -149,5 +215,33 @@ test("loaded graph setup restores saved image counts 0, 1, and 10", () => {
             node.inputs.filter((input) => input.name.startsWith("image_")).map((input) => input.label),
             Array.from({ length: count }, (_, index) => `Image ${index + 1}`),
         );
+    }
+});
+
+test("index-derived links stay on their named inputs across image changes and reload", () => {
+    let { node, connect } = storeBackedNode();
+    const expected = new Map(node.inputs.map((input) => [input.name, input.link]));
+    function assertLinks() {
+        for (const [name, id] of expected) {
+            const index = node.inputs.findIndex((input) => input.name === name);
+            assert.notEqual(index, -1, name);
+            assert.equal(node.inputs[index].link, id, name);
+            assert.equal(node.graph._links.get(id).target_slot, index, name);
+        }
+        for (const input of node.inputs) {
+            assert.equal(input.link, expected.get(input.name) ?? null, input.name);
+        }
+    }
+    for (const count of [0, 1, 10, 1, 0, 10]) {
+        syncImageInputs(node, count, "structured_output");
+        if (!count) expected.delete("image_1");
+        if (count && !expected.has("image_1")) {
+            connect("image_1", 99);
+            expected.set("image_1", 99);
+        }
+        assertLinks();
+        const saved = JSON.parse(JSON.stringify(node.serialize()));
+        ({ node, connect } = storeBackedNode(saved));
+        assertLinks();
     }
 });

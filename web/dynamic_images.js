@@ -21,12 +21,27 @@ function graphLink(node, linkId) {
     return links?.[linkId] ?? links?.[String(linkId)] ?? null;
 }
 
-function repairTargetSlots(node, startIndex) {
-    for (let index = Math.max(0, startIndex); index < (node.inputs?.length ?? 0); index += 1) {
-        const linkId = node.inputs[index]?.link;
-        if (linkId == null) continue;
-        const link = graphLink(node, linkId);
-        if (link) link.target_slot = index;
+function inputLinks(node, startIndex) {
+    return (node.inputs ?? []).slice(startIndex).map((input, offset) => ({
+        input,
+        link: typeof node.getInputLink === "function"
+            ? node.getInputLink(startIndex + offset)
+            : graphLink(node, input.link),
+    }));
+}
+
+function repairTargetSlots(node, assignments) {
+    // Input.link is derived from the current numeric slot on newer frontends.
+    // Retain each input's original link before moving it, and move the highest
+    // targets first so the link store never sees two links at one destination.
+    for (const { input, link } of [...assignments].reverse()) {
+        const index = node.inputs.indexOf(input);
+        if (!link || index < 0) continue;
+        if (typeof link.updateEndpoints === "function") {
+            link.updateEndpoints({ targetSlot: index });
+        } else {
+            link.target_slot = index;
+        }
     }
 }
 
@@ -36,9 +51,10 @@ function addInputBefore(node, name, type, options, beforeInputName) {
     const currentIndex = node.inputs?.findIndex((input) => input.name === name) ?? -1;
     const beforeIndex = node.inputs?.findIndex((input) => input.name === beforeInputName) ?? -1;
     if (currentIndex < 0 || beforeIndex < 0 || currentIndex < beforeIndex) return;
+    const assignments = inputLinks(node, beforeIndex);
     const [added] = node.inputs.splice(currentIndex, 1);
     node.inputs.splice(beforeIndex, 0, added);
-    repairTargetSlots(node, beforeIndex);
+    repairTargetSlots(node, assignments);
 }
 
 export function syncImageInputs(node, requestedCount, beforeInputName = null) {
