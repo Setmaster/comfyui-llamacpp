@@ -1,7 +1,7 @@
 # Dev review and current Windows ComfyUI validation
 
 Date: 2026-10-21. Runtime source: `6f6186e928229fb8dac016fa38ec579ee106e25a`.
-Documentation updates after this revision do not change runtime code.
+Later test and documentation updates do not change runtime code.
 
 This review starts at `fca0a4517cf6fd347d7ff5b6220dcfcc1e71e047` and
 revalidates the installed Windows runtime rather than treating the
@@ -44,21 +44,31 @@ The maintained clone is `C:/ComfyUI/custom_nodes/comfyui-llamacpp`.
 
 | Check | Outcome |
 | --- | --- |
-| WSL Python 3.14.2 full suite | 1,677 passed, 197 subtests passed |
-| Native Windows Python full suite | 1,633 passed, 44 platform skips, 197 subtests passed |
+| WSL Python 3.14.2 full suite | 1,681 passed, 197 subtests passed |
+| Native Windows Python full suite | 1,637 passed, 44 platform skips, 197 subtests passed |
 | Frontend Node.js suite | 111 passed, no failures/skips |
 | Ruff lint and formatting | Passed, 109 Python files formatted |
 | JavaScript syntax and diff whitespace | Passed |
 | Build, Twine and distribution manifests | Passed; 80 runtime assets, 22 workflow assets, 66 source-test files, two benchmark protocols |
 | Isolated wheel | All 25 registrations and runtime/frontend assets imported successfully |
 | Damaged distributions | Missing `runtime/client.py` and `web/generate.js` rejected |
-| Extracted sdist | 1,677 Python tests, 197 subtests and 111 JavaScript tests passed |
+| Extracted sdist | 1,681 Python tests, 197 subtests and 111 JavaScript tests passed |
 | Pinned Registry validation | Passed with its existing nonfatal warning about the AST test helper's `exec` |
 | Runtime requirements audit | No known vulnerabilities in the resolved requirements |
 
 Separate verification runs are not additive. The platform skips concern POSIX
 and Linux process mechanics. Unit tests use their normal isolated Comfy stubs;
 actual runtime evidence is recorded below. Registry validation does not publish.
+
+The first delivery CI exposed a race in the new cancellation fixture's reader
+recorder: attachment can cancel, close and raise before construction returns.
+The recorder now retains the partial reader before initialization, preserving
+the cleanup assertion. Four deterministic regressions fail before that fixture
+repair and pass afterward; ten repeated 26-test cancellation runs pass, as do
+52 transport tests plus 42 subtests on both Python 3.11 and 3.13.
+One extracted-package run also hit the previously observed proxy first-use
+timing failure. Its deadline assertions are unchanged; 12 focused repeat runs
+pass, and final complete package/CI results are recorded separately.
 
 The applicable commands remain those in the README and project guide, including
 `uv sync --locked --extra dev`, full pytest/JavaScript suites, Ruff, `uv build`,
