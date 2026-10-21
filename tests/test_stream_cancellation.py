@@ -94,8 +94,10 @@ def _fixture(mode):
     initialize = transport._DeadlineReader.__init__
 
     def capture(reader, *args, **kwargs):
-        initialize(reader, *args, **kwargs)
+        # Attachment can cancel and close the raw reader before __init__ returns.
+        # Retain that reader too so cleanup evidence survives interrupted setup.
         readers.append(reader)
+        initialize(reader, *args, **kwargs)
 
     try:
         with (
@@ -240,3 +242,43 @@ def test_cancellation_callback_base_exception_closes_response_and_deletes_stream
         worker.join(timeout=2)
         assert not worker.is_alive()
         delete.assert_called_once_with()
+
+
+@pytest.mark.parametrize("operation", ["chat", "models"])
+@pytest.mark.parametrize("interrupt_callback", [False, True])
+def test_attach_time_cancellation_retains_closed_reader_evidence(operation, interrupt_callback):
+    class Interrupt(BaseException):
+        pass
+
+    with _fixture("body") as (_, client, readers):
+        cancel = threading.Event()
+
+        def check():
+            if interrupt_callback and cancel.is_set():
+                raise Interrupt()
+            return cancel.is_set()
+
+        attach = transport._ResponseCancellation.attach
+
+        def cancel_on_attach(monitor, sock):
+            # Force cancellation after raw-reader creation but before attachment
+            # completes, independently of HTTP/server thread scheduling.
+            cancel.set()
+            return attach(monitor, sock)
+
+        def execute():
+            if operation == "chat":
+                result = client.stream_chat({}, timeout=2, cancel=check)
+                assert result.cancelled and result.error_type == "cancelled"
+            else:
+                assert list(client.iter_model_events(timeout=2, cancel=check)) == []
+
+        with mock.patch.object(transport._ResponseCancellation, "attach", cancel_on_attach):
+            if interrupt_callback:
+                with pytest.raises(Interrupt):
+                    execute()
+            else:
+                execute()
+        assert len(readers) == 1
+        assert readers[0].closed
+        assert readers[0]._raw.closed
