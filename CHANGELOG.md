@@ -1,6 +1,26 @@
 # Changelog
 
-## 0.4.0 - Unreleased
+## 0.4.0 - 2026-10-22
+
+### Graph composition and bounded multimodal tasks
+
+- Added Result JSON, Append Message and Messages from JSON for native graph
+  composition, explicit portable history and text-only few-shot examples.
+- Added Request Budget with complete-request token accounting, explicit
+  fit/overflow/unknown evidence, and optional enforcement before generation.
+  It never silently truncates a request.
+- Added Caption Batch for 1 to 32 ordered images with independent captions,
+  stable item IDs and result positions, one shared deadline and terminal cleanup.
+- Added a user-owned task-profile editor with revision conflict detection and
+  JSON import/export. Library saves do not change portable workflow snapshots;
+  Update Saved Snapshot remains explicit and undoable.
+- Added local router INI presets with exact model identity, explicit Override
+  or Inherit settings, and reload semantics that preserve a healthy runtime
+  when replacement validation fails.
+- Added experimental Transcribe for one English mono 16 kHz clip up to ten
+  seconds, limited to the documented Qwen3-ASR model/projector pair in owned
+  direct mode. Unsupported audio and model configurations fail before submission.
+- Registered 25 nodes while preserving all 17 released 0.3 node contracts.
 
 ### Compatibility and cancellation fixes
 

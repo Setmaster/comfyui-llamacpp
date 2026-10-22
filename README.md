@@ -2,36 +2,33 @@
 
 Focused local `llama-server` integration for ComfyUI. It provides text and vision
 prompting, structured output, direct and router modes, and explicit control over
-the external process that owns LLM VRAM. The 0.4 source version also includes
+the external process that owns LLM VRAM. Version 0.4 also includes
 bounded image caption groups and short-clip audio transcription.
 
-Version 0.3 keeps the external-process design that motivated this project. A
+The pack keeps the external-process design that motivated this project. A
 model is not hidden inside ComfyUI's Python process, and this pack can release
 only the `llama-server` process tree it started. ComfyUI's native **Unload
 Models** action also releases this pack's owned runtime. The existing explicit
 stop and unload nodes remain available.
 
-Post-0.3 development adds one recommended **llama.cpp Generate** node instead
+Version 0.4 adds one recommended **llama.cpp Generate** node instead
 of another family of overlapping prompt nodes. It covers text, vision,
 structured output, token bans, live preview, truthful cancellation, portable
 task profiles, strict failures, and optional terminal release. All 17 nodes
 from 0.3 remain registered with their released workflow contracts.
 
-The `master` branch contains the reviewed `0.4.0` source version with 25 nodes.
-The latest published Comfy Registry package and immutable release tag remain
-`0.3.0`, with 17 nodes. A source-branch merge does not publish a Registry package.
-Ongoing development uses `dev`.
+The current release is **0.4.0**, with 25 nodes, available from the
+[Comfy Registry](https://registry.comfy.org/nodes/comfyui-llamacpp) and
+[GitHub releases](https://github.com/Setmaster/comfyui-llamacpp/releases/tag/0.4.0).
+The stable source branch is `master`; ongoing development uses `dev`.
 
-New installation? Follow [Start Here](docs/start-here.md) for the Registry 0.3
-text workflow or the 0.4 source setup path. Setup Check, Quick Text, canonical
-Generate, and automatic local projector matching require the 0.4 source version.
+New installation? Follow [Start Here](docs/start-here.md) for Setup Check,
+Quick Text and the recommended Generate workflow.
 
 ## What it covers
 
-The list below describes the 0.4 source version. Published 0.3 provides Basic, ADV,
-and ADV++ generation, runtime/router control, structured output, and explicit
-projector selection. Generate, task profiles, automatic projector matching,
-live Stop, and release-after-generation are additions in the 0.4 source line.
+The list below describes version 0.4. Existing Basic, ADV and ADV++ workflows
+remain supported alongside Generate and the new graph-composition nodes.
 
 - Direct mode for one GGUF model.
 - Current `llama-server` router mode with exact model identities and terminal
@@ -128,8 +125,8 @@ python -m pip install -r requirements.txt
 ```
 
 Restart ComfyUI. Startup should report version `0.4.0` and 25 registered nodes.
-The Registry's published `0.3.0` reports 17 nodes. The eight added node types preserve the
-17 released node IDs and their existing widget positions.
+The eight added node types preserve the 17 released node IDs and their existing
+widget positions.
 
 ### Update an existing checkout
 
@@ -159,7 +156,6 @@ python -m pip install -r requirements.txt
 Use the Python that launches ComfyUI, then restart it. Follow the source path in
 [Start Here](docs/start-here.md) and the
 [0.4 acceptance checklist](docs/user-acceptance-0.4.md) when validating changes.
-The 0.4 source version has not been published to the Registry.
 [Rollback instructions](docs/migration-0.4.md#rollback) restore the published 0.3 tag.
 
 ## Install llama.cpp
@@ -215,9 +211,7 @@ Files whose names contain `mmproj` are listed separately from text/model GGUFs.
 
 ### VLM pairing
 
-On stable 0.3, select the exact installed projector in the Start node's `mmproj`
-field. Its `(auto)` value does not scan local files for a matching projector.
-The following three-state selection behavior requires the 0.4 source version:
+Version 0.4 supports three projector-selection states:
 
 - Direct mode: leave **Vision Projector** on `(auto)`. The pack reads bounded
   GGUF header metadata and selects one confidently compatible local projector.
@@ -247,7 +241,7 @@ Status**.
 
 ### Direct text workflow
 
-On stable 0.3, build this three-node graph:
+Build this compatible three-node graph:
 
 1. Add **Start llama.cpp Server** and select a GGUF.
 2. Connect `server_url` to **llama.cpp Basic Prompt**.
@@ -255,13 +249,13 @@ On stable 0.3, build this three-node graph:
 4. Queue the workflow.
 
 Set the Start node's `binary_path` if `llama-server` is not already resolved.
-Stable workflows are also available in the installed `examples/` directory;
+Legacy workflows are also available in the installed `examples/` directory;
 open `direct-text.json` manually and select your installed model.
 
-On the 0.4 source version, the shortest path is **Workflow > Browse Templates >
+The shortest path is **Workflow > Browse Templates >
 comfyui-llamacpp > Quick Text**. Its companion **Setup Check** template diagnoses
 the binary, available devices, and configured model roots without starting a
-server. Neither template ships in stable 0.3.
+server.
 
 The start node is idempotent for the same full configuration. A changed binary
 or effective setting performs a coordinated restart. A failed replacement
@@ -269,7 +263,7 @@ preflight does not tear down a healthy existing server.
 
 ### Canonical Generate workflow
 
-For a new workflow on the post-0.3 line, prefer **llama.cpp Generate**:
+For a new workflow, prefer **llama.cpp Generate**:
 
 1. Add **Start llama.cpp Server** and select a GGUF.
 2. Convert Generate's advanced `Server URL` widget to an input and connect the
@@ -357,7 +351,7 @@ limitations.
 
 ## Node catalog
 
-On the 0.4 source version, nodes keep their released names and are grouped under
+Nodes keep their released names and are grouped under
 `LlamaCpp/Runtime`, `LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
 include ordinary terms such as GGUF, VLM, prompt enhancer, JSON Schema, and free
 VRAM. Dense nodes show primary controls first; choose **Show Advanced** for the
@@ -502,17 +496,17 @@ explicit replace/reset action.
 
 ## Examples and validation
 
-On the 0.4 source version, ComfyUI discovers the curated workflows in
+ComfyUI discovers the curated workflows in
 [`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
 the first-run paths; the direct, router, vision, structured-output, and VRAM
 handoff workflows originate from the five released 0.3 examples, with router
 widget values adapted for 0.4. Setup Check, Quick Text, and the four
-canonical examples were added after 0.3. The 0.4 source version also adds native
+canonical examples were added after 0.3. Version 0.4 also adds native
 text composition, a separate frozen-prompt render, explicit few-shot refinement,
 and aligned per-image caption examples. See the
 [workflow guide](example_workflows/README.md) for each recipe and its limits.
-Stable users can open the five JSON workflows manually from their installed
-`examples/` directory.
+The five legacy JSON workflows remain available in the installed `examples/`
+directory.
 Earlier frontend validation found that terminal text remains in native jobs and
 history output even when App Mode does not render it in the central result pane.
 The canonical workflow exposes transient read-only Generation Status and Live
@@ -523,7 +517,7 @@ frontend 1.55.17 evidence, including Stop and dynamic socket compatibility fixes
 The [0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
 workflow compatibility, direct and scoped router release, live Stop, profiles,
 App Mode, VLMs, structured output, and the final
-terminal LLM-to-diffusion GPU handoff. The accepted stable evidence remains
+terminal LLM-to-diffusion GPU handoff. Historical 0.3 acceptance evidence remains
 in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
 recorded separately in the
 [canonical Generate validation report](docs/validation-0.4.md). Earlier candidate

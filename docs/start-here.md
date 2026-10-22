@@ -12,13 +12,12 @@ Install `comfyui-llamacpp` from the Comfy Registry, then restart ComfyUI:
 comfy node install comfyui-llamacpp
 ```
 
-Published Registry 0.3 startup reports 17 registered llama.cpp nodes. Follow the 0.3
-steps below for that installation. Setup Check, Quick Text, Generate, task
-profiles, and automatic local projector matching require the 0.4 source version.
-Install it from `master` using the [source installation
-instructions](../README.md#install-the-reviewed-04-source-version), restart
-ComfyUI, and confirm startup reports `0.4.0` and 25 nodes. Source promotion and
-Registry publication are separate steps; the Registry still supplies 0.3.
+Version 0.4.0 startup reports 25 registered llama.cpp nodes. It includes Setup
+Check, Quick Text, Generate, task profiles and automatic local projector matching.
+You can also use the [source installation
+instructions](../README.md#install-the-reviewed-04-source-version) for `master`.
+If an older installation reports 0.3 and 17 nodes, update before following the
+template steps below; its Basic, ADV and ADV++ workflows remain supported.
 
 ## 2. Make `llama-server` available
 
@@ -44,15 +43,12 @@ Configured `LLM` or `llm` roots from `extra_model_paths.yaml` are also supported
 Restart ComfyUI after changing model-root configuration.
 
 For a vision model, install its matching `mmproj` GGUF under a configured model
-root. On stable 0.3, select that exact file in the Start node's `mmproj` field;
-`(auto)` does not find a matching local projector in this release.
-
-On the 0.4 source version, **Vision Projector** can remain on `(auto)` to select one
+root. **Vision Projector** can remain on `(auto)` to select one
 match only when local GGUF metadata proves compatibility. Folder adjacency and
 filenames alone do not prove a match. You can also choose one exact projector
 file, or select `(none - text only)` to disable vision.
 
-## 4. Generate text on stable 0.3
+## 4. Generate text with the compatible Basic workflow
 
 Build this small graph:
 
@@ -64,11 +60,10 @@ Build this small graph:
 
 The graph starts one owned server and displays the response. For a connected
 example, open `examples/direct-text.json` from the installed custom-node
-directory and replace its model selection with your local model. Stable 0.3
-ships five examples in that directory. It does not include Setup Check, Quick
-Text, or the 0.4 workflow-template directory.
+directory and replace its model selection with your local model. This graph also
+works on older 0.3 installations.
 
-## 5. Source 0.4: Setup Check and templates
+## 5. Setup Check and templates
 
 Open **Workflow > Browse Templates**, choose this node pack, and load **Setup
 Check**. Queue it once.
@@ -117,6 +112,5 @@ unload behavior.
   task profiles, live Stop, passive discovery, and terminal release.
 - [Lifecycle and VRAM ownership](lifecycle.md) for release guarantees.
 - [Troubleshooting](troubleshooting.md) for setup and runtime failures.
-- [Source example workflows](../example_workflows/) for router, vision,
-  structured output, and GPU handoff graphs. Stable users should open their
-  installed `examples/` directory instead.
+- [Example workflows](../example_workflows/) for router, vision, structured
+  output and GPU handoff graphs.
