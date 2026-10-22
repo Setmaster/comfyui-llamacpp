@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Rewrote the README as a current-state guide with a real workflow screenshot,
+  a short quick start, a template table and node tables grouped by category.
+  Release-specific detail stays in this changelog, the migration guides and the
+  validation reports.
+- Reorganized the example workflow guide by purpose and removed
+  release-specific wording from it and from Start Here.
+- Corrected references to the renamed `example_workflows/` directory and to
+  moved README sections.
+
 ## 0.4.0 - 2026-10-22
 
 ### Graph composition and bounded multimodal tasks

@@ -64,8 +64,9 @@ Generate is intentionally stricter than the legacy prompt surface:
   `LLAMACPP_API_KEY_<UPPERCASE_SUFFIX>` credential. Authenticated plain HTTP is
   limited to loopback. Authenticated non-loopback use additionally requires
   HTTPS, certificate verification, and an exact server-side origin-to-key entry
-  in `LLAMACPP_REMOTE_AUTH_BINDINGS`. See the Authentication and TLS section of
-  the README for examples.
+  in `LLAMACPP_REMOTE_AUTH_BINDINGS`. See
+  [Authentication, TLS and network exposure](../README.md#authentication-tls-and-network-exposure)
+  in the README for examples.
 
 If an existing workflow depends on the legacy `success` Boolean or its accepted
 partial-output convention, keep the legacy node until the downstream graph is

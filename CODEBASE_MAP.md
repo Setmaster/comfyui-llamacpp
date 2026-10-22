@@ -2,8 +2,8 @@
 
 # CODEBASE_MAP
 
-Generated: 2026-10-02 19:36:48Z
-Commit: 3251d0085ffebbce0cc1989aba3a0616f42dcff5
+Generated: 2026-10-22 04:15:39Z
+Commit: 84cfcaa87af28f325ef9e31b67bbdad5bbe2583a
 Source: git ls-files (tracked files)
 
 ## Stack signals
@@ -19,15 +19,16 @@ Source: git ls-files (tracked files)
 
 ## Directory structure (depth <= 3)
 - (root files): 18
-- `tests/`: 65 files
+- `tests/`: 66 files
   - `tests/js/`: 10 files
   - `tests/benchmarks/`: 8 files
     - `tests/benchmarks/task_profiles/`: 8 files
   - `tests/fixtures/`: 5 files
     - `tests/fixtures/workflows/`: 3 files
-- `docs/`: 51 files
+- `docs/`: 53 files
   - `docs/research/`: 31 files
     - `docs/research/assets/`: 22 files
+  - `docs/images/`: 1 files
 - `changes/`: 35 files
   - `changes/archive/`: 21 files
     - `changes/archive/2026-07-10-sota-refactor/`: 5 files
@@ -86,7 +87,8 @@ Source: git ls-files (tracked files)
 - Current upstream router load and unload are asynchronous. HTTP acceptance is not a VRAM release barrier, so client operations must poll `/models` to a terminal state.
 - `POST /models` downloads a model and `DELETE /models` deletes cache content. Neither endpoint is a compatibility fallback for load or unload.
 - Ten optional VLM image inputs must be declared in Python. Frontend JavaScript controls presentation only.
-- Research and implementation contract: `PLANS.md`,
-  `changes/2026-07-11-canonical-generate-work-block-b/`,
-  `changes/2026-07-11-ux-work-block-a/`,
-  `changes/archive/2026-07-10-sota-refactor/`, and `docs/research/`.
+- Module boundaries: `runtime/` owns lifecycle and process ownership, `generation/` requests and multimodal payloads, `models/` model and catalog identity, `nodes/` Comfy integration, and `web/` frontend extensions.
+- User-facing entrypoints are `README.md`, `docs/start-here.md` and `example_workflows/README.md`, written in current-state terms. Version history belongs in `CHANGELOG.md`, `docs/migration-*.md` and the `docs/validation-*.md` reports. `docs/images/` holds README assets and is not packaged.
+- Research and implementation contract: `PLANS.md`, the change bundles under
+  `changes/` (completed bundles, including `2026-10-02-feature-frontier`, are in
+  `changes/archive/`), and `docs/research/`.
