@@ -12,12 +12,13 @@ Install `comfyui-llamacpp` from the Comfy Registry, then restart ComfyUI:
 comfy node install comfyui-llamacpp
 ```
 
-Version 0.4.0 startup reports 25 registered llama.cpp nodes. It includes Setup
-Check, Quick Text, Generate, task profiles and automatic local projector matching.
 You can also use the [source installation
-instructions](../README.md#from-source) for `master`.
-If an older installation reports 0.3 and 17 nodes, update before following the
-template steps below; its Basic, ADV and ADV++ workflows remain supported.
+instructions](../README.md#from-source) for `master`. At startup, the ComfyUI
+log prints the pack version and lists its registered llama.cpp nodes.
+
+If **llama.cpp Generate** or the Setup Check and Quick Text templates are
+missing, the installation is older than these steps: update it first. Workflows
+built on Basic, ADV and ADV++ keep working after the update.
 
 ## 2. Make `llama-server` available
 
@@ -59,16 +60,16 @@ Build this small graph:
 5. Enter a prompt and queue the workflow.
 
 The graph starts one owned server and displays the response. For a connected
-example, load the **direct-text** template (on a 0.3 installation, open
-`examples/direct-text.json` from the custom-node directory) and replace its
-model selection with your local model. This graph also works on 0.3.
+example, load the **direct-text** template and replace its model selection
+with your local model. Older installations keep the same file at
+`examples/direct-text.json` in the custom-node directory.
 
 ## 5. Setup Check and templates
 
 Open **Workflow > Browse Templates**, choose this node pack, and load **Setup
 Check**. Queue it once.
 
-On 0.4, **llama.cpp Server Status** reports `Setup: ready` when it can
+**llama.cpp Server Status** reports `Setup: ready` when it can
 resolve and probe `llama-server` and can discover at least one model. It also
 shows bounded device, model-root, model, and projector information. `Setup: needs
 attention` is followed by an actionable warning.
@@ -84,14 +85,15 @@ Then load **Quick Text** from the same template browser:
 4. Queue the workflow.
 
 The three-node workflow starts one owned server, sends the prompt, and displays
-the response. Use **Show Advanced** only when the defaults do not fit the model or
-machine.
+the response. Use **Show advanced inputs** only when the defaults do not fit the
+model or machine.
 
-For a new 0.4 workflow, load **Canonical Text** or replace Basic Prompt and
-Prompt Output with one **llama.cpp Generate** node. Convert Generate's advanced
-`Server URL` widget to an input before connecting the Start node URL, or leave it
-empty to use the currently owned runtime. Generate provides its own live preview
-and terminal output, so a Prompt Output node is optional.
+For new workflows, load **Canonical Text** or replace Basic Prompt and Prompt
+Output with one **llama.cpp Generate** node. Connect the Start node's
+`server_url` to Generate's advanced **Server URL** input (older frontends need it
+converted from a widget first), or leave it empty to use the currently owned
+runtime. Generate provides its own live preview and final output, so a Prompt
+Output node is optional.
 
 ## 6. Release GPU memory
 
@@ -108,9 +110,9 @@ unload behavior.
 ## Next steps
 
 - [README](../README.md) for every node and prompt option.
-- [Canonical Generate](canonical-generate.md) for the recommended post-0.3 node,
-  task profiles, live Stop, passive discovery, and terminal release.
+- [Canonical Generate](canonical-generate.md) for the recommended generation
+  node, task profiles, live Stop, passive discovery, and terminal release.
 - [Lifecycle and VRAM ownership](lifecycle.md) for release guarantees.
 - [Troubleshooting](troubleshooting.md) for setup and runtime failures.
-- [Example workflows](../example_workflows/) for router, vision, structured
-  output and GPU handoff graphs.
+- [Example workflows](../example_workflows/README.md) for router, vision,
+  structured output, composition and GPU handoff graphs.
