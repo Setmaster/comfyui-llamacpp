@@ -15,7 +15,7 @@ comfy node install comfyui-llamacpp
 Version 0.4.0 startup reports 25 registered llama.cpp nodes. It includes Setup
 Check, Quick Text, Generate, task profiles and automatic local projector matching.
 You can also use the [source installation
-instructions](../README.md#install-the-reviewed-04-source-version) for `master`.
+instructions](../README.md#from-source) for `master`.
 If an older installation reports 0.3 and 17 nodes, update before following the
 template steps below; its Basic, ADV and ADV++ workflows remain supported.
 
@@ -59,9 +59,9 @@ Build this small graph:
 5. Enter a prompt and queue the workflow.
 
 The graph starts one owned server and displays the response. For a connected
-example, open `examples/direct-text.json` from the installed custom-node
-directory and replace its model selection with your local model. This graph also
-works on older 0.3 installations.
+example, load the **direct-text** template (on a 0.3 installation, open
+`examples/direct-text.json` from the custom-node directory) and replace its
+model selection with your local model. This graph also works on 0.3.
 
 ## 5. Setup Check and templates
 

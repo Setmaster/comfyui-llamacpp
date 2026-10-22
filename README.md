@@ -1,109 +1,99 @@
 # ComfyUI llama.cpp Suite
 
-Focused local `llama-server` integration for ComfyUI. It provides text and vision
-prompting, structured output, direct and router modes, and explicit control over
-the external process that owns LLM VRAM. Version 0.4 also includes
-bounded image caption groups and short-clip audio transcription.
+Run local GGUF language and vision models in ComfyUI through
+[llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server`, with
+explicit control over the process that holds the LLM's VRAM.
 
-The pack keeps the external-process design that motivated this project. A
-model is not hidden inside ComfyUI's Python process, and this pack can release
-only the `llama-server` process tree it started. ComfyUI's native **Unload
-Models** action also releases this pack's owned runtime. The existing explicit
-stop and unload nodes remain available.
+<p align="center">
+  <img src="docs/images/generate-vlm-workflow.png" width="880"
+       alt="ComfyUI graph: Load Image and Start llama.cpp Server connected to llama.cpp Generate, which shows a completed image-to-prompt response">
+</p>
+<p align="center"><em>A real run: Start llama.cpp Server launches a Qwen3-VL 4B
+model, Generate turns the connected image into a text-to-image prompt, then
+releases the model so the GPU is free for the next step.</em></p>
 
-Version 0.4 adds one recommended **llama.cpp Generate** node instead
-of another family of overlapping prompt nodes. It covers text, vision,
-structured output, token bans, live preview, truthful cancellation, portable
-task profiles, strict failures, and optional terminal release. All 17 nodes
-from 0.3 remain registered with their released workflow contracts.
-
-The current release is **0.4.0**, with 25 nodes, available from the
-[Comfy Registry](https://registry.comfy.org/nodes/comfyui-llamacpp) and
-[GitHub releases](https://github.com/Setmaster/comfyui-llamacpp/releases/tag/0.4.0).
-The stable source branch is `master`; ongoing development uses `dev`.
-
-New installation? Follow [Start Here](docs/start-here.md) for Setup Check,
-Quick Text and the recommended Generate workflow.
-
-## What it covers
-
-The list below describes version 0.4. Existing Basic, ADV and ADV++ workflows
-remain supported alongside Generate and the new graph-composition nodes.
-
-- Direct mode for one GGUF model.
-- Current `llama-server` router mode with exact model identities and terminal
-  load/unload barriers, plus validated local per-model INI presets with explicit
-  inheritance in 0.4.
-- Freeform chat completions with sampling, thinking/reasoning output, stop
-  sequences, token bans, and prompt-prefix caching.
-- VLM requests with 0 to 10 Comfy `IMAGE` inputs and optional full-batch input.
-- Separate ordered captions for 1 to 32 images, with exact item alignment and a
-  shared timeout and terminal release boundary.
-- Metadata-backed local projector selection for known VLM families, with an
-  explicit text-only mode and fail-closed ambiguity handling.
-- Non-destructive, backend-applied Image2Prompt and Prompt Enhancer templates.
-- JSON object, JSON Schema, and GBNF structured-output constraints.
-- Token counting and live model/server properties.
-- Reusable local connection profiles with API-key environment variables, TLS
-  verification, and request deadlines.
-- One canonical Generate surface with Default or Custom sampling, Auto or
-  explicit thinking control, strict partial-output policy, bounded live preview,
-  and a versioned result.
-- Small user-owned task profiles that are explicitly copied into portable
-  workflow snapshots, with a current-user editor and JSON import/export.
-  Freeform is the only bundled profile.
-- Explicit portable text history and few-shot examples, supplied through graph
-  inputs without hidden conversation state.
-- Complete-request token budgeting, with fit/overflow/unknown evidence and an
-  optional pre-generation enforcement policy.
-- Result JSON and native Comfy text composition for structured fields, protected
-  literal text and separate reviewed-prompt render workflows.
-- Short English transcription for one mono 16 kHz AUDIO clip up to 10 seconds,
-  restricted to the documented Qwen3-ASR model/projector pair in owned direct mode.
-- Passive managed model discovery that never autoloads a router model and keeps
-  missing saved selections visible.
-- Optional release-after-generation that withholds outputs until exact managed
-  direct or router cleanup reaches a terminal result.
-- Positively owned process trees, bounded redacted logs, and deterministic stop
-  barriers. Linux adds kernel-backed abrupt-owner cleanup; Windows uses Job
-  Objects when available. It never sweeps processes by name.
-- Two-sided GPU handoff: optionally evict Comfy-managed models before starting
-  an owned LLM, then release the LLM through Comfy's native unload action.
-
-This is intentionally not an agent, RAG, MCP, cloud-provider, or conversation
-database suite. It is a small local llama.cpp runtime and generation surface.
-
-## Requirements
-
-- ComfyUI with Python 3.10 or newer.
-- A current `llama-server` build. Optional controls are capability-checked
-  before launch. Router mode requires a build that exposes `--models-dir` and
-  `--models-max`.
-- Linux requires working `pidfd_open` and `waitid(P_PIDFD)` support, normally a
-  Linux 5.4 or newer kernel unless those interfaces were backported. The pack
-  checks both capabilities before spawning `llama-server` and fails with an
-  actionable error on an unsupported host.
-- One or more GGUF models.
-- For GPU inference, a llama.cpp build for the installed CUDA, Vulkan, ROCm,
-  Metal, or other supported backend.
+The model runs in a separate `llama-server` process, not inside ComfyUI's Python
+process. This pack starts that process, tracks exactly what it owns, and releases
+it on request, including through ComfyUI's own **Unload Models** action, so an
+LLM step and a diffusion step can share one GPU. It never stops a server it did
+not start.
 
 No cloud service or cloud API key is required.
 
+## Highlights
+
+- **One recommended node for generation.** **llama.cpp Generate** covers text,
+  vision with up to 10 images or a full image batch, JSON / JSON Schema / GBNF
+  constraints, token bans and thinking control, with a live preview, a working
+  Stop button, strict failure handling and a typed result.
+- **Direct or router mode.** Serve one GGUF, or use `llama-server`'s multi-model
+  router with exact load and unload barriers and local per-model presets.
+- **Owned-process lifecycle.** Only positively owned process trees are stopped,
+  with deterministic stop barriers, kernel-backed cleanup on Linux and Job
+  Objects on Windows. Processes are never swept by name.
+- **GPU handoff in both directions.** Optionally evict ComfyUI's models before
+  the LLM starts, then release the LLM afterwards, either automatically after
+  generation or with ComfyUI's native unload.
+- **Vision projectors matched from metadata.** `(auto)` selects an `mmproj` only
+  when local GGUF metadata proves it fits the model, and asks you to choose
+  otherwise.
+- **Portable, explicit workflows.** Task profiles are copied into the workflow,
+  conversation history is passed through graph inputs, and nothing depends on
+  hidden server-side state.
+- **Batch captions and token budgets.** Caption 1 to 32 images with aligned IDs,
+  or count a complete request before generating and optionally refuse one that
+  will not fit.
+- **Native graph composition.** Result JSON and core ComfyUI text nodes compose
+  structured fields, protected literal text and frozen prompts for later renders.
+- **Experimental audio.** Short English transcription with one documented
+  Qwen3-ASR model pair.
+- **Careful with secrets.** API keys come from environment variables and are
+  never saved in workflows; remote keys require HTTPS and an explicit allowlist.
+
+This is intentionally not an agent, RAG, MCP, cloud-provider or chat-database
+suite. It is a small, dependable local llama.cpp runtime and generation surface.
+
+## Quick start
+
+1. Install the pack: `comfy node install comfyui-llamacpp`, then restart ComfyUI.
+2. Make a `llama-server` build available (see [llama.cpp](#llamacpp)).
+3. Put at least one GGUF model in `ComfyUI/models/LLM/gguf/`.
+4. Open **Workflow > Browse Templates > comfyui-llamacpp > Setup Check** and
+   queue it. **llama.cpp Server Status** reports `Setup: ready` when it can run
+   `llama-server` and find a model, or explains what is missing.
+5. Load the **Quick Text** or **Canonical Text** template, select your model and
+   queue it.
+
+[Start Here](docs/start-here.md) walks through the same path in more detail.
+
 ## Installation
 
-### Install from the Comfy Registry
+### Requirements
 
-The Registry ID is `comfyui-llamacpp`. Install it with the Comfy CLI:
+- ComfyUI on Python 3.10 or newer.
+- A current `llama-server` build for your CPU or GPU backend (CUDA, Vulkan,
+  ROCm, Metal and others). Optional controls are capability-checked against the
+  build before launch. Router mode needs a build that supports `--models-dir`
+  and `--models-max`.
+- One or more GGUF models.
+- Linux only: working `pidfd_open` and `waitid(P_PIDFD)`, normally kernel 5.4 or
+  newer. Both are checked before `llama-server` is spawned, with an actionable
+  error on an unsupported host.
+
+### From the Comfy Registry
+
+The Registry ID is `comfyui-llamacpp`
+([package page](https://registry.comfy.org/nodes/comfyui-llamacpp)):
 
 ```bash
 comfy node install comfyui-llamacpp
 ```
 
-The public package page is
-[ComfyUI llama.cpp Suite](https://registry.comfy.org/nodes/comfyui-llamacpp).
-Restart ComfyUI after installation.
+Restart ComfyUI afterwards.
 
-### Install the reviewed 0.4 source version
+### From source
+
+The stable source branch is `master`:
 
 ```bash
 cd ComfyUI/custom_nodes
@@ -111,7 +101,7 @@ git clone --branch master https://github.com/Setmaster/comfyui-llamacpp.git
 cd comfyui-llamacpp
 ```
 
-Install dependencies with the Python that launches ComfyUI:
+Install the dependencies with the same Python that launches ComfyUI:
 
 ```bash
 # ComfyUI virtual environment on Windows
@@ -124,11 +114,10 @@ C:\ComfyUI\venv\Scripts\python.exe -m pip install -r requirements.txt
 python -m pip install -r requirements.txt
 ```
 
-Restart ComfyUI. Startup should report version `0.4.0` and 25 registered nodes.
-The eight added node types preserve the 17 released node IDs and their existing
-widget positions.
+Restart ComfyUI. The startup log prints the pack version and every registered
+llama.cpp node.
 
-### Update an existing checkout
+### Updating
 
 ```bash
 cd ComfyUI/custom_nodes/comfyui-llamacpp
@@ -138,13 +127,14 @@ git pull --ff-only origin master
 python -m pip install -r requirements.txt
 ```
 
-Existing 0.2.1 workflows retain released node IDs, socket names, output order,
-defaults, and legacy widget positions. Read [the 0.3 migration guide](docs/migration-0.3.md)
-before testing important saved workflows.
+Saved workflows from earlier releases keep their node IDs, socket names, output
+order, defaults and widget positions. Before upgrading important workflows, read
+the [migration guides](#upgrading-and-release-history) and the
+[CHANGELOG](CHANGELOG.md).
 
-### Follow development on dev
+### Following development
 
-Use an existing clean source checkout to opt into ongoing development:
+Ongoing work lands on `dev`. From a clean source checkout:
 
 ```bash
 git fetch origin
@@ -153,43 +143,35 @@ git pull --ff-only origin dev
 python -m pip install -r requirements.txt
 ```
 
-Use the Python that launches ComfyUI, then restart it. Follow the source path in
-[Start Here](docs/start-here.md) and the
-[0.4 acceptance checklist](docs/user-acceptance-0.4.md) when validating changes.
-[Rollback instructions](docs/migration-0.4.md#rollback) restore the published 0.3 tag.
+[Rollback instructions](docs/migration-0.4.md#rollback) return to a published
+release.
 
-## Install llama.cpp
+## llama.cpp
 
-Use an official current build from the
+Use an official build from the
 [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases), build it
-from source, or install it with your platform package manager. On Windows, the
-official CUDA release consists of the matching llama binary and CUDA runtime
-archives. Extract both into the same directory.
+from source, or install it with your package manager.
 
-The exact Windows reference used for 0.3 validation is
-[llama.cpp b9957](https://github.com/ggml-org/llama.cpp/releases/tag/b9957)
-(`c4ae9a88f`) on an RTX 5090. Its two CUDA 13.3 assets are
-`llama-b9957-bin-win-cuda-13.3-x64.zip` and
-`cudart-llama-bin-win-cuda-13.3-x64.zip`. This is a tested pin, not the
-permanent minimum supported build. b9957 uses companion implementation DLLs
-that are absent from the older b8261 deployment, so deploy the complete release
-into an empty directory. Do not replace only `llama-server.exe` or overlay it
-onto an older llama.cpp directory.
+On Windows, the official CUDA release comes as two archives: the llama binaries
+and the matching CUDA runtime. Extract both into the same, empty directory.
+Current releases ship companion DLLs next to `llama-server.exe`, so never copy
+only the executable over an older llama.cpp directory. The exact builds used in
+validation are recorded in the [validation reports](#upgrading-and-release-history).
 
 The start nodes resolve the executable in this order:
 
-1. The node's `binary_path` input.
+1. The node's **llama-server Binary** (`binary_path`) input.
 2. The `LLAMA_SERVER_BINARY` environment variable.
 3. The compatibility variable `LLAMA_CPP_SERVER`.
 4. `llama-server` or `llama-server.exe` on `PATH`.
 
-An explicit path is easiest when several llama.cpp builds are installed. The
-pack probes `--version` and `--help`, records the binary identity, and refuses
-unsupported requested options before spawning it.
+An explicit path is clearest when several builds are installed. The pack probes
+`--version` and `--help`, records the binary identity, and refuses unsupported
+options before spawning anything.
 
-## Model folders
+## Models
 
-The default location is:
+The default model location is:
 
 ```text
 ComfyUI/
@@ -202,283 +184,224 @@ ComfyUI/
                 └── mmproj-vision-model.gguf
 ```
 
-The pack also honors Comfy model roots configured as `LLM` or `llm` in
-`extra_model_paths.yaml`. If such a root contains a `gguf` child, that child is
-used. Paths are resolved through a containment-safe catalog; traversal and
-symlink escapes are rejected.
+Roots configured as `LLM` or `llm` in `extra_model_paths.yaml` are also used; if
+such a root has a `gguf` child, that child is the model root. Paths go through a
+containment-safe catalog, so traversal and symlink escapes are rejected. Files
+whose names contain `mmproj` are listed as projectors, separately from models.
 
-Files whose names contain `mmproj` are listed separately from text/model GGUFs.
+### Vision models
 
-### VLM pairing
+**Vision Projector** has three kinds of value:
 
-Version 0.4 supports three projector-selection states:
+- `(auto)` reads bounded GGUF header metadata and selects one projector that is
+  provably compatible with the model. Filenames and folder adjacency alone never
+  count as proof. A text-only model starts without a projector. A known vision
+  model with no compatible projector, or with several distinct candidates, fails
+  before touching the running server and asks for an explicit choice.
+  Equivalent copies across roots are ranked Q8_0, BF16, F16, then F32.
+- A projector filename uses that exact file, without substitution.
+- `(none - text only)` disables vision deliberately.
 
-- Direct mode: leave **Vision Projector** on `(auto)`. The pack reads bounded
-  GGUF header metadata and selects one confidently compatible local projector.
-  It does not use filenames or folder adjacency alone as compatibility proof.
-- If the model is text-only or has no projector candidates and is not known to
-  require one, `(auto)` starts explicitly without a projector. If a known VLM
-  has no compatible projector, or several distinct projector identities remain
-  valid, startup fails before changing the current server and asks for an
-  explicit choice. Strong equivalent matches across configured roots are
-  grouped and ranked Q8_0, BF16, F16, then F32; an adjacent lower-ranked copy
-  does not override that order.
-- Select `(none - text only)` to disable vision deliberately. Selecting a
-  projector filename uses that exact contained file without substitution.
-- Router mode: put each VLM and its matching projector in one dedicated
-  subdirectory, or name their local paths in a
-  [router preset](docs/router-presets.md). The router controls the exact model ID
-  and projector pairing.
-- Never pair projectors from a different model size or architecture.
+Automatic matching recognizes current Gemma 3, Gemma 4, Qwen3-VL and Qwen3.5
+layouts and narrowly identified MiniCPM-V layouts. Unknown metadata is never
+guessed. The running projector and how it was chosen are shown in **llama.cpp
+Server Status**.
 
-Current automatic matching recognizes projector interfaces it can prove from
-local GGUF metadata, including current Gemma 3, Gemma 4, Qwen3-VL, Qwen3.5, and
-narrowly identified MiniCPM-V layouts. Unknown metadata never becomes a guess.
-The running projector and selection mode are visible in **llama.cpp Server
-Status**.
+In router mode, put each vision model and its projector in their own
+subdirectory, or name both paths in a [router preset](docs/router-presets.md).
+Never pair a projector from a different model size or architecture.
 
-## Quick start
+## Building workflows
 
-### Direct text workflow
+### Templates
 
-Build this compatible three-node graph:
+ComfyUI lists the bundled workflows under **Workflow > Browse Templates >
+comfyui-llamacpp**. After loading one, select models and projectors that exist
+on your machine, and set **llama-server Binary** if Setup Check could not find
+it.
 
-1. Add **Start llama.cpp Server** and select a GGUF.
-2. Connect `server_url` to **llama.cpp Basic Prompt**.
-3. Connect `response` to **llama.cpp Prompt Output**.
-4. Queue the workflow.
+| Template | What it shows |
+| --- | --- |
+| `setup-check` | Binary, device, model-root and projector readiness, without starting a server. |
+| `quick-text` | The smallest path: Start Server, Basic Prompt, Prompt Output. |
+| `canonical-text` | Recommended text generation with a portable profile, strict errors, live status and release. |
+| `canonical-vlm-image-understanding` | One image into Generate for factual image understanding. |
+| `canonical-structured-json` | Strict JSON Schema output validated as JSON. |
+| `canonical-app-mode` | A compact App Mode surface with live status and response. |
+| `graph-structured-field` | Read one generated JSON field with core nodes. |
+| `graph-protected-literal-draft` | Append exact literal text after generation. |
+| `graph-frozen-render` | Render a reviewed, saved prompt without any LLM request. |
+| `messages-few-shot` | Explicit few-shot history, then draft and refine. |
+| `caption-batch-aligned` | Independent, aligned captions for several images. |
+| `direct-text`, `router-text` | Direct and router lifecycles end to end. |
+| `vlm-image-to-prompt`, `structured-output` | Image-to-prompt and JSON Schema with ADV++. |
+| `vram-handoff` | Evict ComfyUI models before the LLM, then release it. |
 
-Set the Start node's `binary_path` if `llama-server` is not already resolved.
-Legacy workflows are also available in the installed `examples/` directory;
-open `direct-text.json` manually and select your installed model.
+The [workflow guide](example_workflows/README.md) describes each one and its
+limits.
 
-The shortest path is **Workflow > Browse Templates >
-comfyui-llamacpp > Quick Text**. Its companion **Setup Check** template diagnoses
-the binary, available devices, and configured model roots without starting a
-server.
+### Generate
 
-The start node is idempotent for the same full configuration. A changed binary
-or effective setting performs a coordinated restart. A failed replacement
-preflight does not tear down a healthy existing server.
-
-### Canonical Generate workflow
-
-For a new workflow, prefer **llama.cpp Generate**:
+For new workflows, use **llama.cpp Generate**:
 
 1. Add **Start llama.cpp Server** and select a GGUF.
-2. Convert Generate's advanced `Server URL` widget to an input and connect the
-   Start node's existing `server_url` output, or omit the URL to use the current
-   managed runtime.
-3. Enter the prompt. Leave Thinking on Auto and Sampling on Default unless the
-   model or task needs an explicit override.
-4. Optionally connect images, Structured Output, Token Ban, or a Task Profile.
-5. Queue the workflow. The node shows bounded live response and thinking text
-   and returns response, thinking, and a typed result.
+2. Connect its `server_url` output to Generate's **Server URL** input, or leave
+   Server URL empty to use the currently managed server. (Server URL is an
+   advanced input; older frontends need it converted from a widget first.)
+3. Enter a prompt. Leave **Thinking** on `auto` and **Sampling** on `default`
+   unless the model or task needs an override.
+4. Optionally connect images, **Structured Output**, **Token Ban**, a **Task
+   Profile** or **Earlier Messages**.
+5. Queue. Generate shows live response and thinking text, and returns
+   `response`, `thinking` and a typed `result`.
 
-A typed **llama.cpp Connection** can be connected instead of `Server URL`.
-Supplying both is rejected before generation. See
-[Canonical Generate](docs/canonical-generate.md) for cancellation, profiles,
-passive discovery, strict failure, and release-after behavior.
+A **llama.cpp Connection** can be connected instead of Server URL; supplying both
+is rejected before generation. Turn on **Release After Generation** to free the
+model once the result is final. See [Canonical Generate](docs/canonical-generate.md)
+for profiles, cancellation, discovery and strict-failure behavior.
 
-### Router workflow
+### Router mode
 
-1. Add **Start llama.cpp Router**.
-2. Leave `models_directory` on `(auto)`, or choose the configured GGUF root
-   the router should expose. For named local model paths and per-model settings,
-   select a [local router preset](docs/router-presets.md) and its explicit policy.
-3. Optionally sequence **llama.cpp Load Model** from its `success` output.
-4. Choose the model on a prompt node and generate.
-5. Use **llama.cpp Unload Model** for one exact model, or **Release llama.cpp
-   VRAM** for all resident router models.
+1. Add **Start llama.cpp Router**. Leave `models_directory` on `(auto)` or pick
+   the root to expose, or select a [local router preset](docs/router-presets.md)
+   for named paths and per-model settings.
+2. Optionally sequence **llama.cpp Load Model** from its `success` output.
+3. Choose the model on the generation node and queue.
+4. Use **llama.cpp Unload Model** for one model, or **Release llama.cpp VRAM**
+   for every resident model.
 
-Router load and unload nodes return only after `/models` shows the requested
-terminal state. HTTP acceptance by itself is not considered completion.
-**llama.cpp List Models** can optionally ask the router to rescan its catalog.
-Current llama.cpp combines cached entries, the selected local root and any named
-preset entries. In directory discovery, root-level GGUFs are separate models;
-each immediate child directory is one logical model bundle and should contain
-one base model plus at most one projector. Multiple
-base models or projectors in one bundle are ambiguous, and deeper directories
-are invisible. Direct-mode dropdowns remain recursive across all configured
-roots, so **List Models** is the authoritative router catalog.
+Load and unload return only after `/models` reports the requested state; an
+accepted HTTP request alone is not treated as done. **llama.cpp List Models** is
+the authoritative router catalog. In directory discovery, root-level GGUFs are
+separate models, each immediate subdirectory is one model bundle with one base
+model and at most one projector, and deeper directories are not visible.
+Direct-mode dropdowns, by contrast, search all configured roots recursively.
 
-For canonical Generate, a local GGUF is resolved under the active router root
-and current status metadata is checked against that complete normalized path.
-Matching basenames or suffixes in another bundle or configured root do not count
-as proof. If a directory-level router ID actually targets another quantization,
-generation fails before submitting the prompt. An exact canonical live router
-ID remains authoritative when it does not name a local file. Older routers that
-omit target metadata retain ID-only compatibility, so one base GGUF per bundle
-remains the portable layout.
+Generate checks the router's own metadata against the full resolved model path,
+so a matching basename in another folder is never accepted as the same model.
+Keep one base GGUF per bundle for portable router layouts; the details are in
+[Canonical Generate](docs/canonical-generate.md).
 
-### Attach to an existing local server
+### Attaching to an existing server
 
-Use `server_url` directly or create a **llama.cpp Connection** profile. An
-explicit endpoint that this pack did not start is treated as externally owned.
-Native Comfy unload and implicit lifecycle actions never stop or unload it.
+Point Server URL at it or create a **llama.cpp Connection** profile. A server
+this pack did not start is treated as external: native unload and implicit
+lifecycle actions never stop or unload it.
 
-## VRAM and lifecycle behavior
+## VRAM and lifecycle
 
-ComfyUI does not have a universal custom-runtime unloader. This pack bridges
-successful `POST /free` and `POST /api/free` requests into its own lifecycle
+ComfyUI has no general unloader for external runtimes, so this pack hooks
+successful `POST /free` and `POST /api/free` calls into its own lifecycle
 coordinator.
 
-| Action | Owned direct server | Owned router | Attached endpoint |
+| Action | Owned direct server | Owned router | Attached server |
 | --- | --- | --- | --- |
-| Comfy **Unload Models** | Stops the owned process tree | Unloads resident models, keeps the router when barriers succeed | No action |
+| ComfyUI **Unload Models** | Stops the owned process tree | Unloads resident models; keeps the router when barriers succeed | No action |
 | **Release llama.cpp VRAM** | Stops the owned process tree | Unloads all resident models | No action |
-| **llama.cpp Unload Model** | Not applicable | Unloads one exact model to terminal state | Not used for implicit ownership |
-| **Stop llama.cpp Server** | Stops the process tree | Stops the router process tree | Does not target an attached endpoint |
+| **llama.cpp Unload Model** | Not applicable | Unloads one model to a terminal state | Not used for ownership |
+| **Stop llama.cpp Server** | Stops the process tree | Stops the router process tree | Not targeted |
 
-Release requested during managed generation is deferred until the final active
-generation lease exits. Concurrent release requests are coordinated. Direct
-release is complete only after the owned process tree is gone. Router release
-is complete only after every target reaches a nonresident terminal state; if a
-trustworthy router barrier is unavailable, the owned router is stopped as a
-safe fallback.
+- A release requested during generation waits until the last active generation
+  finishes; concurrent requests are coordinated.
+- Direct release completes only when the owned process tree is gone. Router
+  release completes only when every target is nonresident; if no trustworthy
+  router barrier exists, the owned router is stopped instead.
+- The Release node's Boolean means the request was accepted. Check its status or
+  `terminal` field before assuming VRAM is free: `deferred` and `coalesced` are
+  accepted but not yet finished.
+- `unload_comfy_models_before_start` on either start node asks ComfyUI to evict
+  its models and empty its cache before llama.cpp allocates GPU memory. It is
+  off by default because it changes residency for the rest of the workflow.
 
-The Release node's Boolean reports whether the request was accepted. Check its
-status or `terminal` field before assuming VRAM is already free: `deferred`
-and `coalesced` are accepted, nonterminal outcomes.
+[Lifecycle and VRAM ownership](docs/lifecycle.md) has the full contract.
 
-Set `unload_comfy_models_before_start` on either start node to ask ComfyUI to
-evict its managed models and empty its cache before llama.cpp allocates GPU
-memory. This is opt-in because it changes the residency of the rest of the
-workflow.
+## Nodes
 
-See [Lifecycle and VRAM ownership](docs/lifecycle.md) for the full contract and
-limitations.
+Nodes appear under `LlamaCpp/Runtime`, `LlamaCpp/Router`, `LlamaCpp/Generate`
+and `LlamaCpp/Utilities`, and can be found with everyday search terms such as
+GGUF, VLM, prompt enhancer, JSON Schema or free VRAM. Dense nodes show their main
+controls first; **Show advanced inputs** reveals the rest.
 
-## Node catalog
-
-Nodes keep their released names and are grouped under
-`LlamaCpp/Runtime`, `LlamaCpp/Generate`, `LlamaCpp/Router`, and `LlamaCpp/Utilities`. Search aliases
-include ordinary terms such as GGUF, VLM, prompt enhancer, JSON Schema, and free
-VRAM. Dense nodes show primary controls first; choose **Show Advanced** for the
-complete released surface.
+**Runtime**
 
 | Node | Purpose |
 | --- | --- |
-| Start llama.cpp Server | Start one positively owned direct server. |
-| Start llama.cpp Router | Start one positively owned multi-model router. |
-| Stop llama.cpp Server | Explicitly stop the owned direct server or router. |
-| Release llama.cpp VRAM | Release direct or router model VRAM while retaining the router when safe. |
-| llama.cpp Server Status | Show mode, lifecycle, ownership, PID/group/job state, capabilities, errors, and bounded logs. |
-| llama.cpp Connection | Reuse a URL, model, API-key environment name, TLS policy, and deadline. |
-| llama.cpp Generate | Recommended strict text, vision, constrained, and prompt generation with live state and a typed result. |
-| llama.cpp Task Profile | Edit a current-user profile library and explicitly save a portable workflow snapshot. |
-| llama.cpp Result JSON | Serialize the full typed result, including completion, errors and release evidence. |
-| llama.cpp Append Message | Append one exact text turn to an immutable explicit history. |
-| llama.cpp Messages from JSON | Import a bounded portable text-history snapshot. |
-| llama.cpp Request Budget | Count the complete prepared request without generating text; report or enforce its context allowance. |
-| llama.cpp Caption Batch | Generate one independent caption per image with aligned IDs and group cleanup. |
-| llama.cpp Transcribe (Experimental) | Transcribe one bounded English AUDIO clip with the supported owned Qwen3-ASR pair. |
-| llama.cpp Basic Prompt | Freeform text generation with the common sampling controls. |
-| llama.cpp ADV Prompt | Text plus 0 to 10 image sockets and optional full Comfy image batches. |
-| llama.cpp ADV++ Prompt | ADV prompting plus templates, token bans, and structured output. |
-| llama.cpp Prompt Output | Preview and pass through text, optionally converting common markup to plaintext. |
-| llama.cpp List Models | List current router model records and residency states. |
-| llama.cpp Load Model | Load one exact router model and wait for a callable state. |
-| llama.cpp Unload Model | Unload one exact router model and wait for a nonresident state. |
-| llama.cpp Token Count | Call `/tokenize` with model-aware routing. |
-| llama.cpp Model Info | Call `/props` and expose model name, context length, and raw properties. |
-| llama.cpp Structured Output | Build JSON object, JSON Schema, or GBNF generation constraints. |
-| llama.cpp Token Ban | Build llama.cpp text-form logit-bias entries. |
+| Start llama.cpp Server | Start one owned direct server for a single GGUF. |
+| Stop llama.cpp Server | Stop the owned direct server or router. |
+| Release llama.cpp VRAM | Free direct or router model VRAM, keeping the router when safe. |
+| llama.cpp Server Status | Setup check plus mode, ownership, process state, capabilities, errors and a redacted log tail. |
+| llama.cpp Connection | Reusable URL, model, API-key variable name, TLS policy and deadline. |
 
-## Important prompt semantics
+**Router**
 
-- `keep_context` maps to llama.cpp `cache_prompt`. It reuses a matching prompt
-  prefix in the KV cache. It is not chat history, durable memory, or a session
-  database. Use the [explicit messages nodes](docs/messages.md) for earlier turns.
-- `enable_chaining` remains for saved-workflow compatibility. A connected
-  `trigger` socket is what establishes graph ordering.
-- Stop sequences accept one entry per line, a JSON string array, or the legacy
-  comma-separated form. Use JSON when commas or surrounding whitespace matter.
-- Token bans use the same robust list forms and are sent as llama.cpp text-form
-  logit-bias entries.
-- `image_amount` accepts 0 through 10. All ten sockets exist in Python so saved
-  workflows survive frontend reload. `include_image_batch` sends every item in
-  a connected Comfy image batch in one request; off preserves the legacy
-  first-image behavior. [Caption Batch](docs/captions.md) sends independent
-  requests with explicit per-item outcomes.
-- Templates are applied in Python as well as reflected in the UI, so API-format
-  and headless workflows behave consistently. Selection fills exact-empty prompt
-  fields only and never overwrites a draft. Whitespace remains an intentional
-  value. Use the explicit replace/reset action when overwriting both fields is
-  intended; the action participates in Comfy undo.
-- A generation succeeds only after a valid stream terminal marker. Partial text
-  is preserved and labelled when a stream times out, is cancelled, or ends
-  without completion.
-- Canonical Generate raises on total failure and, by default, on partial output.
-  Only `return_marked_partial` lets partial text reach its sockets, and the typed
-  result still marks the incomplete state.
-- Canonical Default sampling omits the complete sampler group so the selected
-  model and server retain their own defaults. Custom sends every displayed
-  expert sampler together. Thinking Auto likewise omits an override.
-- Generate's [Budget Policy](docs/request-budget.md) defaults to Off. Report
-  records the count, while Enforce requires known input/context facts and room
-  for the requested output. No policy truncates or summarizes the input.
+| Node | Purpose |
+| --- | --- |
+| Start llama.cpp Router | Start one owned multi-model router. |
+| llama.cpp List Models | List router models and their residency, optionally rescanning. |
+| llama.cpp Load Model | Load one model and wait until it can be called. |
+| llama.cpp Unload Model | Unload one model and wait until it is nonresident. |
 
-## Authentication and TLS
+**Generate**
 
-Secrets are read from environment variables and are not serialized in a
-workflow. The default name is `LLAMACPP_API_KEY`.
+| Node | Purpose |
+| --- | --- |
+| llama.cpp Generate | Recommended text, vision and constrained generation with live state and a typed result. |
+| llama.cpp Task Profile | Manage your profile library and save a portable snapshot into the workflow. |
+| llama.cpp Append Message | Append one exact text turn to an explicit history. |
+| llama.cpp Messages from JSON | Import a bounded, portable text history. |
+| llama.cpp Request Budget | Count the complete request without generating; report or enforce context room. |
+| llama.cpp Caption Batch | One independent caption per image, with aligned IDs and one cleanup. |
+| llama.cpp Transcribe (Experimental) | Transcribe one short English audio clip with the supported Qwen3-ASR pair. |
+| llama.cpp Basic Prompt | Text generation with common sampling controls. |
+| llama.cpp ADV Prompt | Text plus 0 to 10 image inputs and optional full image batches. |
+| llama.cpp ADV++ Prompt | ADV plus prompt templates, token bans and structured output. |
 
-```bash
-# Linux or macOS
-export LLAMACPP_API_KEY='your-local-key'
+Basic, ADV and ADV++ remain fully supported for existing workflows; Generate is
+the better starting point for new ones.
 
-# Windows PowerShell, set before launching ComfyUI
-$env:LLAMACPP_API_KEY = 'your-local-key'
-```
+**Utilities**
 
-Canonical Generate accepts only `LLAMACPP_API_KEY` or a namespaced
-`LLAMACPP_API_KEY_<UPPERCASE_SUFFIX>` variable name from a workflow. If that
-variable resolves to a key, plain HTTP is accepted only for loopback hosts;
-authenticated non-loopback endpoints require HTTPS, certificate verification,
-and an exact local origin-to-key allowlist:
+| Node | Purpose |
+| --- | --- |
+| llama.cpp Prompt Output | Preview and pass through text, optionally stripping common markup. |
+| llama.cpp Result JSON | Serialize Generate's full typed result, including errors and release evidence. |
+| llama.cpp Structured Output | Build JSON object, JSON Schema or GBNF constraints. |
+| llama.cpp Token Ban | Build text-form logit-bias entries. |
+| llama.cpp Token Count | Tokenize text through `/tokenize` with model-aware routing. |
+| llama.cpp Model Info | Read `/props`: model name, context length and raw properties. |
 
-```bash
-# Linux or macOS
-export LLAMACPP_API_KEY_LAN='your-remote-key'
-export LLAMACPP_REMOTE_AUTH_BINDINGS='{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+## Generation behavior
 
-# Windows PowerShell, set before launching ComfyUI
-$env:LLAMACPP_API_KEY_LAN = 'your-remote-key'
-$env:LLAMACPP_REMOTE_AUTH_BINDINGS = '{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
-```
+- **Completion is explicit.** A generation succeeds only after a valid stream
+  terminal marker. Partial text from a timeout, cancellation or broken stream is
+  kept and labelled. Generate raises on total failure and, by default, on
+  partial output; only `return_marked_partial` passes partial text through, and
+  the result still marks it incomplete.
+- **Defaults stay the model's.** Generate's `default` sampling sends no sampler
+  settings at all, so the model and server keep their own defaults; `custom`
+  sends every displayed sampler together. Thinking `auto` likewise sends no
+  override.
+- **Budgets never rewrite input.** [Budget Policy](docs/request-budget.md) is off
+  by default. `report` records the count; `enforce` requires known input and
+  context sizes plus room for the requested output. Nothing is truncated or
+  summarized.
+- **`keep_context` is a cache, not memory.** It maps to llama.cpp
+  `cache_prompt` and reuses a matching prompt prefix. Use the
+  [message nodes](docs/messages.md) for real conversation history.
+- **Images.** `image_amount` accepts 0 to 10, and all ten sockets always exist so
+  saved workflows survive a reload. `include_image_batch` sends every image in a
+  connected batch in one request; off keeps the first-image behavior.
+  [Caption Batch](docs/captions.md) sends one request per image instead.
+- **Lists.** Stop sequences and token bans accept one entry per line, a JSON
+  string array, or comma-separated values. Use JSON when commas or surrounding
+  spaces matter.
+- **Ordering.** A connected `trigger` socket sequences nodes; `enable_chaining`
+  remains only for saved-workflow compatibility.
 
-The JSON key is the exact `scheme://host:port` origin. The value is the one
-allowed API-key environment name for that origin. A workflow cannot provide or
-change this binding. This prevents an imported canonical workflow from selecting
-an unrelated environment secret, sending a key over cleartext LAN transport, or
-redirecting it to another HTTPS host. Loopback credentials do not need a binding.
-Legacy node contracts remain unchanged.
+### ADV++ prompt templates
 
-For an owned server, point `api_key_file` at the llama.cpp key file and set
-`api_key_env` to the environment variable containing the matching client key.
-Connection and prompt nodes also expose `verify_tls` and an overall request
-deadline. Commands, status payloads, and bounded server logs redact configured
-secret values and common credential-shaped fields.
-
-The namespaced runtime status and release routes use the same network trust
-boundary as the rest of ComfyUI. They do not add separate authentication.
-Status can include local executable, model, and working-directory paths plus a
-redacted log tail, and release can stop this pack's owned runtime. Keep ComfyUI
-on loopback or behind authentication that you control when the host is not a
-trusted network.
-
-Canonical profile, passive discovery, live restoration, and exact cancellation
-routes use the same boundary. Live events target the initiating Comfy client.
-Cancellation also checks the live websocket client ID, execution UUID, prompt,
-and node identity. This prevents ordinary cross-tab mistakes, but the client ID
-is not a separate authentication mechanism. Keep the normal ComfyUI boundary
-private or authenticated.
-
-## Templates
-
-Built-in ADV++ templates live in [`web/templates.json`](web/templates.json).
-Each entry contains `system_prompt` and `prompt` fields:
+ADV++ templates such as `Image2Prompt` and `Prompt Enhancer` live in
+[`web/templates.json`](web/templates.json):
 
 ```json
 {
@@ -489,52 +412,96 @@ Each entry contains `system_prompt` and `prompt` fields:
 }
 ```
 
-Restart ComfyUI after changing the file. Existing templates include
-`Image2Prompt` and `Prompt Enhancer`. Selecting a template is a fallback for
-blank fields. Selecting `Empty` is a no-op; it clears fields only through the
-explicit replace/reset action.
+Templates are applied in Python as well as in the UI, so API and headless runs
+behave the same. Choosing a template only fills fields that are exactly empty;
+it never overwrites a draft. Use the explicit replace/reset action to overwrite
+both fields (it supports undo). Restart ComfyUI after editing the file. For
+Generate, use [task profiles](docs/task-profile-authoring.md) instead.
 
-## Examples and validation
+## Authentication, TLS and network exposure
 
-ComfyUI discovers the curated workflows in
-[`example_workflows/`](example_workflows/). **Setup Check** and **Quick Text** are
-the first-run paths; the direct, router, vision, structured-output, and VRAM
-handoff workflows originate from the five released 0.3 examples, with router
-widget values adapted for 0.4. Setup Check, Quick Text, and the four
-canonical examples were added after 0.3. Version 0.4 also adds native
-text composition, a separate frozen-prompt render, explicit few-shot refinement,
-and aligned per-image caption examples. See the
-[workflow guide](example_workflows/README.md) for each recipe and its limits.
-The five legacy JSON workflows remain available in the installed `examples/`
-directory.
-Earlier frontend validation found that terminal text remains in native jobs and
-history output even when App Mode does not render it in the central result pane.
-The canonical workflow exposes transient read-only Generation Status and Live
-Response fields that reset on reload and are not serialized. See the
-[current runtime review](docs/validation-2026-10-21.md) for ComfyUI 0.41.0 and
-frontend 1.55.17 evidence, including Stop and dynamic socket compatibility fixes.
+Secrets are read from environment variables and never saved in workflows. The
+default variable is `LLAMACPP_API_KEY`:
 
-The [0.4 user acceptance checklist](docs/user-acceptance-0.4.md) covers canonical
-workflow compatibility, direct and scoped router release, live Stop, profiles,
-App Mode, VLMs, structured output, and the final
-terminal LLM-to-diffusion GPU handoff. Historical 0.3 acceptance evidence remains
-in the [0.3 validation report](docs/validation-0.3.md). Post-0.3 validation is
-recorded separately in the
-[canonical Generate validation report](docs/validation-0.4.md). Earlier candidate
-hardening and Comfy 0.37/frontend 1.53.6 evidence are recorded in the
-[October validation report](docs/validation-2026-10.md).
-The [backlog validation report](docs/validation-2026-10-backlog.md) records the
-subsequent profile evaluations and bounded audio compatibility trial. These
-reports describe their named revisions. Native Windows and browser acceptance
-for graph composition, router presets, messages, budgeting, captions, the profile
-editor and public transcription node is recorded in the
-[feature validation report](docs/validation-2026-10-features.md), with tested
-revisions and explicit capability limits.
+```bash
+# Linux or macOS
+export LLAMACPP_API_KEY='your-local-key'
 
-For failures, start with **llama.cpp Server Status** and
-[Troubleshooting](docs/troubleshooting.md). The status node exposes the exact
-binary identity, process ownership mode, lifecycle state, pending releases,
-and a bounded redacted server-log tail.
+# Windows PowerShell, before launching ComfyUI
+$env:LLAMACPP_API_KEY = 'your-local-key'
+```
+
+Generate accepts only `LLAMACPP_API_KEY` or a namespaced
+`LLAMACPP_API_KEY_<UPPERCASE_SUFFIX>` name from a workflow. When that variable
+holds a key, plain HTTP is allowed only for loopback hosts. A non-loopback server
+requires HTTPS, certificate verification and an exact origin-to-key allowlist
+that a workflow cannot change:
+
+```bash
+# Linux or macOS
+export LLAMACPP_API_KEY_LAN='your-remote-key'
+export LLAMACPP_REMOTE_AUTH_BINDINGS='{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+
+# Windows PowerShell, before launching ComfyUI
+$env:LLAMACPP_API_KEY_LAN = 'your-remote-key'
+$env:LLAMACPP_REMOTE_AUTH_BINDINGS = '{"https://llm.example.test:443":"LLAMACPP_API_KEY_LAN"}'
+```
+
+Each key is an exact `scheme://host:port` origin and each value the one variable
+allowed for it. This stops an imported workflow from picking an unrelated secret,
+sending a key over cleartext LAN traffic, or redirecting it to another host.
+Earlier prompt nodes keep their original authentication behavior.
+
+For an owned server, point `api_key_file` at the llama.cpp key file and set
+`api_key_env` to the variable holding the matching client key. Connection and
+prompt nodes also expose `verify_tls` and an overall request deadline. Commands,
+status output and server logs redact configured secrets and common
+credential-shaped fields.
+
+The pack's status, release, profile, discovery, live-update and cancellation
+routes share ComfyUI's own network trust boundary and add no authentication of
+their own. Status can reveal local paths and a redacted log tail, and release can
+stop the owned runtime. Keep ComfyUI on loopback, or behind authentication you
+control, unless the network is trusted.
+
+## Troubleshooting
+
+Start with **llama.cpp Server Status**: it shows the resolved binary identity,
+ownership mode, lifecycle state, pending releases and a redacted log tail. Then
+see [Troubleshooting](docs/troubleshooting.md).
+
+## Documentation
+
+**Guides**
+
+- [Start Here](docs/start-here.md)
+- [Canonical Generate](docs/canonical-generate.md)
+- [Compose generation with native ComfyUI nodes](docs/graph-composition.md)
+- [Local router presets](docs/router-presets.md)
+- [Explicit text messages](docs/messages.md)
+- [Complete-request budgeting](docs/request-budget.md)
+- [Independent image captions](docs/captions.md)
+- [Task profile authoring](docs/task-profile-authoring.md)
+- [Experimental audio transcription](docs/audio-transcription.md)
+- [Lifecycle and VRAM ownership](docs/lifecycle.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Example workflows](example_workflows/README.md)
+
+### Upgrading and release history
+
+- [CHANGELOG](CHANGELOG.md) and
+  [GitHub releases](https://github.com/Setmaster/comfyui-llamacpp/releases)
+- Migration guides: [0.2.1 to 0.3](docs/migration-0.3.md),
+  [after 0.3](docs/migration-0.4.md)
+- User acceptance checklists: [0.3](docs/user-acceptance.md),
+  [canonical Generate](docs/user-acceptance-0.4.md)
+- Validation reports: [0.3](docs/validation-0.3.md),
+  [canonical Generate](docs/validation-0.4.md),
+  [October candidate](docs/validation-2026-10.md),
+  [October backlog](docs/validation-2026-10-backlog.md),
+  [October features](docs/validation-2026-10-features.md),
+  [current Windows runtime](docs/validation-2026-10-21.md)
+- [Research and ecosystem analysis](docs/research/)
 
 ## Development
 
@@ -551,38 +518,15 @@ uv run --locked python tests/smoke_distribution.py dist --prove-rejection
 git diff --check
 ```
 
-The test suite contains immutable v0.2.1 and complete 0.3 node/widget contracts,
-historical workflow fixtures, current router/client contracts, lifecycle race
-tests, canonical request/result/profile round trips, scoped release races,
-stream cleanup, live-event bounds, process-tree tests, frontend helper tests,
-and package-build checks. CI covers Python 3.10 through 3.14 on Linux plus
-Python 3.13 on Windows. Real ComfyUI, current
-llama.cpp, Windows Job Object, VLM, and GPU handoff evidence is recorded during
-release validation.
+The suite pins every released node and widget contract, replays historical
+workflow fixtures, and covers router and client contracts, lifecycle races,
+Generate request/result/profile round trips, release coordination, stream
+cleanup, process trees, frontend helpers and package builds. CI runs Python 3.10
+to 3.14 on Linux and Python 3.13 on Windows. Real ComfyUI, llama.cpp, Windows
+Job Object, vision and GPU handoff evidence is recorded in the validation
+reports.
 
-## Project documentation
-
-- [Start Here](docs/start-here.md)
-- [0.3 migration guide](docs/migration-0.3.md)
-- [Post-0.3 migration guide](docs/migration-0.4.md)
-- [Canonical Generate](docs/canonical-generate.md)
-- [Native graph composition and frozen prompts](docs/graph-composition.md)
-- [Local router presets](docs/router-presets.md)
-- [Explicit text messages](docs/messages.md)
-- [Complete-request budgeting](docs/request-budget.md)
-- [Independent image captions](docs/captions.md)
-- [Task profile authoring](docs/task-profile-authoring.md)
-- [Bounded audio transcription](docs/audio-transcription.md)
-- [Lifecycle and VRAM ownership](docs/lifecycle.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [0.3 validation report](docs/validation-0.3.md)
-- [October candidate validation](docs/validation-2026-10.md)
-- [Current Windows runtime review](docs/validation-2026-10-21.md)
-- [Canonical Generate validation report](docs/validation-0.4.md)
-- [User acceptance checklist](docs/user-acceptance.md)
-- [0.4 canonical user acceptance](docs/user-acceptance-0.4.md)
-- [Changelog](CHANGELOG.md)
-- [Research and ecosystem analysis](docs/research/)
+[CODEBASE_MAP.md](CODEBASE_MAP.md) explains the module layout.
 
 ## License
 
